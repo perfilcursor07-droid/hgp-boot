@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Usuários - WhatsApp HGP</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1><span>WhatsApp HGP</span></h1>
+            </div>
+            
+            <nav class="sidebar-menu">
+                <a href="/dashboard" class="menu-item">
+                    <span class="menu-item-icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="/chamados" class="menu-item">
+                    <span class="menu-item-icon">🧾</span>
+                    <span>Chamados</span>
+                </a>
+                <a href="/messages" class="menu-item">
+                    <span class="menu-item-icon">💬</span>
+                    <span>Mensagens</span>
+                </a>
+                <a href="/contacts" class="menu-item">
+                    <span class="menu-item-icon">👥</span>
+                    <span>Contatos</span>
+                </a>
+                <a href="/usuarios" class="menu-item active">
+                    <span class="menu-item-icon">👤</span>
+                    <span>Usuários</span>
+                </a>
+                <a href="/settings" class="menu-item">
+                    <span class="menu-item-icon">⚙️</span>
+                    <span>Configurações</span>
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="user-avatar"><%= username.charAt(0).toUpperCase() %></div>
+                    <div class="user-details">
+                        <div class="user-name"><%= username %></div>
+                        <div class="user-role">Administrador</div>
+                    </div>
+                </div>
+                <a href="/logout" class="btn-logout">🚪 Sair</a>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="topbar">
+                <div class="topbar-title-group">
+                    <button class="menu-toggle" onclick="document.body.classList.toggle('sidebar-open')">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                    <h2>👤 Gerenciamento de Usuários</h2>
+                </div>
+                <div class="topbar-actions">
+                    <button onclick="abrirModalNovo()" class="btn btn-primary">➕ Novo Usuário</button>
+                </div>
+            </div>
+
+            <div class="content">
+                <!-- Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">👥</div>
+                        <div class="stat-info">
+                            <h3><%= stats.total %></h3>
+                            <p>Total de Usuários</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon purple">🔑</div>
+                        <div class="stat-info">
+                            <h3><%= stats.administradores %></h3>
+                            <p>Administradores</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange">📊</div>
+                        <div class="stat-info">
+                            <h3><%= stats.gestores %></h3>
+                            <p>Gestores</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green">✓</div>
+                        <div class="stat-info">
+                            <h3><%= stats.ativos %></h3>
+                            <p>Usuários Ativos</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabela de Usuários -->
+                <div class="card">
+                    <h2>Lista de Usuários</h2>
+                    <div style="margin: 16px 0;">
+                        <input type="text" id="searchInput" placeholder="🔍 Buscar por nome, CPF ou usuário..." class="search-input">
+                    </div>
+                    <div class="messages-container">
+                        <table class="messages-table">
+                            <thead>
+                                <tr>
+                                    <th>Nome Completo</th>
+                                    <th>Usuário</th>
+                                    <th>CPF</th>
+                                    <th>Telefone</th>
+                                    <th>Nível de Acesso</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usuariosTable">
+                                <% if (usuarios.length === 0) { %>
+                                    <tr>
+                                        <td colspan="7" class="no-messages">
+                                            Nenhum usuário encontrado.
+                                        </td>
+                                    </tr>
+                                <% } else { %>
+                                    <% usuarios.forEach(usuario => { %>
+                                        <tr>
+                                            <td><strong><%= usuario.nome_completo || 'Não informado' %></strong></td>
+                                            <td><%= usuario.username %></td>
+                                            <td><%= usuario.cpf || '-' %></td>
+                                            <td><%= usuario.telefone || '-' %></td>
+                                            <td>
+                                                <span class="badge <%= usuario.nivel_acesso === 'administrador' ? 'badge-admin' : 'badge-gestor' %>">
+                                                    <%= usuario.nivel_acesso === 'administrador' ? '🔑 Administrador' : '📊 Gestor' %>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="badge <%= usuario.ativo ? 'success' : 'badge-inactive' %>">
+                                                    <%= usuario.ativo ? '✓ Ativo' : '✗ Inativo' %>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <button onclick="editarUsuario(<%= usuario.id %>)" class="btn-icon" title="Editar">✏️</button>
+                                                <% if (usuario.username !== 'admin') { %>
+                                                    <button onclick="toggleStatus(<%= usuario.id %>, <%= usuario.ativo %>)" class="btn-icon" title="<%= usuario.ativo ? 'Desativar' : 'Ativar' %>">
+                                                        <%= usuario.ativo ? '🔒' : '🔓' %>
+                                                    </button>
+                                                    <button onclick="excluirUsuario(<%= usuario.id %>)" class="btn-icon btn-danger" title="Excluir">🗑️</button>
+                                                <% } %>
+                                            </td>
+                                        </tr>
+                                    <% }) %>
+                                <% } %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="sidebar-overlay" onclick="document.body.classList.remove('sidebar-open')"></div>
+
+    <!-- Modal Novo/Editar Usuário -->
+    <div id="modalUsuario" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Novo Usuário</h2>
+                <span class="modal-close" onclick="fecharModal()">&times;</span>
+            </div>
+            <form id="formUsuario" onsubmit="salvarUsuario(event)">
+                <input type="hidden" id="usuarioId" name="id">
+                
+                <div class="form-group">
+                    <label for="nome_completo">Nome Completo *</label>
+                    <input type="text" id="nome_completo" name="nome_completo" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="username">Usuário *</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="cpf">CPF *</label>
+                        <input type="text" id="cpf" name="cpf" required maxlength="14" placeholder="000.000.000-00">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="telefone">Telefone *</label>
+                        <input type="text" id="telefone" name="telefone" required maxlength="15" placeholder="(00) 00000-0000">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="nivel_acesso">Nível de Acesso *</label>
+                    <select id="nivel_acesso" name="nivel_acesso" required>
+                        <option value="gestor">📊 Gestor (Acesso apenas a Chamados)</option>
+                        <option value="administrador">🔑 Administrador (Acesso Total)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Senha <span id="senhaOpcional" style="color: #64748b;">(deixe em branco para manter a atual)</span></label>
+                    <input type="password" id="password" name="password" minlength="6">
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="ativo" name="ativo" checked>
+                        Usuário Ativo
+                    </label>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" onclick="fecharModal()" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Busca em tempo real
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#usuariosTable tr');
+            
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(searchTerm) ? '' : 'none';
+            });
+        });
+
+        // Máscaras
+        document.getElementById('cpf').addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length <= 11) {
+                value = value.replace(/(\d{3})(\d)/, '$1.$2');
+                value = value.replace(/(\d{3})(\d)/, '$1.$2');
+                value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+                e.target.value = value;
+            }
+        });
+
+        document.getElementById('telefone').addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length <= 11) {
+                value = value.replace(/^(\d{2})(\d)/g, '($1) $2');
+                value = value.replace(/(\d)(\d{4})$/, '$1-$2');
+                e.target.value = value;
+            }
+        });
+
+        function abrirModalNovo() {
+            document.getElementById('modalTitle').textContent = 'Novo Usuário';
+            document.getElementById('formUsuario').reset();
+            document.getElementById('usuarioId').value = '';
+            document.getElementById('password').required = true;
+            document.getElementById('senhaOpcional').style.display = 'none';
+            document.getElementById('modalUsuario').style.display = 'flex';
+        }
+
+        function fecharModal() {
+            document.getElementById('modalUsuario').style.display = 'none';
+        }
+
+        async function editarUsuario(id) {
+            try {
+                const response = await fetch(`/api/usuarios/${id}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('modalTitle').textContent = 'Editar Usuário';
+                    document.getElementById('usuarioId').value = data.usuario.id;
+                    document.getElementById('nome_completo').value = data.usuario.nome_completo || '';
+                    document.getElementById('username').value = data.usuario.username;
+                    document.getElementById('cpf').value = data.usuario.cpf || '';
+                    document.getElementById('telefone').value = data.usuario.telefone || '';
+                    document.getElementById('nivel_acesso').value = data.usuario.nivel_acesso;
+                    document.getElementById('ativo').checked = data.usuario.ativo;
+                    document.getElementById('password').required = false;
+                    document.getElementById('password').value = '';
+                    document.getElementById('senhaOpcional').style.display = 'inline';
+                    document.getElementById('modalUsuario').style.display = 'flex';
+                } else {
+                    alert('Erro ao carregar usuário');
+                }
+            } catch (error) {
+                alert('Erro ao carregar usuário');
+                console.error(error);
+            }
+        }
+
+        async function salvarUsuario(event) {
+            event.preventDefault();
+            
+            const formData = new FormData(event.target);
+            const data = {
+                id: formData.get('id'),
+                nome_completo: formData.get('nome_completo'),
+                username: formData.get('username'),
+                cpf: formData.get('cpf'),
+                telefone: formData.get('telefone'),
+                nivel_acesso: formData.get('nivel_acesso'),
+                ativo: formData.get('ativo') === 'on',
+                password: formData.get('password')
+            };
+
+            console.log('Dados do formulário:', data);
+
+            // Validar campos obrigatórios
+            if (!data.nome_completo || !data.username || !data.cpf || !data.telefone || !data.nivel_acesso) {
+                alert('Por favor, preencha todos os campos obrigatórios');
+                return;
+            }
+
+            // Validar senha para novo usuário
+            if (!data.id && (!data.password || data.password.length < 6)) {
+                alert('A senha deve ter no mínimo 6 caracteres');
+                return;
+            }
+
+            try {
+                const url = data.id ? `/api/usuarios/${data.id}` : '/api/usuarios';
+                const method = data.id ? 'PUT' : 'POST';
+                
+                console.log('Enviando para:', url, 'Método:', method);
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                console.log('Status da resposta:', response.status);
+                
+                const result = await response.json();
+                console.log('Resultado:', result);
+                
+                if (result.success) {
+                    alert(result.message);
+                    location.reload();
+                } else {
+                    alert(result.message);
+                }
+            } catch (error) {
+                console.error('Erro completo:', error);
+                alert('Erro ao salvar usuário: ' + error.message);
+            }
+        }
+
+        async function toggleStatus(id, ativoAtual) {
+            const acao = ativoAtual ? 'desativar' : 'ativar';
+            if (!confirm(`Deseja realmente ${acao} este usuário?`)) return;
+
+            try {
+                const response = await fetch(`/api/usuarios/${id}/toggle`, {
+                    method: 'PATCH'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(result.message);
+                    location.reload();
+                } else {
+                    alert(result.message);
+                }
+            } catch (error) {
+                alert('Erro ao alterar status do usuário');
+                console.error(error);
+            }
+        }
+
+        async function excluirUsuario(id) {
+            if (!confirm('Deseja realmente excluir este usuário? Esta ação não pode ser desfeita.')) return;
+
+            try {
+                const response = await fetch(`/api/usuarios/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(result.message);
+                    location.reload();
+                } else {
+                    alert(result.message);
+                }
+            } catch (error) {
+                alert('Erro ao excluir usuário');
+                console.error(error);
+            }
+        }
+
+        // Fechar modal ao clicar fora
+        window.onclick = function(event) {
+            const modal = document.getElementById('modalUsuario');
+            if (event.target === modal) {
+                fecharModal();
+            }
+        }
+    </script>
+</body>
+</html>

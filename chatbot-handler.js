@@ -154,6 +154,7 @@ function attachChatbot(client, options = {}) {
                     categoria,
                     solicitante_nome,
                     nome_whatsapp,
+                    telefone_whatsapp,
                     setor,
                     ip_maquina,
                     telefone_contato,
@@ -163,12 +164,13 @@ function attachChatbot(client, options = {}) {
                     tecnico_telefone,
                     chat_origem,
                     atribuido_em
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     dadosChamado.protocolo,
                     dadosChamado.categoria,
                     dadosChamado.solicitanteNome,
                     dadosChamado.nomeWhats,
+                    dadosChamado.telefoneWhats,
                     dadosChamado.setor,
                     dadosChamado.ipMaquina,
                     dadosChamado.telefoneContato,
@@ -248,13 +250,77 @@ function attachChatbot(client, options = {}) {
                 registrarErro(erro, 'Erro ao registrar contato automaticamente');
             }
 
+            // Verificar se existe chamado em atendimento para este chat e salvar mensagem
+            // Não salvar se o usuário está no meio do fluxo de criação de chamado
+            try {
+                if (!est || est.step === undefined) {
+                    const [chamadosAbertos] = await db.query(
+                        `SELECT id, protocolo, atendente_nome, status FROM chamados 
+                         WHERE chat_origem = ? AND status IN ('pendente', 'aberto', 'em_atendimento') 
+                         ORDER BY criado_em DESC LIMIT 1`,
+                        [sessionId]
+                    );
+
+                    if (chamadosAbertos.length > 0 && msg.body && !texto.startsWith(GATILHO_TESTE) && texto !== 'CANCELAR') {
+                        const chamado = chamadosAbertos[0];
+                        const contactName = contato.pushname || contato.name || 'Solicitante';
+                        
+                        // Salvar mensagem do solicitante no chat
+                        await db.query(
+                            `INSERT INTO chat_messages (chamado_id, remetente_tipo, remetente_nome, mensagem) 
+                             VALUES (?, 'solicitante', ?, ?)`,
+                            [chamado.id, contactName, msg.body]
+                        );
+
+                        console.log(`💬 Mensagem do solicitante salva no chamado ${chamado.protocolo}`);
+                    }
+                }
+            } catch (erro) {
+                registrarErro(erro, 'Erro ao salvar mensagem do solicitante no chat');
+            }
+
             if (texto === 'CANCELAR') {
                 estados.delete(sessionId);
                 await client.sendMessage(chatId, '❌ Atendimento encerrado.');
                 return;
             }
 
+            // Verificar se existe chamado não finalizado - bloquear novo chamado
             if (texto === GATILHO_TESTE || !est) {
+                // Verificar se já existe chamado não finalizado
+                try {
+                    const [chamadosAtivos] = await db.query(
+                        `SELECT id, protocolo, atendente_nome, status FROM chamados 
+                         WHERE chat_origem = ? AND status IN ('pendente', 'aberto', 'em_atendimento') 
+                         ORDER BY criado_em DESC LIMIT 1`,
+                        [sessionId]
+                    );
+
+                    if (chamadosAtivos.length > 0 && texto !== GATILHO_TESTE) {
+                        const chamado = chamadosAtivos[0];
+                        let statusTexto = '';
+                        
+                        if (chamado.status === 'em_atendimento') {
+                            statusTexto = `em atendimento por *${chamado.atendente_nome}*`;
+                        } else if (chamado.status === 'aberto') {
+                            statusTexto = 'aguardando atendimento';
+                        } else if (chamado.status === 'pendente') {
+                            statusTexto = 'aguardando distribuição para um técnico';
+                        }
+                        
+                        await client.sendMessage(chatId, 
+                            `⚠️ *ATENÇÃO*\n\n` +
+                            `Você já possui um chamado ${statusTexto}.\n\n` +
+                            `📌 *Protocolo:* ${chamado.protocolo}\n\n` +
+                            `Aguarde o retorno ou envie mensagens que serão encaminhadas ao atendente.\n\n` +
+                            `_Seu chamado será encerrado quando o atendimento for finalizado._`
+                        );
+                        return;
+                    }
+                } catch (erro) {
+                    registrarErro(erro, 'Erro ao verificar chamados ativos');
+                }
+
                 if (texto !== GATILHO_TESTE && bloqueados.has(sessionId) && Date.now() < bloqueados.get(sessionId)) return;
 
                 if (mensagemAviso && texto !== GATILHO_TESTE) {
@@ -321,7 +387,21 @@ function attachChatbot(client, options = {}) {
             if (est.step === 5) {
                 est.desc = msg.body;
                 const protocolo = `HGP-${dayjs().format('DDMM')}-${Math.random().toString(36).substring(2, 5).toUpperCase()}`;
-                const relatorio = `🛠️ *CHAMADO TI HGP*\n📌 *Protocolo:* ${protocolo}\n📂 *Categoria:* ${categoriasMap[est.opcao]}\n👤 *Solicitante:* ${est.nome}\n🏢 *Setor:* ${est.setor}\n💻 *IP:* ${est.ip}\n📱 *Contato:* ${est.tel}\n📝 *Problema:* ${est.desc}`;
+                
+                // Obter dados do WhatsApp
+                const nomeWhatsApp = contato.pushname || contato.name || 'Não informado';
+                const telefoneWhatsApp = contato.number || msg.from.split('@')[0] || 'Não informado';
+                
+                const relatorio = `🛠️ *CHAMADO TI HGP*\n` +
+                    `📌 *Protocolo:* ${protocolo}\n` +
+                    `📂 *Categoria:* ${categoriasMap[est.opcao]}\n\n` +
+                    `👤 *Solicitante Informado:* ${est.nome}\n` +
+                    `📱 *Telefone Informado:* ${est.tel}\n\n` +
+                    `📲 *Nome no WhatsApp:* ${nomeWhatsApp}\n` +
+                    `📞 *Telefone WhatsApp:* ${telefoneWhatsApp}\n\n` +
+                    `🏢 *Setor:* ${est.setor}\n` +
+                    `💻 *IP:* ${est.ip}\n` +
+                    `📝 *Problema:* ${est.desc}`;
 
                 let tecnicoResponsavel = null;
                 let statusChamado = 'pendente';
@@ -336,13 +416,33 @@ function attachChatbot(client, options = {}) {
                     statusChamado = 'aberto';
                     atribuidoEm = dayjs().format('YYYY-MM-DD HH:mm:ss');
                 } else {
-                    tecnicoResponsavel = await buscarTecnicoEscala();
-                    if (tecnicoResponsavel && tecnicoResponsavel.telefone) {
-                        const enviadoAoTecnico = await enviarMensagemDireta(tecnicoResponsavel.telefone, `🚨 *NOVO CHAMADO REAL*\n\n${relatorio}`);
-                        if (enviadoAoTecnico) {
-                            statusChamado = 'aberto';
-                            atribuidoEm = dayjs().format('YYYY-MM-DD HH:mm:ss');
+                    // Verificar horário de atendimento antes de enviar
+                    const agoraHorario = dayjs();
+                    const diaSemana = agoraHorario.day();
+                    const hora = agoraHorario.hour();
+                    let dentroDoHorario = true;
+
+                    // Verificar se está fora do horário de sobreaviso
+                    if (diaSemana === 0 || diaSemana === 6) {
+                        // Final de semana: sobreaviso até 18:00
+                        if (hora >= 18) {
+                            dentroDoHorario = false;
                         }
+                    }
+                    // Dias úteis: horário normal (não precisa verificar, sempre envia)
+
+                    if (dentroDoHorario) {
+                        tecnicoResponsavel = await buscarTecnicoEscala();
+                        if (tecnicoResponsavel && tecnicoResponsavel.telefone) {
+                            const enviadoAoTecnico = await enviarMensagemDireta(tecnicoResponsavel.telefone, `🚨 *NOVO CHAMADO REAL*\n\n${relatorio}`);
+                            if (enviadoAoTecnico) {
+                                statusChamado = 'aberto';
+                                atribuidoEm = dayjs().format('YYYY-MM-DD HH:mm:ss');
+                            }
+                        }
+                    } else {
+                        // Fora do horário de sobreaviso - não envia para técnico
+                        console.log(`⏰ Chamado ${protocolo} criado fora do horário de sobreaviso - status: pendente`);
                     }
                 }
 
@@ -350,7 +450,8 @@ function attachChatbot(client, options = {}) {
                     protocolo,
                     categoria: categoriasMap[est.opcao],
                     solicitanteNome: est.nome,
-                    nomeWhats: est.nomeWhats || contato.pushname || 'Prezado',
+                    nomeWhats: nomeWhatsApp,
+                    telefoneWhats: telefoneWhatsApp,
                     setor: est.setor,
                     ipMaquina: est.ip,
                     telefoneContato: est.tel,

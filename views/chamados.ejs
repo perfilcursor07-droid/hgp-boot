@@ -5,6 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chamados - WhatsApp HGP</title>
     <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .chat-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #ef4444;
+            color: white;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 11px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid white;
+        }
+    </style>
 </head>
 <body>
     <div class="dashboard">
@@ -14,26 +32,35 @@
             </div>
 
             <nav class="sidebar-menu">
-                <a href="/dashboard" class="menu-item">
-                    <span class="menu-item-icon">📊</span>
-                    <span>Dashboard</span>
-                </a>
+                <% const isAdmin = typeof nivelAcesso !== 'undefined' && nivelAcesso === 'administrador'; %>
+                <% if (isAdmin) { %>
+                    <a href="/dashboard" class="menu-item">
+                        <span class="menu-item-icon">📊</span>
+                        <span>Dashboard</span>
+                    </a>
+                <% } %>
                 <a href="/chamados" class="menu-item active">
                     <span class="menu-item-icon">🧾</span>
                     <span>Chamados</span>
                 </a>
-                <a href="/messages" class="menu-item">
-                    <span class="menu-item-icon">💬</span>
-                    <span>Mensagens</span>
-                </a>
-                <a href="/contacts" class="menu-item">
-                    <span class="menu-item-icon">👥</span>
-                    <span>Contatos</span>
-                </a>
-                <a href="/settings" class="menu-item">
-                    <span class="menu-item-icon">⚙️</span>
-                    <span>Configurações</span>
-                </a>
+                <% if (isAdmin) { %>
+                    <a href="/messages" class="menu-item">
+                        <span class="menu-item-icon">💬</span>
+                        <span>Mensagens</span>
+                    </a>
+                    <a href="/contacts" class="menu-item">
+                        <span class="menu-item-icon">👥</span>
+                        <span>Contatos</span>
+                    </a>
+                    <a href="/usuarios" class="menu-item">
+                        <span class="menu-item-icon">👤</span>
+                        <span>Usuários</span>
+                    </a>
+                    <a href="/settings" class="menu-item">
+                        <span class="menu-item-icon">⚙️</span>
+                        <span>Configurações</span>
+                    </a>
+                <% } %>
             </nav>
 
             <div class="sidebar-footer">
@@ -41,122 +68,146 @@
                     <div class="user-avatar"><%= username.charAt(0).toUpperCase() %></div>
                     <div class="user-details">
                         <div class="user-name"><%= username %></div>
-                        <div class="user-role">Administrador</div>
+                        <div class="user-role"><%= isAdmin ? 'Administrador' : 'Gestor' %></div>
                     </div>
                 </div>
-                <a href="/logout" class="btn-logout">
-                    <span>🚪 Sair</span>
-                </a>
+                <a href="/logout" class="btn-logout">🚪 Sair</a>
             </div>
         </aside>
 
-        <div class="sidebar-overlay"></div>
+        <div class="sidebar-overlay" onclick="document.body.classList.remove('sidebar-open')"></div>
 
         <main class="main-content">
             <div class="topbar">
                 <div class="topbar-title-group">
-                    <button type="button" class="menu-toggle" aria-label="Abrir menu">
+                    <button class="menu-toggle" onclick="document.body.classList.toggle('sidebar-open')">
                         <span></span>
                         <span></span>
                         <span></span>
                     </button>
-                    <h2>Chamados</h2>
+                    <h2>🧾 Chamados</h2>
                 </div>
                 <div class="topbar-actions">
-                    <span class="badge info"><%= contagem.total %> chamados</span>
+                    <button onclick="carregarMeusAtendimentos()" class="btn btn-secondary">📋 Meus Atendimentos</button>
                 </div>
             </div>
 
             <div class="content">
-                <section class="dashboard-hero">
-                    <div>
-                        <p class="eyebrow">Fila de atendimento</p>
-                        <h1>Gestão de chamados</h1>
-                        <p class="hero-text">Cada chamado registrado pelo chatbot aparece aqui com o técnico da escala e o status inicial do atendimento.</p>
-                    </div>
-                    <div class="hero-highlight">
-                        <span class="hero-highlight-label">Abertos</span>
-                        <strong><%= contagem.aberto %></strong>
-                        <small><%= contagem.pendente %> pendentes e <%= contagem.finalizado %> finalizados</small>
-                    </div>
-                </section>
-
                 <div class="stats-grid">
                     <div class="stat-card">
                         <div class="stat-icon green">🟢</div>
                         <div class="stat-info">
-                            <h3><%= contagem.aberto %></h3>
+                            <h3><%= contagem.aberto || 0 %></h3>
                             <p>Abertos</p>
                         </div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-icon orange">🕗</div>
                         <div class="stat-info">
-                            <h3><%= contagem.pendente %></h3>
+                            <h3><%= contagem.pendente || 0 %></h3>
                             <p>Pendentes</p>
                         </div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-icon blue">✅</div>
+                        <div class="stat-icon blue">⏳</div>
                         <div class="stat-info">
-                            <h3><%= contagem.finalizado %></h3>
-                            <p>Finalizados</p>
+                            <h3><%= contagem.em_atendimento || 0 %></h3>
+                            <p>Em Atendimento</p>
                         </div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-icon purple">📦</div>
+                        <div class="stat-icon purple">✅</div>
                         <div class="stat-info">
-                            <h3><%= contagem.total %></h3>
-                            <p>Total registrados</p>
+                            <h3><%= contagem.finalizado || 0 %></h3>
+                            <p>Finalizados</p>
                         </div>
                     </div>
                 </div>
 
                 <div class="card">
-                    <h2>Lista de chamados</h2>
-
+                    <h2>Todos os Chamados</h2>
                     <div class="messages-container">
                         <% if (chamados.length === 0) { %>
                             <p class="no-messages">📭 Nenhum chamado registrado ainda</p>
                         <% } else { %>
-                            <table class="messages-table chamados-table">
+                            <table class="messages-table">
                                 <thead>
                                     <tr>
                                         <th>Protocolo</th>
                                         <th>Solicitante</th>
+                                        <th>Setor</th>
                                         <th>Categoria</th>
                                         <th>Status</th>
-                                        <th>Técnico</th>
-                                        <th>Contato</th>
+                                        <th>Atendente</th>
                                         <th>Data</th>
+                                        <th>Ações</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <% chamados.forEach((chamado) => { %>
                                         <tr>
+                                            <td><strong><%= chamado.protocolo %></strong></td>
                                             <td>
-                                                <strong><%= chamado.protocolo %></strong>
-                                                <div class="table-subtext"><%= chamado.setor %></div>
+                                                <%= chamado.solicitante_nome %>
+                                                <% if (chamado.nome_whatsapp || chamado.telefone_whatsapp) { %>
+                                                    <button onclick="mostrarDadosWhatsApp('<%= chamado.protocolo %>', '<%= chamado.solicitante_nome %>', '<%= chamado.telefone_contato %>', '<%= chamado.nome_whatsapp || '' %>', '<%= chamado.telefone_whatsapp || '' %>')" 
+                                                            class="btn-icon" 
+                                                            title="Ver dados do WhatsApp" 
+                                                            style="font-size: 14px; margin-left: 5px;">
+                                                        📱
+                                                    </button>
+                                                <% } %>
                                             </td>
+                                            <td><%= chamado.setor %></td>
+                                            <td><%= chamado.categoria %></td>
                                             <td>
-                                                <strong><%= chamado.solicitante_nome %></strong>
-                                                <div class="table-subtext"><%= chamado.nome_whatsapp || '-' %></div>
+                                                <% if (chamado.status === 'pendente') { %>
+                                                    <span class="badge warning">⏳ Pendente</span>
+                                                <% } else if (chamado.status === 'aberto') { %>
+                                                    <span class="badge info">🟢 Aberto</span>
+                                                <% } else if (chamado.status === 'em_atendimento') { %>
+                                                    <span class="badge badge-atendimento">⏳ Em Atendimento</span>
+                                                <% } else if (chamado.status === 'finalizado') { %>
+                                                    <span class="badge success">✅ Finalizado</span>
+                                                <% } %>
                                             </td>
-                                            <td>
-                                                <strong><%= chamado.categoria %></strong>
-                                                <div class="table-subtext"><%= chamado.ip_maquina || '-' %></div>
-                                            </td>
-                                            <td>
-                                                <span class="badge <%= chamado.status === 'aberto' ? 'success' : (chamado.status === 'finalizado' ? 'info' : 'warning') %>">
-                                                    <%= chamado.status %>
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <strong><%= chamado.tecnico_nome || 'Não atribuído' %></strong>
-                                                <div class="table-subtext"><%= chamado.tecnico_nome ? `Enviado para ${chamado.tecnico_nome}` : 'Aguardando escala' %></div>
-                                            </td>
-                                            <td><%= chamado.tecnico_telefone || chamado.telefone_contato || '-' %></td>
+                                            <td><%= chamado.atendente_nome || '-' %></td>
                                             <td><%= new Date(chamado.criado_em).toLocaleString('pt-BR') %></td>
+                                            <td>
+                                                <% if (chamado.status !== 'finalizado') { %>
+                                                    <button onclick="verDetalhes('<%= chamado.protocolo %>', '<%= chamado.categoria %>', '<%= chamado.solicitante_nome %>', '<%= chamado.setor %>', '<%= chamado.ip_maquina || '' %>', '<%= chamado.telefone_contato || '' %>', `<%= (chamado.descricao || '').replace(/`/g, '\\`').replace(/\n/g, '\\n') %>`)" class="btn-icon" title="Ver Detalhes">
+                                                        📋
+                                                    </button>
+                                                    <button onclick="abrirChat(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-icon" title="Chat" style="position: relative;">
+                                                        💬
+                                                        <span id="badge-<%= chamado.id %>" class="chat-badge" style="display: none;"></span>
+                                                    </button>
+                                                    <% if (chamado.status !== 'em_atendimento') { %>
+                                                        <button onclick="atenderChamado(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-icon" title="Atender">
+                                                            ✋
+                                                        </button>
+                                                        <% if (isAdmin) { %>
+                                                            <button onclick="abrirModalEncaminhar(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-icon" title="Encaminhar">
+                                                                📤
+                                                            </button>
+                                                        <% } %>
+                                                    <% } else if (isAdmin) { %>
+                                                        <button onclick="abrirModalEncaminhar(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-icon" title="Reencaminhar">
+                                                            🔄
+                                                        </button>
+                                                    <% } %>
+                                                    <button onclick="abrirModalEncerrar(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-icon" title="Encerrar">
+                                                        ✅
+                                                    </button>
+                                                <% } else { %>
+                                                    <button onclick="verDetalhes('<%= chamado.protocolo %>', '<%= chamado.categoria %>', '<%= chamado.solicitante_nome %>', '<%= chamado.setor %>', '<%= chamado.ip_maquina || '' %>', '<%= chamado.telefone_contato || '' %>', `<%= (chamado.descricao || '').replace(/`/g, '\\`').replace(/\n/g, '\\n') %>`)" class="btn-icon" title="Ver Detalhes">
+                                                        📋
+                                                    </button>
+                                                    <button onclick="abrirChat(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-icon" title="Ver Chat">
+                                                        💬
+                                                    </button>
+                                                <% } %>
+                                            </td>
                                         </tr>
                                     <% }) %>
                                 </tbody>
@@ -168,34 +219,559 @@
         </main>
     </div>
 
-    <script>
-        const menuToggle = document.querySelector('.menu-toggle');
-        const sidebarOverlay = document.querySelector('.sidebar-overlay');
+    <!-- Modal Encaminhar Chamado -->
+    <div id="modalEncaminhar" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📤 Encaminhar Chamado</h2>
+                <span class="modal-close" onclick="fecharModalEncaminhar()">&times;</span>
+            </div>
+            <form id="formEncaminhar" onsubmit="encaminharChamado(event)">
+                <input type="hidden" id="encaminharChamadoId" name="chamadoId">
+                <p>Protocolo: <strong id="encaminharProtocolo"></strong></p>
+                
+                <div class="form-group">
+                    <label for="gestorId">Selecione o Gestor *</label>
+                    <select id="gestorId" name="gestorId" required style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
+                        <option value="">Carregando gestores...</option>
+                    </select>
+                </div>
 
-        function toggleSidebar(forceOpen) {
-            if (typeof forceOpen === 'boolean') {
-                document.body.classList.toggle('sidebar-open', forceOpen);
+                <div class="modal-actions">
+                    <button type="button" onclick="fecharModalEncaminhar()" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Encaminhar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Encerrar Chamado -->
+    <div id="modalEncerrar" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Encerrar Chamado</h2>
+                <span class="modal-close" onclick="fecharModalEncerrar()">&times;</span>
+            </div>
+            <form id="formEncerrar" onsubmit="encerrarChamado(event)">
+                <input type="hidden" id="chamadoId" name="chamadoId">
+                <p>Protocolo: <strong id="chamadoProtocolo"></strong></p>
+                
+                <div class="form-group">
+                    <label for="observacoes">Observações (opcional)</label>
+                    <textarea id="observacoes" name="observacoes" rows="4" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;"></textarea>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" onclick="fecharModalEncerrar()" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Encerrar Chamado</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Meus Atendimentos -->
+    <div id="modalMeusAtendimentos" class="modal">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <h2>📋 Meus Atendimentos</h2>
+                <span class="modal-close" onclick="fecharModalMeusAtendimentos()">&times;</span>
+            </div>
+            <div style="padding: 24px;">
+                <div id="meusAtendimentosContent">
+                    <p style="text-align: center; color: #64748b;">Carregando...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let gestoresCache = [];
+
+        // Carregar gestores ao iniciar a página
+        async function carregarGestores() {
+            try {
+                const response = await fetch('/api/usuarios/gestores');
+                
+                if (!response.ok) {
+                    console.error('Erro ao carregar gestores:', response.status);
+                    return;
+                }
+                
+                const result = await response.json();
+
+                if (result.success) {
+                    gestoresCache = result.gestores;
+                    console.log('Gestores carregados:', gestoresCache.length);
+                } else {
+                    console.error('Erro na resposta:', result.message);
+                }
+            } catch (error) {
+                console.error('Erro ao carregar gestores:', error);
+            }
+        }
+
+        // Carregar gestores quando a página carregar
+        document.addEventListener('DOMContentLoaded', function() {
+            carregarGestores();
+        });
+
+        async function abrirModalEncaminhar(id, protocolo) {
+            document.getElementById('encaminharChamadoId').value = id;
+            document.getElementById('encaminharProtocolo').textContent = protocolo;
+            
+            const select = document.getElementById('gestorId');
+            select.innerHTML = '<option value="">Carregando gestores...</option>';
+            
+            document.getElementById('modalEncaminhar').style.display = 'flex';
+            
+            // Buscar gestores diretamente
+            try {
+                const response = await fetch('/api/usuarios/gestores');
+                
+                console.log('Response status:', response.status);
+                console.log('Response ok:', response.ok);
+                
+                if (!response.ok) {
+                    const text = await response.text();
+                    console.error('Erro na resposta:', text);
+                    select.innerHTML = '<option value="">Erro ao carregar gestores</option>';
+                    alert('Erro ao carregar gestores. Verifique se você está logado como administrador.');
+                    return;
+                }
+                
+                const result = await response.json();
+                console.log('Resultado:', result);
+                
+                if (result.success && result.gestores && result.gestores.length > 0) {
+                    select.innerHTML = '<option value="">Selecione um gestor...</option>';
+                    result.gestores.forEach(gestor => {
+                        const option = document.createElement('option');
+                        option.value = gestor.id;
+                        option.textContent = `${gestor.nome_completo} (${gestor.telefone || 'Sem telefone'})`;
+                        select.appendChild(option);
+                    });
+                    gestoresCache = result.gestores;
+                } else {
+                    select.innerHTML = '<option value="">Nenhum gestor disponível</option>';
+                    console.log('Nenhum gestor encontrado');
+                }
+            } catch (error) {
+                console.error('Erro ao buscar gestores:', error);
+                select.innerHTML = '<option value="">Erro ao carregar gestores</option>';
+                alert('Erro ao carregar gestores: ' + error.message);
+            }
+        }
+
+        function fecharModalEncaminhar() {
+            document.getElementById('modalEncaminhar').style.display = 'none';
+        }
+
+        async function encaminharChamado(event) {
+            event.preventDefault();
+
+            const chamadoId = document.getElementById('encaminharChamadoId').value;
+            const gestorId = document.getElementById('gestorId').value;
+
+            if (!gestorId) {
+                alert('Por favor, selecione um gestor');
                 return;
             }
 
-            document.body.classList.toggle('sidebar-open');
-        }
+            try {
+                const response = await fetch(`/api/chamados/${chamadoId}/encaminhar`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ gestorId })
+                });
 
-        if (menuToggle) {
-            menuToggle.addEventListener('click', () => toggleSidebar());
-        }
+                const result = await response.json();
 
-        if (sidebarOverlay) {
-            sidebarOverlay.addEventListener('click', () => toggleSidebar(false));
-        }
-
-        document.querySelectorAll('.menu-item, .btn-logout').forEach((item) => {
-            item.addEventListener('click', () => {
-                if (window.innerWidth <= 900) {
-                    toggleSidebar(false);
+                if (result.success) {
+                    alert('✓ ' + result.message + '\n\nNotificações foram enviadas via WhatsApp para o gestor e o solicitante.');
+                    location.reload();
+                } else {
+                    alert('✗ ' + result.message);
                 }
-            });
-        });
+            } catch (error) {
+                alert('✗ Erro ao encaminhar chamado');
+                console.error(error);
+            }
+        }
+
+        async function atenderChamado(id, protocolo) {
+            if (!confirm(`Deseja iniciar o atendimento do chamado ${protocolo}?`)) return;
+
+            try {
+                const response = await fetch(`/api/chamados/${id}/atender`, {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('✓ ' + result.message + '\n\nUma mensagem foi enviada ao solicitante pelo WhatsApp.');
+                    location.reload();
+                } else {
+                    alert('✗ ' + result.message);
+                }
+            } catch (error) {
+                alert('✗ Erro ao iniciar atendimento');
+                console.error(error);
+            }
+        }
+
+        function abrirModalEncerrar(id, protocolo) {
+            document.getElementById('chamadoId').value = id;
+            document.getElementById('chamadoProtocolo').textContent = protocolo;
+            document.getElementById('observacoes').value = '';
+            document.getElementById('modalEncerrar').style.display = 'flex';
+        }
+
+        function fecharModalEncerrar() {
+            document.getElementById('modalEncerrar').style.display = 'none';
+        }
+
+        async function encerrarChamado(event) {
+            event.preventDefault();
+
+            const chamadoId = document.getElementById('chamadoId').value;
+            const observacoes = document.getElementById('observacoes').value;
+
+            try {
+                const response = await fetch(`/api/chamados/${chamadoId}/encerrar`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ observacoes })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('✓ ' + result.message + '\n\nUma mensagem foi enviada ao solicitante pelo WhatsApp.');
+                    location.reload();
+                } else {
+                    alert('✗ ' + result.message);
+                }
+            } catch (error) {
+                alert('✗ Erro ao encerrar chamado');
+                console.error(error);
+            }
+        }
+
+        async function carregarMeusAtendimentos() {
+            document.getElementById('modalMeusAtendimentos').style.display = 'flex';
+            document.getElementById('meusAtendimentosContent').innerHTML = '<p style="text-align: center; color: #64748b;">Carregando...</p>';
+
+            try {
+                const response = await fetch('/api/chamados/meus-atendimentos');
+                const result = await response.json();
+
+                if (result.success) {
+                    if (result.chamados.length === 0) {
+                        document.getElementById('meusAtendimentosContent').innerHTML = 
+                            '<p style="text-align: center; color: #64748b;">Você ainda não atendeu nenhum chamado.</p>';
+                    } else {
+                        let html = '<table class="messages-table"><thead><tr>' +
+                            '<th>Protocolo</th><th>Solicitante</th><th>Status</th><th>Iniciado em</th><th>Encerrado em</th>' +
+                            '</tr></thead><tbody>';
+
+                        result.chamados.forEach(chamado => {
+                            const statusBadge = chamado.status === 'em_atendimento' 
+                                ? '<span class="badge badge-atendimento">⏳ Em Atendimento</span>'
+                                : '<span class="badge success">✅ Finalizado</span>';
+                            
+                            html += `<tr>
+                                <td><strong>${chamado.protocolo}</strong></td>
+                                <td>${chamado.solicitante_nome}</td>
+                                <td>${statusBadge}</td>
+                                <td>${chamado.iniciado_em ? new Date(chamado.iniciado_em).toLocaleString('pt-BR') : '-'}</td>
+                                <td>${chamado.encerrado_em ? new Date(chamado.encerrado_em).toLocaleString('pt-BR') : '-'}</td>
+                            </tr>`;
+                        });
+
+                        html += '</tbody></table>';
+                        document.getElementById('meusAtendimentosContent').innerHTML = html;
+                    }
+                } else {
+                    document.getElementById('meusAtendimentosContent').innerHTML = 
+                        '<p style="text-align: center; color: #dc2626;">Erro ao carregar atendimentos</p>';
+                }
+            } catch (error) {
+                console.error(error);
+                document.getElementById('meusAtendimentosContent').innerHTML = 
+                    '<p style="text-align: center; color: #dc2626;">Erro ao carregar atendimentos</p>';
+            }
+        }
+
+        function fecharModalMeusAtendimentos() {
+            document.getElementById('modalMeusAtendimentos').style.display = 'none';
+        }
+
+        // Fechar modais ao clicar fora
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+            }
+        }
     </script>
 </body>
 </html>
+
+    <!-- Modal Chat -->
+    <div id="modalChat" class="modal">
+        <div class="modal-content" style="max-width: 700px; height: 85vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h2>💬 Chat - <span id="chatProtocolo"></span></h2>
+                <span class="modal-close" onclick="fecharChat()">&times;</span>
+            </div>
+            <div id="chatMessages" style="flex: 1; overflow-y: auto; padding: 20px; background: #f8fafc; border-radius: 8px; margin-bottom: 15px;">
+                <p style="text-align: center; color: #64748b;">Carregando mensagens...</p>
+            </div>
+            <form id="formChat" onsubmit="enviarMensagemChat(event)" style="display: flex; flex-direction: column; gap: 10px;">
+                <input type="hidden" id="chatChamadoId">
+                <textarea 
+                    id="chatMensagem" 
+                    placeholder="Digite sua mensagem aqui... Você pode escrever várias linhas." 
+                    style="width: 100%; padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; resize: vertical; font-family: inherit; font-size: 15px; min-height: 120px; max-height: 300px;"
+                    rows="5"
+                    required
+                ></textarea>
+                <button type="submit" class="btn btn-primary" style="align-self: flex-end; padding: 12px 30px;">
+                    📤 Enviar Mensagem
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Dados WhatsApp -->
+    <div id="modalWhatsApp" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>📱 Dados do WhatsApp</h2>
+                <span class="modal-close" onclick="fecharModalWhatsApp()">&times;</span>
+            </div>
+            <div style="padding: 20px;">
+                <p style="margin-bottom: 15px;"><strong>Protocolo:</strong> <span id="whatsProtocolo"></span></p>
+                
+                <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <h3 style="margin: 0 0 10px 0; color: #3b82f6;">📝 Dados Informados pelo Solicitante</h3>
+                    <p style="margin: 5px 0;"><strong>Nome:</strong> <span id="whatsNomeInformado"></span></p>
+                    <p style="margin: 5px 0;"><strong>Telefone:</strong> <span id="whatsTelInformado"></span></p>
+                </div>
+                
+                <div style="background: #f0fdf4; padding: 15px; border-radius: 8px;">
+                    <h3 style="margin: 0 0 10px 0; color: #10b981;">✅ Dados Reais do WhatsApp</h3>
+                    <p style="margin: 5px 0;"><strong>Nome:</strong> <span id="whatsNomeReal"></span></p>
+                    <p style="margin: 5px 0;"><strong>Telefone:</strong> <span id="whatsTelReal"></span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Detalhes do Chamado -->
+    <div id="modalDetalhes" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>📋 Detalhes do Chamado</h2>
+                <span class="modal-close" onclick="fecharModalDetalhes()">&times;</span>
+            </div>
+            <div style="padding: 20px;">
+                <p style="margin-bottom: 10px;"><strong>📌 Protocolo:</strong> <span id="detProtocolo"></span></p>
+                <p style="margin-bottom: 10px;"><strong>📂 Categoria:</strong> <span id="detCategoria"></span></p>
+                <p style="margin-bottom: 10px;"><strong>👤 Solicitante:</strong> <span id="detSolicitante"></span></p>
+                <p style="margin-bottom: 10px;"><strong>🏢 Setor:</strong> <span id="detSetor"></span></p>
+                <p style="margin-bottom: 10px;"><strong>💻 IP:</strong> <span id="detIP"></span></p>
+                <p style="margin-bottom: 10px;"><strong>📱 Telefone:</strong> <span id="detTelefone"></span></p>
+                <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                    <h3 style="margin: 0 0 10px 0;">📝 Descrição do Problema:</h3>
+                    <p id="detDescricao" style="white-space: pre-wrap; margin: 0;"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let chatInterval = null;
+
+        async function abrirChat(chamadoId, protocolo) {
+            document.getElementById('modalChat').style.display = 'flex';
+            document.getElementById('chatProtocolo').textContent = protocolo;
+            document.getElementById('chatChamadoId').value = chamadoId;
+            document.getElementById('chatMensagem').value = '';
+            
+            // Limpar badge de mensagens não lidas
+            const badge = document.getElementById(`badge-${chamadoId}`);
+            if (badge) {
+                badge.style.display = 'none';
+            }
+            
+            await carregarMensagensChat(chamadoId);
+            
+            // Atualizar mensagens a cada 5 segundos
+            chatInterval = setInterval(() => carregarMensagensChat(chamadoId), 5000);
+        }
+
+        function fecharChat() {
+            document.getElementById('modalChat').style.display = 'none';
+            if (chatInterval) {
+                clearInterval(chatInterval);
+                chatInterval = null;
+            }
+        }
+
+        async function carregarMensagensChat(chamadoId) {
+            try {
+                const response = await fetch(`/api/chamados/${chamadoId}/chat`);
+                const result = await response.json();
+
+                if (result.success) {
+                    const chatMessages = document.getElementById('chatMessages');
+                    const scrollAtBottom = chatMessages.scrollHeight - chatMessages.scrollTop === chatMessages.clientHeight;
+                    
+                    if (result.mensagens.length === 0) {
+                        chatMessages.innerHTML = '<p style="text-align: center; color: #64748b;">Nenhuma mensagem ainda.</p>';
+                    } else {
+                        let html = '';
+                        result.mensagens.forEach(msg => {
+                            const isTecnico = msg.remetente_tipo === 'tecnico';
+                            const isSistema = msg.remetente_tipo === 'sistema';
+                            const data = new Date(msg.enviada_em).toLocaleString('pt-BR');
+                            
+                            const bgColor = isTecnico ? '#3b82f6' : (isSistema ? '#64748b' : '#10b981');
+                            const align = isTecnico ? 'flex-end' : 'flex-start';
+                            const textColor = '#ffffff';
+                            
+                            html += `
+                                <div style="display: flex; justify-content: ${align}; margin-bottom: 12px;">
+                                    <div style="max-width: 70%; background: ${bgColor}; color: ${textColor}; padding: 10px 14px; border-radius: 12px;">
+                                        <div style="font-weight: 600; font-size: 0.85em; margin-bottom: 4px;">
+                                            ${msg.remetente_nome || 'Sistema'}
+                                        </div>
+                                        <div style="word-wrap: break-word; white-space: pre-wrap;">
+                                            ${msg.mensagem}
+                                        </div>
+                                        <div style="font-size: 0.75em; opacity: 0.8; margin-top: 4px; text-align: right;">
+                                            ${data}
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        chatMessages.innerHTML = html;
+                    }
+                    
+                    // Scroll para o final se já estava no final
+                    if (scrollAtBottom || result.mensagens.length > 0) {
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar mensagens:', error);
+            }
+        }
+
+        async function enviarMensagemChat(event) {
+            event.preventDefault();
+
+            const chamadoId = document.getElementById('chatChamadoId').value;
+            const mensagem = document.getElementById('chatMensagem').value.trim();
+
+            if (!mensagem) return;
+
+            try {
+                const response = await fetch(`/api/chamados/${chamadoId}/chat/enviar`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mensagem })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    document.getElementById('chatMensagem').value = '';
+                    await carregarMensagensChat(chamadoId);
+                } else {
+                    alert('✗ ' + result.message);
+                }
+            } catch (error) {
+                alert('✗ Erro ao enviar mensagem');
+                console.error(error);
+            }
+        }
+
+        // Fechar modal ao clicar fora
+        window.onclick = function(event) {
+            const modalChat = document.getElementById('modalChat');
+            if (event.target === modalChat) {
+                fecharChat();
+            }
+        }
+
+        // Verificar mensagens não lidas ao carregar a página
+        async function verificarMensagensNaoLidas() {
+            const chamados = document.querySelectorAll('[id^="badge-"]');
+            
+            for (const badge of chamados) {
+                const chamadoId = badge.id.replace('badge-', '');
+                
+                try {
+                    const response = await fetch(`/api/chamados/${chamadoId}/chat/nao-lidas`);
+                    const result = await response.json();
+                    
+                    if (result.success && result.total > 0) {
+                        badge.textContent = result.total;
+                        badge.style.display = 'flex';
+                    }
+                } catch (error) {
+                    console.error(`Erro ao verificar mensagens do chamado ${chamadoId}:`, error);
+                }
+            }
+        }
+
+        // Verificar mensagens não lidas ao carregar e a cada 30 segundos
+        verificarMensagensNaoLidas();
+        setInterval(verificarMensagensNaoLidas, 30000);
+
+        // Funções para modal de dados WhatsApp
+        function mostrarDadosWhatsApp(protocolo, nomeInformado, telInformado, nomeReal, telReal) {
+            document.getElementById('modalWhatsApp').style.display = 'flex';
+            document.getElementById('whatsProtocolo').textContent = protocolo;
+            document.getElementById('whatsNomeInformado').textContent = nomeInformado || 'Não informado';
+            document.getElementById('whatsTelInformado').textContent = telInformado || 'Não informado';
+            document.getElementById('whatsNomeReal').textContent = nomeReal || 'Não disponível';
+            document.getElementById('whatsTelReal').textContent = telReal || 'Não disponível';
+        }
+
+        function fecharModalWhatsApp() {
+            document.getElementById('modalWhatsApp').style.display = 'none';
+        }
+
+        // Funções para modal de detalhes
+        function verDetalhes(protocolo, categoria, solicitante, setor, ip, telefone, descricao) {
+            document.getElementById('modalDetalhes').style.display = 'flex';
+            document.getElementById('detProtocolo').textContent = protocolo;
+            document.getElementById('detCategoria').textContent = categoria;
+            document.getElementById('detSolicitante').textContent = solicitante;
+            document.getElementById('detSetor').textContent = setor;
+            document.getElementById('detIP').textContent = ip || 'Não informado';
+            document.getElementById('detTelefone').textContent = telefone || 'Não informado';
+            document.getElementById('detDescricao').textContent = descricao || 'Sem descrição';
+        }
+
+        function fecharModalDetalhes() {
+            document.getElementById('modalDetalhes').style.display = 'none';
+        }
+
+        // Fechar modais ao clicar fora
+        window.addEventListener('click', function(event) {
+            const modalWhatsApp = document.getElementById('modalWhatsApp');
+            const modalDetalhes = document.getElementById('modalDetalhes');
+            
+            if (event.target === modalWhatsApp) {
+                fecharModalWhatsApp();
+            }
+            if (event.target === modalDetalhes) {
+                fecharModalDetalhes();
+            }
+        });
+    </script>

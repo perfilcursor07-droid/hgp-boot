@@ -184,6 +184,19 @@ const isAuthenticated = (req, res, next) => {
     res.redirect('/');
 };
 
+// Middleware de verificação de nível de acesso
+const isAdmin = (req, res, next) => {
+    if (req.session.nivelAcesso === 'administrador') {
+        return next();
+    }
+
+    if (isApiRequest(req)) {
+        return res.status(403).json({ success: false, message: 'Acesso negado. Apenas administradores.' });
+    }
+
+    res.redirect('/chamados');
+};
+
 // Rotas
 app.get('/', (req, res) => {
     if (req.session.userId) {
@@ -196,7 +209,7 @@ app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     
     try {
-        const [users] = await db.query('SELECT * FROM admins WHERE username = ?', [username]);
+        const [users] = await db.query('SELECT * FROM admins WHERE username = ? AND ativo = TRUE', [username]);
         
         if (users.length === 0) {
             return res.render('login', { error: 'Usuário ou senha inválidos' });
@@ -211,14 +224,22 @@ app.post('/login', async (req, res) => {
         
         req.session.userId = user.id;
         req.session.username = user.username;
-        res.redirect('/dashboard');
+        req.session.nivelAcesso = user.nivel_acesso;
+        req.session.nomeCompleto = user.nome_completo;
+        
+        // Redirecionar baseado no nível de acesso
+        if (user.nivel_acesso === 'gestor') {
+            res.redirect('/chamados');
+        } else {
+            res.redirect('/dashboard');
+        }
     } catch (error) {
         console.error('Erro no login:', error);
         res.render('login', { error: 'Erro ao fazer login' });
     }
 });
 
-app.get('/dashboard', isAuthenticated, async (req, res) => {
+app.get('/dashboard', isAuthenticated, isAdmin, async (req, res) => {
     try {
         const [sessions] = await db.query('SELECT * FROM whatsapp_sessions ORDER BY id DESC LIMIT 1');
         const session = sessions[0]
@@ -392,7 +413,7 @@ app.post('/whatsapp/disconnect', isAuthenticated, async (req, res) => {
     }
 });
 
-app.get('/messages', isAuthenticated, async (req, res) => {
+app.get('/messages', isAuthenticated, isAdmin, async (req, res) => {
     try {
         const [messages] = await db.query(`
             SELECT m.*, ws.session_name 
@@ -410,6 +431,11 @@ app.get('/messages', isAuthenticated, async (req, res) => {
 
 app.get('/chamados', isAuthenticated, async (req, res) => {
     try {
+        // Garantir que nivelAcesso existe na sessão
+        if (!req.session.nivelAcesso) {
+            req.session.nivelAcesso = 'administrador';
+        }
+
         const [chamados] = await db.query(`
             SELECT *
             FROM chamados
@@ -422,10 +448,11 @@ app.get('/chamados', isAuthenticated, async (req, res) => {
             acc.total += 1;
             acc[status] = (acc[status] || 0) + 1;
             return acc;
-        }, { total: 0, aberto: 0, pendente: 0, finalizado: 0 });
+        }, { total: 0, aberto: 0, pendente: 0, em_atendimento: 0, finalizado: 0 });
 
         res.render('chamados', {
             username: req.session.username,
+            nivelAcesso: req.session.nivelAcesso || 'administrador',
             chamados,
             contagem
         });
@@ -433,8 +460,9 @@ app.get('/chamados', isAuthenticated, async (req, res) => {
         console.error('Erro ao carregar chamados:', error);
         res.render('chamados', {
             username: req.session.username,
+            nivelAcesso: req.session.nivelAcesso || 'administrador',
             chamados: [],
-            contagem: { total: 0, aberto: 0, pendente: 0, finalizado: 0 }
+            contagem: { total: 0, aberto: 0, pendente: 0, em_atendimento: 0, finalizado: 0 }
         });
     }
 });
@@ -462,7 +490,7 @@ app.get('/api/stats', isAuthenticated, async (req, res) => {
     }
 });
 
-app.get('/contacts', isAuthenticated, async (req, res) => {
+app.get('/contacts', isAuthenticated, isAdmin, async (req, res) => {
     try {
         const [contacts] = await db.query(`
             SELECT * FROM contacts
@@ -563,7 +591,7 @@ app.post('/api/contacts/sync', isAuthenticated, async (req, res) => {
     }
 });
 
-app.get('/settings', isAuthenticated, async (req, res) => {
+app.get('/settings', isAuthenticated, isAdmin, async (req, res) => {
     try {
         const [chatbotCode, escalaCode] = await Promise.all([
             readChatbotFile(),
@@ -666,6 +694,527 @@ app.post('/api/settings/escala-file', isAuthenticated, async (req, res) => {
     } catch (error) {
         console.error('Erro ao salvar escala.json:', error);
         res.status(500).json({ success: false, message: 'Erro ao salvar escala.json' });
+    }
+});
+
+app.get('/usuarios', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const [usuarios] = await db.query(`
+            SELECT id, username, nome_completo, cpf, telefone, nivel_acesso, ativo, created_at
+            FROM admins
+            ORDER BY created_at DESC
+        `);
+
+        const stats = {
+            total: usuarios.length,
+            administradores: usuarios.filter(u => u.nivel_acesso === 'administrador').length,
+            gestores: usuarios.filter(u => u.nivel_acesso === 'gestor').length,
+            ativos: usuarios.filter(u => u.ativo).length
+        };
+
+        res.render('usuarios', { 
+            username: req.session.username,
+            usuarios,
+            stats
+        });
+    } catch (error) {
+        console.error('Erro ao carregar usuários:', error);
+        res.render('usuarios', { 
+            username: req.session.username,
+            usuarios: [],
+            stats: { total: 0, administradores: 0, gestores: 0, ativos: 0 }
+        });
+    }
+});
+
+// API - Listar gestores disponíveis (DEVE VIR ANTES DE :id)
+app.get('/api/usuarios/gestores', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        console.log('Buscando gestores... Usuário:', req.session.username, 'Nível:', req.session.nivelAcesso);
+        
+        const [gestores] = await db.query(`
+            SELECT id, username, nome_completo, telefone
+            FROM admins
+            WHERE nivel_acesso = 'gestor' AND ativo = TRUE
+            ORDER BY nome_completo
+        `);
+
+        console.log('Gestores encontrados:', gestores.length);
+        res.json({ success: true, gestores });
+    } catch (error) {
+        console.error('Erro ao buscar gestores:', error);
+        res.status(500).json({ success: false, message: 'Erro ao buscar gestores' });
+    }
+});
+
+// API - Listar usuário específico
+app.get('/api/usuarios/:id', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const [usuarios] = await db.query(
+            'SELECT id, username, nome_completo, cpf, telefone, nivel_acesso, ativo FROM admins WHERE id = ?',
+            [req.params.id]
+        );
+
+        if (usuarios.length === 0) {
+            return res.status(404).json({ success: false, message: 'Usuário não encontrado' });
+        }
+
+        res.json({ success: true, usuario: usuarios[0] });
+    } catch (error) {
+        console.error('Erro ao buscar usuário:', error);
+        res.status(500).json({ success: false, message: 'Erro ao buscar usuário' });
+    }
+});
+
+// API - Criar usuário
+app.post('/api/usuarios', isAuthenticated, isAdmin, async (req, res) => {
+    const { nome_completo, username, cpf, telefone, nivel_acesso, password, ativo } = req.body;
+
+    try {
+        // Verificar se o usuário já existe
+        const [existing] = await db.query('SELECT id FROM admins WHERE username = ? OR cpf = ?', [username, cpf]);
+        
+        if (existing.length > 0) {
+            return res.status(400).json({ success: false, message: 'Usuário ou CPF já cadastrado' });
+        }
+
+        // Criptografar senha
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        await db.query(
+            `INSERT INTO admins (username, nome_completo, cpf, telefone, nivel_acesso, password, ativo)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [username, nome_completo, cpf, telefone, nivel_acesso, hashedPassword, ativo]
+        );
+
+        res.json({ success: true, message: 'Usuário criado com sucesso' });
+    } catch (error) {
+        console.error('Erro ao criar usuário:', error);
+        res.status(500).json({ success: false, message: 'Erro ao criar usuário' });
+    }
+});
+
+// API - Atualizar usuário
+app.put('/api/usuarios/:id', isAuthenticated, isAdmin, async (req, res) => {
+    const { nome_completo, username, cpf, telefone, nivel_acesso, password, ativo } = req.body;
+    const userId = req.params.id;
+
+    try {
+        // Verificar se outro usuário já usa o username ou CPF
+        const [existing] = await db.query(
+            'SELECT id FROM admins WHERE (username = ? OR cpf = ?) AND id != ?',
+            [username, cpf, userId]
+        );
+        
+        if (existing.length > 0) {
+            return res.status(400).json({ success: false, message: 'Usuário ou CPF já cadastrado por outro usuário' });
+        }
+
+        // Se a senha foi fornecida, atualizar com ela
+        if (password && password.trim() !== '') {
+            const hashedPassword = await bcrypt.hash(password, 10);
+            await db.query(
+                `UPDATE admins 
+                 SET username = ?, nome_completo = ?, cpf = ?, telefone = ?, nivel_acesso = ?, password = ?, ativo = ?
+                 WHERE id = ?`,
+                [username, nome_completo, cpf, telefone, nivel_acesso, hashedPassword, ativo, userId]
+            );
+        } else {
+            // Atualizar sem modificar a senha
+            await db.query(
+                `UPDATE admins 
+                 SET username = ?, nome_completo = ?, cpf = ?, telefone = ?, nivel_acesso = ?, ativo = ?
+                 WHERE id = ?`,
+                [username, nome_completo, cpf, telefone, nivel_acesso, ativo, userId]
+            );
+        }
+
+        res.json({ success: true, message: 'Usuário atualizado com sucesso' });
+    } catch (error) {
+        console.error('Erro ao atualizar usuário:', error);
+        res.status(500).json({ success: false, message: 'Erro ao atualizar usuário' });
+    }
+});
+
+// API - Toggle status do usuário
+app.patch('/api/usuarios/:id/toggle', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const [usuario] = await db.query('SELECT ativo FROM admins WHERE id = ?', [req.params.id]);
+        
+        if (usuario.length === 0) {
+            return res.status(404).json({ success: false, message: 'Usuário não encontrado' });
+        }
+
+        const novoStatus = !usuario[0].ativo;
+        await db.query('UPDATE admins SET ativo = ? WHERE id = ?', [novoStatus, req.params.id]);
+
+        res.json({ 
+            success: true, 
+            message: `Usuário ${novoStatus ? 'ativado' : 'desativado'} com sucesso` 
+        });
+    } catch (error) {
+        console.error('Erro ao alterar status:', error);
+        res.status(500).json({ success: false, message: 'Erro ao alterar status do usuário' });
+    }
+});
+
+// API - Excluir usuário
+app.delete('/api/usuarios/:id', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const [usuario] = await db.query('SELECT username FROM admins WHERE id = ?', [req.params.id]);
+        
+        if (usuario.length === 0) {
+            return res.status(404).json({ success: false, message: 'Usuário não encontrado' });
+        }
+
+        // Não permitir excluir o admin padrão
+        if (usuario[0].username === 'admin') {
+            return res.status(403).json({ success: false, message: 'Não é possível excluir o usuário admin padrão' });
+        }
+
+        await db.query('DELETE FROM admins WHERE id = ?', [req.params.id]);
+
+        res.json({ success: true, message: 'Usuário excluído com sucesso' });
+    } catch (error) {
+        console.error('Erro ao excluir usuário:', error);
+        res.status(500).json({ success: false, message: 'Erro ao excluir usuário' });
+    }
+});
+
+// API - Encaminhar chamado para gestor (DEVE VIR ANTES DE :id/atender)
+app.post('/api/chamados/:id/encaminhar', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const chamadoId = req.params.id;
+        const { gestorId } = req.body;
+
+        // Buscar dados do gestor
+        const [gestor] = await db.query(
+            'SELECT id, nome_completo, telefone FROM admins WHERE id = ? AND nivel_acesso = "gestor"',
+            [gestorId]
+        );
+
+        if (gestor.length === 0) {
+            return res.status(404).json({ success: false, message: 'Gestor não encontrado' });
+        }
+
+        // Buscar dados do chamado
+        const [chamado] = await db.query('SELECT * FROM chamados WHERE id = ?', [chamadoId]);
+
+        if (chamado.length === 0) {
+            return res.status(404).json({ success: false, message: 'Chamado não encontrado' });
+        }
+
+        // Atualizar chamado
+        await db.query(
+            `UPDATE chamados 
+             SET status = 'em_atendimento',
+                 atendente_id = ?,
+                 atendente_nome = ?,
+                 iniciado_em = NOW()
+             WHERE id = ?`,
+            [gestor[0].id, gestor[0].nome_completo, chamadoId]
+        );
+
+        // Enviar WhatsApp para o gestor
+        if (whatsappClient && whatsappState === 'connected' && gestor[0].telefone) {
+            try {
+                const mensagemGestor = `🔔 *NOVO CHAMADO ATRIBUÍDO*\n\n` +
+                    `📌 *Protocolo:* ${chamado[0].protocolo}\n` +
+                    `👤 *Solicitante:* ${chamado[0].solicitante_nome}\n` +
+                    `🏢 *Setor:* ${chamado[0].setor}\n` +
+                    `📂 *Categoria:* ${chamado[0].categoria}\n` +
+                    `📝 *Descrição:* ${chamado[0].descricao}\n` +
+                    `📱 *Contato:* ${chamado[0].telefone_contato}\n\n` +
+                    `Este chamado foi encaminhado para você. Por favor, entre em contato com o solicitante.`;
+
+                // Normalizar número do gestor
+                let numeroGestor = gestor[0].telefone.replace(/\D/g, '');
+                if (!numeroGestor.startsWith('55')) {
+                    numeroGestor = '55' + numeroGestor;
+                }
+
+                console.log('Tentando enviar para gestor:', numeroGestor);
+
+                // Gerar variações do número (com e sem 9º dígito)
+                const variacoes = [numeroGestor];
+                if (numeroGestor.length === 13) {
+                    variacoes.push(numeroGestor.slice(0, 4) + numeroGestor.slice(5));
+                }
+                if (numeroGestor.length === 12) {
+                    variacoes.push(numeroGestor.slice(0, 4) + '9' + numeroGestor.slice(4));
+                }
+
+                let enviado = false;
+                for (const numero of variacoes) {
+                    try {
+                        const numberId = await whatsappClient.getNumberId(numero);
+                        if (numberId && numberId._serialized) {
+                            console.log('ID do gestor encontrado:', numberId._serialized);
+                            await whatsappClient.sendMessage(numberId._serialized, mensagemGestor);
+                            console.log('Mensagem enviada com sucesso para o gestor');
+                            enviado = true;
+                            break;
+                        }
+                    } catch (err) {
+                        console.log(`Tentativa com ${numero} falhou, tentando próxima variação...`);
+                    }
+                }
+
+                if (!enviado) {
+                    console.error('Número do gestor não encontrado no WhatsApp após todas as tentativas');
+                }
+            } catch (error) {
+                console.error('Erro ao enviar WhatsApp para gestor:', error.message);
+            }
+        }
+
+        // Enviar WhatsApp para o solicitante
+        if (whatsappClient && whatsappState === 'connected' && chamado[0].chat_origem) {
+            try {
+                const mensagemSolicitante = `🔔 *ATUALIZAÇÃO DO CHAMADO*\n\n` +
+                    `📌 *Protocolo:* ${chamado[0].protocolo}\n` +
+                    `👤 *Atendente:* ${gestor[0].nome_completo}\n` +
+                    `📊 *Status:* Em Atendimento\n\n` +
+                    `Seu chamado foi encaminhado e está sendo atendido.`;
+
+                await whatsappClient.sendMessage(chamado[0].chat_origem, mensagemSolicitante);
+            } catch (error) {
+                console.error('Erro ao enviar WhatsApp para solicitante:', error);
+            }
+        }
+
+        res.json({ 
+            success: true, 
+            message: `Chamado encaminhado para ${gestor[0].nome_completo} com sucesso` 
+        });
+    } catch (error) {
+        console.error('Erro ao encaminhar chamado:', error);
+        res.status(500).json({ success: false, message: 'Erro ao encaminhar chamado' });
+    }
+});
+
+// API - Iniciar atendimento de chamado
+app.post('/api/chamados/:id/atender', isAuthenticated, async (req, res) => {
+    try {
+        const chamadoId = req.params.id;
+        const atendenteId = req.session.userId;
+        const atendenteNome = req.session.nomeCompleto || req.session.username;
+
+        // Verificar se o chamado existe e não está sendo atendido
+        const [chamado] = await db.query(
+            'SELECT * FROM chamados WHERE id = ?',
+            [chamadoId]
+        );
+
+        if (chamado.length === 0) {
+            return res.status(404).json({ success: false, message: 'Chamado não encontrado' });
+        }
+
+        if (chamado[0].status === 'em_atendimento' && chamado[0].atendente_id !== atendenteId) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Este chamado já está sendo atendido por ${chamado[0].atendente_nome}` 
+            });
+        }
+
+        // Atualizar chamado para em atendimento
+        await db.query(
+            `UPDATE chamados 
+             SET status = 'em_atendimento', 
+                 atendente_id = ?, 
+                 atendente_nome = ?,
+                 iniciado_em = NOW()
+             WHERE id = ?`,
+            [atendenteId, atendenteNome, chamadoId]
+        );
+
+        // Enviar mensagem pelo WhatsApp
+        if (whatsappClient && whatsappState === 'connected' && chamado[0].chat_origem) {
+            try {
+                const mensagem = `🔔 *ATUALIZAÇÃO DO CHAMADO*\n\n` +
+                    `📌 *Protocolo:* ${chamado[0].protocolo}\n` +
+                    `👤 *Atendente:* ${atendenteNome}\n` +
+                    `📊 *Status:* Em Atendimento\n\n` +
+                    `Seu chamado está sendo atendido. Em breve entraremos em contato.`;
+                
+                await whatsappClient.sendMessage(chamado[0].chat_origem, mensagem);
+            } catch (error) {
+                console.error('Erro ao enviar mensagem WhatsApp:', error);
+            }
+        }
+
+        res.json({ success: true, message: 'Atendimento iniciado com sucesso' });
+    } catch (error) {
+        console.error('Erro ao iniciar atendimento:', error);
+        res.status(500).json({ success: false, message: 'Erro ao iniciar atendimento' });
+    }
+});
+
+// API - Encerrar chamado
+app.post('/api/chamados/:id/encerrar', isAuthenticated, async (req, res) => {
+    try {
+        const chamadoId = req.params.id;
+        const { observacoes } = req.body;
+
+        // Verificar se o chamado existe
+        const [chamado] = await db.query(
+            'SELECT * FROM chamados WHERE id = ?',
+            [chamadoId]
+        );
+
+        if (chamado.length === 0) {
+            return res.status(404).json({ success: false, message: 'Chamado não encontrado' });
+        }
+
+        // Atualizar chamado para finalizado
+        await db.query(
+            `UPDATE chamados 
+             SET status = 'finalizado', 
+                 encerrado_em = NOW(),
+                 observacoes = ?
+             WHERE id = ?`,
+            [observacoes || null, chamadoId]
+        );
+
+        // Enviar mensagem pelo WhatsApp
+        if (whatsappClient && whatsappState === 'connected' && chamado[0].chat_origem) {
+            try {
+                const mensagem = `✅ *CHAMADO ENCERRADO*\n\n` +
+                    `📌 *Protocolo:* ${chamado[0].protocolo}\n` +
+                    `👤 *Atendido por:* ${chamado[0].atendente_nome || 'Equipe TI'}\n` +
+                    `📊 *Status:* Finalizado\n\n` +
+                    `Seu chamado foi encerrado. Obrigado por utilizar nossos serviços!`;
+                
+                await whatsappClient.sendMessage(chamado[0].chat_origem, mensagem);
+            } catch (error) {
+                console.error('Erro ao enviar mensagem WhatsApp:', error);
+            }
+        }
+
+        res.json({ success: true, message: 'Chamado encerrado com sucesso' });
+    } catch (error) {
+        console.error('Erro ao encerrar chamado:', error);
+        res.status(500).json({ success: false, message: 'Erro ao encerrar chamado' });
+    }
+});
+
+// API - Buscar mensagens do chat de um chamado
+app.get('/api/chamados/:id/chat', isAuthenticated, async (req, res) => {
+    try {
+        const chamadoId = req.params.id;
+
+        // Buscar mensagens do chat
+        const [mensagens] = await db.query(
+            `SELECT * FROM chat_messages 
+             WHERE chamado_id = ? 
+             ORDER BY enviada_em ASC`,
+            [chamadoId]
+        );
+
+        // Marcar mensagens como lidas
+        await db.query(
+            `UPDATE chat_messages 
+             SET lida = TRUE 
+             WHERE chamado_id = ? AND remetente_tipo = 'solicitante'`,
+            [chamadoId]
+        );
+
+        res.json({ success: true, mensagens });
+    } catch (error) {
+        console.error('Erro ao buscar mensagens:', error);
+        res.status(500).json({ success: false, message: 'Erro ao buscar mensagens' });
+    }
+});
+
+// API - Enviar mensagem do técnico para o solicitante
+app.post('/api/chamados/:id/chat/enviar', isAuthenticated, async (req, res) => {
+    try {
+        const chamadoId = req.params.id;
+        const { mensagem } = req.body;
+        const remetenteNome = req.session.nomeCompleto || req.session.username;
+
+        if (!mensagem || !mensagem.trim()) {
+            return res.status(400).json({ success: false, message: 'Mensagem não pode estar vazia' });
+        }
+
+        // Buscar dados do chamado
+        const [chamado] = await db.query('SELECT * FROM chamados WHERE id = ?', [chamadoId]);
+
+        if (chamado.length === 0) {
+            return res.status(404).json({ success: false, message: 'Chamado não encontrado' });
+        }
+
+        // Salvar mensagem no banco
+        await db.query(
+            `INSERT INTO chat_messages (chamado_id, remetente_tipo, remetente_nome, mensagem) 
+             VALUES (?, 'tecnico', ?, ?)`,
+            [chamadoId, remetenteNome, mensagem.trim()]
+        );
+
+        // Enviar mensagem pelo WhatsApp
+        if (whatsappClient && whatsappState === 'connected' && chamado[0].chat_origem) {
+            try {
+                const mensagemWhatsApp = `💬 *MENSAGEM DO ATENDIMENTO*\n\n` +
+                    `📌 *Protocolo:* ${chamado[0].protocolo}\n` +
+                    `👤 *${remetenteNome}:*\n\n` +
+                    `${mensagem.trim()}`;
+                
+                await whatsappClient.sendMessage(chamado[0].chat_origem, mensagemWhatsApp);
+                
+                res.json({ success: true, message: 'Mensagem enviada com sucesso' });
+            } catch (error) {
+                console.error('Erro ao enviar mensagem WhatsApp:', error);
+                res.status(500).json({ success: false, message: 'Erro ao enviar mensagem pelo WhatsApp' });
+            }
+        } else {
+            res.status(400).json({ success: false, message: 'WhatsApp não está conectado' });
+        }
+    } catch (error) {
+        console.error('Erro ao enviar mensagem:', error);
+        res.status(500).json({ success: false, message: 'Erro ao enviar mensagem' });
+    }
+});
+
+// API - Contar mensagens não lidas por chamado
+app.get('/api/chamados/:id/chat/nao-lidas', isAuthenticated, async (req, res) => {
+    try {
+        const chamadoId = req.params.id;
+
+        const [result] = await db.query(
+            `SELECT COUNT(*) as total FROM chat_messages 
+             WHERE chamado_id = ? AND remetente_tipo = 'solicitante' AND lida = FALSE`,
+            [chamadoId]
+        );
+
+        res.json({ success: true, total: result[0].total });
+    } catch (error) {
+        console.error('Erro ao contar mensagens não lidas:', error);
+        res.status(500).json({ success: false, message: 'Erro ao contar mensagens' });
+    }
+});
+
+// API - Listar meus atendimentos
+app.get('/api/chamados/meus-atendimentos', isAuthenticated, async (req, res) => {
+    try {
+        const atendenteId = req.session.userId;
+
+        const [chamados] = await db.query(`
+            SELECT *
+            FROM chamados
+            WHERE atendente_id = ? AND status IN ('em_atendimento', 'finalizado')
+            ORDER BY 
+                CASE 
+                    WHEN status = 'em_atendimento' THEN 1
+                    ELSE 2
+                END,
+                criado_em DESC
+            LIMIT 50
+        `, [atendenteId]);
+
+        res.json({ success: true, chamados });
+    } catch (error) {
+        console.error('Erro ao buscar atendimentos:', error);
+        res.status(500).json({ success: false, message: 'Erro ao buscar atendimentos' });
     }
 });
 

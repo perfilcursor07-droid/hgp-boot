@@ -7,85 +7,138 @@
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-    <div class="container">
-        <nav class="sidebar">
-            <div class="logo">💬 WhatsApp HGP</div>
-            <ul class="menu">
-                <li><a href="/dashboard">📊 Dashboard</a></li>
-                <li><a href="/messages">💬 Mensagens</a></li>
-                <li><a href="/chamados">📋 Chamados</a></li>
-                <li><a href="/contacts" class="active">👥 Contatos</a></li>
-                <li><a href="/settings">⚙️ Configurações</a></li>
-                <li><a href="/logout">🚪 Sair</a></li>
-            </ul>
-            <div class="user-info">
-                👤 <%= username %>
+    <div class="dashboard">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1><span>WhatsApp HGP</span></h1>
             </div>
-        </nav>
+            
+            <nav class="sidebar-menu">
+                <a href="/dashboard" class="menu-item">
+                    <span class="menu-item-icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="/chamados" class="menu-item">
+                    <span class="menu-item-icon">🧾</span>
+                    <span>Chamados</span>
+                </a>
+                <a href="/messages" class="menu-item">
+                    <span class="menu-item-icon">💬</span>
+                    <span>Mensagens</span>
+                </a>
+                <a href="/contacts" class="menu-item active">
+                    <span class="menu-item-icon">👥</span>
+                    <span>Contatos</span>
+                </a>
+                <a href="/usuarios" class="menu-item">
+                    <span class="menu-item-icon">👤</span>
+                    <span>Usuários</span>
+                </a>
+                <a href="/settings" class="menu-item">
+                    <span class="menu-item-icon">⚙️</span>
+                    <span>Configurações</span>
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="user-avatar"><%= username.charAt(0).toUpperCase() %></div>
+                    <div class="user-details">
+                        <div class="user-name"><%= username %></div>
+                        <div class="user-role">Administrador</div>
+                    </div>
+                </div>
+                <a href="/logout" class="btn-logout">🚪 Sair</a>
+            </div>
+        </aside>
 
+        <!-- Main Content -->
         <main class="main-content">
-            <div class="header">
-                <h1>👥 Contatos</h1>
-                <div class="header-actions">
+            <div class="topbar">
+                <div class="topbar-title-group">
+                    <button class="menu-toggle" onclick="document.body.classList.toggle('sidebar-open')">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                    <h2>👥 Contatos</h2>
+                </div>
+                <div class="topbar-actions">
                     <button onclick="syncContacts()" class="btn btn-primary">🔄 Sincronizar Contatos</button>
                 </div>
             </div>
 
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-value"><%= stats.total %></div>
-                    <div class="stat-label">Total de Contatos</div>
+            <div class="content">
+                <!-- Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">👥</div>
+                        <div class="stat-info">
+                            <h3><%= stats.total %></h3>
+                            <p>Total de Contatos</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green">✨</div>
+                        <div class="stat-info">
+                            <h3><%= stats.today %></h3>
+                            <p>Novos Hoje</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange">📊</div>
+                        <div class="stat-info">
+                            <h3><%= stats.week %></h3>
+                            <p>Ativos (7 dias)</p>
+                        </div>
+                    </div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-value"><%= stats.today %></div>
-                    <div class="stat-label">Novos Hoje</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value"><%= stats.week %></div>
-                    <div class="stat-label">Ativos (7 dias)</div>
-                </div>
-            </div>
 
-            <div class="card">
-                <div class="card-header">
+                <!-- Tabela de Contatos -->
+                <div class="card">
                     <h2>Lista de Contatos</h2>
-                    <input type="text" id="searchInput" placeholder="🔍 Buscar por nome ou telefone..." class="search-input">
-                </div>
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Telefone</th>
-                                <th>Nome</th>
-                                <th>Primeira Mensagem</th>
-                                <th>Última Mensagem</th>
-                                <th>Total de Mensagens</th>
-                            </tr>
-                        </thead>
-                        <tbody id="contactsTable">
-                            <% if (contacts.length === 0) { %>
+                    <div style="margin: 16px 0;">
+                        <input type="text" id="searchInput" placeholder="🔍 Buscar por nome ou telefone..." class="search-input">
+                    </div>
+                    <div class="messages-container">
+                        <table class="messages-table">
+                            <thead>
                                 <tr>
-                                    <td colspan="5" style="text-align: center; padding: 2rem;">
-                                        Nenhum contato encontrado. Clique em "Sincronizar Contatos" para atualizar.
-                                    </td>
+                                    <th>Telefone</th>
+                                    <th>Nome</th>
+                                    <th>Primeira Mensagem</th>
+                                    <th>Última Mensagem</th>
+                                    <th>Total de Mensagens</th>
                                 </tr>
-                            <% } else { %>
-                                <% contacts.forEach(contact => { %>
+                            </thead>
+                            <tbody id="contactsTable">
+                                <% if (contacts.length === 0) { %>
                                     <tr>
-                                        <td><%= contact.phone_number %></td>
-                                        <td><%= contact.contact_name || 'Sem nome' %></td>
-                                        <td><%= contact.first_message_at ? new Date(contact.first_message_at).toLocaleString('pt-BR') : '-' %></td>
-                                        <td><%= contact.last_message_at ? new Date(contact.last_message_at).toLocaleString('pt-BR') : '-' %></td>
-                                        <td><%= contact.message_count %></td>
+                                        <td colspan="5" class="no-messages">
+                                            Nenhum contato encontrado. Clique em "Sincronizar Contatos" para atualizar.
+                                        </td>
                                     </tr>
-                                <% }) %>
-                            <% } %>
-                        </tbody>
-                    </table>
+                                <% } else { %>
+                                    <% contacts.forEach(contact => { %>
+                                        <tr>
+                                            <td><%= contact.phone_number %></td>
+                                            <td><strong><%= contact.contact_name || 'Sem nome' %></strong></td>
+                                            <td><%= contact.first_message_at ? new Date(contact.first_message_at).toLocaleString('pt-BR') : '-' %></td>
+                                            <td><%= contact.last_message_at ? new Date(contact.last_message_at).toLocaleString('pt-BR') : '-' %></td>
+                                            <td><span class="badge info"><%= contact.message_count %></span></td>
+                                        </tr>
+                                    <% }) %>
+                                <% } %>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </main>
     </div>
+
+    <div class="sidebar-overlay" onclick="document.body.classList.remove('sidebar-open')"></div>
 
     <script>
         // Busca em tempo real
