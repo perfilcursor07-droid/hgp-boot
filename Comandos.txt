@@ -12,8 +12,6 @@ Para atualizar o código: use pm2 restart bot-hgp.
 
 Para começar do zero: use pm2 delete bot-hgp e depois o start
 
-node teste_logica.js
-
 taskkill /f /im chrome.exe
 taskkill /f /im node.exe
 
