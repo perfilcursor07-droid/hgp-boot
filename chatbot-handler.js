@@ -233,6 +233,7 @@ function attachChatbot(client, options = {}) {
                 options.onMessage({ from: msg.from, to: chatId, body: msg.body || '', sessionId });
             }
 
+<<<<<<< HEAD
             // Registrar/atualizar contato automaticamente
             try {
                 const contactName = contato.pushname || contato.name || null;
@@ -248,6 +249,8 @@ function attachChatbot(client, options = {}) {
                 registrarErro(erro, 'Erro ao registrar contato automaticamente');
             }
 
+=======
+>>>>>>> b9304d0859cde428d1d32bc90c169ccd183e542c
             if (texto === 'CANCELAR') {
                 estados.delete(sessionId);
                 await client.sendMessage(chatId, '❌ Atendimento encerrado.');

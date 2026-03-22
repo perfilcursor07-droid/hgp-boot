@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 💬 WhatsApp HGP - Sistema de Gestão
 
 Sistema completo de administração e automação de atendimento via WhatsApp para o Hospital Geral de Palmas (HGP).
@@ -28,23 +29,64 @@ cd hgp-boot-main
 ```
 
 2. Instale as dependências:
+=======
+# WhatsApp HGP - Sistema de Gerenciamento
+
+Sistema completo para administração de WhatsApp com frontend em Node.js, registro de mensagens e banco MySQL.
+
+## Funcionalidades
+
+- Login de administrador
+- Conexão com WhatsApp via QR Code
+- Dashboard de controle
+- Registro completo de mensagens
+- Interface responsiva e moderna
+
+## Instalação
+
+### 1. Instalar dependências
+>>>>>>> b9304d0859cde428d1d32bc90c169ccd183e542c
 ```bash
 npm install
 ```
 
+<<<<<<< HEAD
 3. Configure o banco de dados:
    - Crie um banco de dados MySQL chamado `whatsapp_admin`
    - Copie `.env.example` para `.env` e configure suas credenciais:
+=======
+### 2. Configurar banco de dados MySQL
+
+Crie o banco de dados:
+```sql
+CREATE DATABASE whatsapp_admin;
+```
+
+Execute a migration:
+```bash
+mysql -u root -p whatsapp_admin < migrations/001_create_tables.sql
+```
+
+### 3. Configurar variáveis de ambiente
+
+Copie o arquivo de exemplo:
+>>>>>>> b9304d0859cde428d1d32bc90c169ccd183e542c
 ```bash
 cp .env.example .env
 ```
 
+<<<<<<< HEAD
 4. Edite o arquivo `.env`:
 ```env
+=======
+Edite o arquivo `.env` com suas configurações:
+```
+>>>>>>> b9304d0859cde428d1d32bc90c169ccd183e542c
 DB_HOST=localhost
 DB_USER=root
 DB_PASSWORD=sua_senha
 DB_NAME=whatsapp_admin
+<<<<<<< HEAD
 SESSION_SECRET=seu_secret_seguro_aqui
 PORT=3000
 ```
@@ -55,17 +97,37 @@ npm run migrate
 ```
 
 6. Crie um usuário admin:
+=======
+SESSION_SECRET=seu_secret_seguro
+PORT=3000
+```
+
+### 4. Criar usuário administrador
+
+```bash
+npm run create-admin admin admin123
+```
+
+Ou use o padrão (usuário: admin, senha: admin123):
+>>>>>>> b9304d0859cde428d1d32bc90c169ccd183e542c
 ```bash
 npm run create-admin
 ```
 
+<<<<<<< HEAD
 ## 🎯 Como Usar
 
 1. Inicie o servidor:
+=======
+## Executar
+
+### Modo produção:
+>>>>>>> b9304d0859cde428d1d32bc90c169ccd183e542c
 ```bash
 npm start
 ```
 
+<<<<<<< HEAD
 2. Acesse o painel em: `http://localhost:3000`
 
 3. Faça login com as credenciais:
@@ -144,3 +206,54 @@ Para dúvidas ou problemas, entre em contato com a equipe de TI do HGP.
 ## 📄 Licença
 
 Uso interno - Hospital Geral de Palmas (HGP)
+=======
+### Modo desenvolvimento:
+```bash
+npm run dev
+```
+
+Acesse: http://localhost:3000
+
+## Login Padrão
+
+- Usuário: `admin`
+- Senha: `admin123`
+
+## Estrutura do Projeto
+
+```
+├── config/
+│   └── database.js          # Configuração MySQL
+├── migrations/
+│   └── 001_create_tables.sql # Schema do banco
+├── public/
+│   └── css/
+│       └── style.css        # Estilos
+├── scripts/
+│   └── create_admin.js      # Script criar admin
+├── views/
+│   ├── login.ejs           # Página de login
+│   ├── dashboard.ejs       # Dashboard principal
+│   └── messages.ejs        # Lista de mensagens
+├── .env.example            # Exemplo de configuração
+├── server.js               # Servidor principal
+└── package.json
+```
+
+## Uso
+
+1. Faça login com suas credenciais
+2. No dashboard, clique em "Conectar WhatsApp"
+3. Escaneie o QR Code com seu WhatsApp
+4. Aguarde a conexão
+5. Acesse "Mensagens" para ver o registro
+
+## Tecnologias
+
+- Node.js + Express
+- EJS (templates)
+- MySQL
+- whatsapp-web.js
+- bcrypt (segurança)
+- express-session
+>>>>>>> b9304d0859cde428d1d32bc90c169ccd183e542c
