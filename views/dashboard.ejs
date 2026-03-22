@@ -259,6 +259,21 @@
             `;
         }
 
+        function renderConnectionError(message) {
+            statusContainer.innerHTML = `
+                <div class="status disconnected">Falha ao iniciar a conexão</div>
+                <p>${message}</p>
+            `;
+
+            qrcodeContainer.style.display = 'none';
+            qrcodeImg.src = '';
+
+            if (connectBtn) {
+                connectBtn.disabled = false;
+                connectBtn.textContent = '🔗 Conectar WhatsApp';
+            }
+        }
+
         function renderBotStatus(isConnected) {
             botStatusContainer.innerHTML = `
                 <div class="status ${isConnected ? 'connected' : 'disconnected'}">${isConnected ? 'Bot online' : 'Aguardando conexão do WhatsApp'}</div>
@@ -336,6 +351,12 @@
                     if (data.qrCode) {
                         qrcodeImg.src = data.qrCode;
                         qrcodeContainer.style.display = 'block';
+                    }
+
+                    if (!data.connected && !data.qrCode && data.error) {
+                        clearInterval(interval);
+                        renderConnectionError(data.error);
+                        return;
                     }
 
                     renderBotStatus(Boolean(data.connected));

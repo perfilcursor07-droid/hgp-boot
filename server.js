@@ -3,6 +3,7 @@ const express = require('express');
 const session = require('express-session');
 const path = require('path');
 const fs = require('fs/promises');
+const fsSync = require('fs');
 const os = require('os');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
@@ -35,6 +36,57 @@ app.use(session({
 let whatsappClient = null;
 let currentQR = null;
 let whatsappState = 'disconnected';
+let whatsappLastError = null;
+
+const candidateBrowserPaths = [
+    process.env.PUPPETEER_EXECUTABLE_PATH,
+    process.env.CHROME_BIN,
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium'
+].filter(Boolean);
+
+const resolveBrowserExecutablePath = () => {
+    for (const browserPath of candidateBrowserPaths) {
+        if (fsSync.existsSync(browserPath)) {
+            return browserPath;
+        }
+    }
+
+    return undefined;
+};
+
+const buildPuppeteerConfig = () => {
+    const executablePath = resolveBrowserExecutablePath();
+    const config = {
+        headless: true,
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--no-zygote',
+            '--no-first-run'
+        ]
+    };
+
+    if (executablePath) {
+        config.executablePath = executablePath;
+    }
+
+    return config;
+};
+
+const formatWhatsAppError = (error) => {
+    const rawMessage = error?.message || String(error || 'Erro desconhecido ao iniciar o WhatsApp');
+
+    if (/executable|chrome|chromium|browser/i.test(rawMessage)) {
+        return `Falha ao iniciar o navegador do WhatsApp. Configure CHROME_BIN ou PUPPETEER_EXECUTABLE_PATH no servidor. Detalhe: ${rawMessage}`;
+    }
+
+    return rawMessage;
+};
 
 const isApiRequest = (req) => req.path.startsWith('/api/') || req.path.startsWith('/whatsapp/');
 
@@ -199,16 +251,18 @@ app.post('/whatsapp/connect', isAuthenticated, async (req, res) => {
 
         whatsappState = 'connecting';
         currentQR = null;
+        whatsappLastError = null;
 
         whatsappClient = new Client({
             authStrategy: new LocalAuth({ clientId: 'admin-session' }),
-            puppeteer: { headless: true, args: ['--no-sandbox'] }
+            puppeteer: buildPuppeteerConfig()
         });
 
         attachChatbot(whatsappClient, { managedByServer: true });
 
         whatsappClient.on('qr', async (qr) => {
             whatsappState = 'connecting';
+            whatsappLastError = null;
             currentQR = await qrcode.toDataURL(qr);
             await db.query(
                 'INSERT INTO whatsapp_sessions (session_name, qr_code, is_connected) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE qr_code = ?, is_connected = ?',
@@ -219,6 +273,7 @@ app.post('/whatsapp/connect', isAuthenticated, async (req, res) => {
         whatsappClient.on('ready', async () => {
             console.log('WhatsApp conectado!');
             whatsappState = 'connected';
+            whatsappLastError = null;
             currentQR = null;
             await db.query(
                 'UPDATE whatsapp_sessions SET is_connected = ?, last_connected = NOW(), qr_code = NULL WHERE session_name = ?',
@@ -228,11 +283,13 @@ app.post('/whatsapp/connect', isAuthenticated, async (req, res) => {
 
         whatsappClient.on('auth_failure', async (message) => {
             console.error('Falha de autenticação do WhatsApp:', message);
+            whatsappLastError = `Falha de autenticação do WhatsApp: ${message}`;
             await resetWhatsAppRuntime();
         });
 
         whatsappClient.on('disconnected', async (reason) => {
             console.log('WhatsApp desconectado:', reason);
+            whatsappLastError = `WhatsApp desconectado: ${reason}`;
 
             if (whatsappClient) {
                 try {
@@ -257,6 +314,7 @@ app.post('/whatsapp/connect', isAuthenticated, async (req, res) => {
 
         whatsappClient.initialize().catch(async (error) => {
             console.error('Erro ao inicializar cliente WhatsApp:', error);
+            whatsappLastError = formatWhatsAppError(error);
             await resetWhatsAppRuntime();
         });
 
@@ -273,6 +331,8 @@ app.get('/whatsapp/status', isAuthenticated, async (req, res) => {
         const [sessions] = await db.query('SELECT * FROM whatsapp_sessions WHERE session_name = ?', ['admin-session']);
         res.json({
             connected: whatsappState === 'connected',
+            state: whatsappState,
+            error: whatsappLastError,
             qrCode: whatsappState === 'connecting' ? currentQR : null,
             session: sessions[0]
                 ? {
@@ -282,7 +342,7 @@ app.get('/whatsapp/status', isAuthenticated, async (req, res) => {
                 : null
         });
     } catch (error) {
-        res.status(500).json({ connected: false, qrCode: null, session: null });
+        res.status(500).json({ connected: false, state: 'disconnected', error: 'Erro ao consultar status do WhatsApp', qrCode: null, session: null });
     }
 });
 
