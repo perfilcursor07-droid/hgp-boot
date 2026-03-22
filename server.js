@@ -462,7 +462,6 @@ app.get('/api/stats', isAuthenticated, async (req, res) => {
     }
 });
 
-<<<<<<< HEAD
 app.get('/contacts', isAuthenticated, async (req, res) => {
     try {
         const [contacts] = await db.query(`
@@ -562,10 +561,6 @@ app.post('/api/contacts/sync', isAuthenticated, async (req, res) => {
             message: 'Erro ao sincronizar contatos' 
         });
     }
-=======
-app.get('/contacts', isAuthenticated, (req, res) => {
-    res.render('coming-soon', { username: req.session.username, page: 'Contatos' });
->>>>>>> b9304d0859cde428d1d32bc90c169ccd183e542c
 });
 
 app.get('/settings', isAuthenticated, async (req, res) => {
