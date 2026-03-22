@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS messages (
     from_number VARCHAR(50) NOT NULL,
     to_number VARCHAR(50) NOT NULL,
     message_body TEXT,
-    message_type VARCHAR(20) DEFAULT 'text',
+    message_type VARCHAR(100) DEFAULT 'text',
     is_from_me BOOLEAN DEFAULT FALSE,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (session_id) REFERENCES whatsapp_sessions(id) ON DELETE CASCADE,

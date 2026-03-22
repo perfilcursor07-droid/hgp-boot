@@ -303,12 +303,23 @@ app.post('/whatsapp/connect', isAuthenticated, async (req, res) => {
         });
 
         whatsappClient.on('message', async (message) => {
-            const [sessions] = await db.query('SELECT id FROM whatsapp_sessions WHERE session_name = ?', ['admin-session']);
-            if (sessions.length > 0) {
-                await db.query(
-                    'INSERT INTO messages (session_id, from_number, to_number, message_body, message_type, is_from_me) VALUES (?, ?, ?, ?, ?, ?)',
-                    [sessions[0].id, message.from, message.to, message.body, message.type, message.fromMe]
-                );
+            try {
+                const [sessions] = await db.query('SELECT id FROM whatsapp_sessions WHERE session_name = ?', ['admin-session']);
+                if (sessions.length > 0) {
+                    await db.query(
+                        'INSERT INTO messages (session_id, from_number, to_number, message_body, message_type, is_from_me) VALUES (?, ?, ?, ?, ?, ?)',
+                        [
+                            sessions[0].id,
+                            message.from,
+                            message.to,
+                            message.body || '',
+                            String(message.type || 'text').slice(0, 100),
+                            message.fromMe
+                        ]
+                    );
+                }
+            } catch (error) {
+                console.error('Erro ao registrar mensagem do WhatsApp:', error);
             }
         });
 
