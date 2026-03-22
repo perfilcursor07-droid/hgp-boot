@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configurações - WhatsApp HGP</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="dashboard">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1><span>WhatsApp HGP</span></h1>
+            </div>
+
+            <nav class="sidebar-menu">
+                <a href="/dashboard" class="menu-item">
+                    <span class="menu-item-icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="/chamados" class="menu-item">
+                    <span class="menu-item-icon">🧾</span>
+                    <span>Chamados</span>
+                </a>
+                <a href="/messages" class="menu-item">
+                    <span class="menu-item-icon">💬</span>
+                    <span>Mensagens</span>
+                </a>
+                <a href="/contacts" class="menu-item">
+                    <span class="menu-item-icon">👥</span>
+                    <span>Contatos</span>
+                </a>
+                <a href="/settings" class="menu-item active">
+                    <span class="menu-item-icon">⚙️</span>
+                    <span>Configurações</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="user-avatar"><%= username.charAt(0).toUpperCase() %></div>
+                    <div class="user-details">
+                        <div class="user-name"><%= username %></div>
+                        <div class="user-role">Administrador</div>
+                    </div>
+                </div>
+                <a href="/logout" class="btn-logout">
+                    <span>🚪 Sair</span>
+                </a>
+            </div>
+        </aside>
+
+        <div class="sidebar-overlay"></div>
+
+        <main class="main-content">
+            <div class="topbar">
+                <div class="topbar-title-group">
+                    <button type="button" class="menu-toggle" aria-label="Abrir menu">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                    <h2>Configurações</h2>
+                </div>
+                <div class="topbar-actions">
+                    <span class="badge info">Edição direta do projeto</span>
+                </div>
+            </div>
+
+            <div class="content">
+                <section class="dashboard-hero settings-hero">
+                    <div>
+                        <p class="eyebrow">Editor interno</p>
+                        <h1>Arquivos de configuração</h1>
+                        <p class="hero-text">Edite o código do atendimento e a escala do plantão sem abrir IDE. Cada arquivo é validado antes de ser salvo.</p>
+                    </div>
+                    <div class="hero-highlight">
+                        <span class="hero-highlight-label">Arquivos</span>
+                        <strong>chatbot.js + escala.json</strong>
+                        <small>Salvamento direto no projeto</small>
+                    </div>
+                </section>
+
+                <div class="settings-grid">
+                    <div class="card settings-card">
+                        <div class="settings-toolbar">
+                            <div>
+                                <h2>Editor do Bot</h2>
+                                <p class="settings-helper">Use este card para ajustar a lógica do atendimento. Se houver erro de sintaxe, o arquivo não será salvo.</p>
+                            </div>
+                            <div class="settings-actions">
+                                <button type="button" id="reloadChatbotBtn" class="btn-secondary">Recarregar arquivo</button>
+                                <button type="button" id="saveChatbotBtn" class="btn-primary settings-save-btn">Salvar no projeto</button>
+                            </div>
+                        </div>
+
+                        <div id="chatbotStatusMessage" class="settings-status" style="display: none;"></div>
+
+                        <label class="settings-label" for="chatbotCode">Conteúdo de <%= chatbotFileName %></label>
+                        <textarea id="chatbotCode" class="code-editor" spellcheck="false"><%= chatbotCode %></textarea>
+                    </div>
+
+                    <div class="card settings-card">
+                        <div class="settings-toolbar">
+                            <div>
+                                <h2>Editor de Escala</h2>
+                                <p class="settings-helper">Configure aqui a escala que o backend usa para definir para qual técnico cada chamado será enviado.</p>
+                            </div>
+                            <div class="settings-actions">
+                                <button type="button" id="reloadEscalaBtn" class="btn-secondary">Recarregar arquivo</button>
+                                <button type="button" id="saveEscalaBtn" class="btn-primary settings-save-btn">Salvar no projeto</button>
+                            </div>
+                        </div>
+
+                        <div id="escalaStatusMessage" class="settings-status" style="display: none;"></div>
+
+                        <label class="settings-label" for="escalaCode">Conteúdo de <%= escalaFileName %></label>
+                        <textarea id="escalaCode" class="code-editor code-editor-small" spellcheck="false"><%= escalaCode %></textarea>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const menuToggle = document.querySelector('.menu-toggle');
+        const sidebarOverlay = document.querySelector('.sidebar-overlay');
+        const saveChatbotBtn = document.getElementById('saveChatbotBtn');
+        const reloadChatbotBtn = document.getElementById('reloadChatbotBtn');
+        const saveEscalaBtn = document.getElementById('saveEscalaBtn');
+        const reloadEscalaBtn = document.getElementById('reloadEscalaBtn');
+        const chatbotCode = document.getElementById('chatbotCode');
+        const escalaCode = document.getElementById('escalaCode');
+        const chatbotStatusMessage = document.getElementById('chatbotStatusMessage');
+        const escalaStatusMessage = document.getElementById('escalaStatusMessage');
+
+        function toggleSidebar(forceOpen) {
+            if (typeof forceOpen === 'boolean') {
+                document.body.classList.toggle('sidebar-open', forceOpen);
+                return;
+            }
+
+            document.body.classList.toggle('sidebar-open');
+        }
+
+        function showStatus(element, type, message) {
+            element.className = `settings-status ${type}`;
+            element.textContent = message;
+            element.style.display = 'block';
+        }
+
+        async function getJsonOrThrow(response) {
+            if (response.status === 401) {
+                window.location.href = '/';
+                throw new Error('Sessão expirada');
+            }
+
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.details || data.message || 'Erro inesperado');
+            }
+
+            return data;
+        }
+
+        async function reloadFile(url, button, target, statusElement) {
+            button.disabled = true;
+
+            try {
+                const response = await fetch(url);
+                const data = await getJsonOrThrow(response);
+                target.value = data.content || '';
+                showStatus(statusElement, 'info', 'Arquivo recarregado do projeto.');
+            } catch (error) {
+                showStatus(statusElement, 'error', error.message);
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        async function saveFile(url, button, target, statusElement, idleLabel) {
+            button.disabled = true;
+            button.textContent = 'Salvando...';
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ content: target.value })
+                });
+
+                const data = await getJsonOrThrow(response);
+                showStatus(statusElement, 'success', data.message || 'Arquivo salvo com sucesso.');
+            } catch (error) {
+                showStatus(statusElement, 'error', error.message);
+            } finally {
+                button.disabled = false;
+                button.textContent = idleLabel;
+            }
+        }
+
+        if (menuToggle) {
+            menuToggle.addEventListener('click', () => toggleSidebar());
+        }
+
+        if (sidebarOverlay) {
+            sidebarOverlay.addEventListener('click', () => toggleSidebar(false));
+        }
+
+        document.querySelectorAll('.menu-item, .btn-logout').forEach((item) => {
+            item.addEventListener('click', () => {
+                if (window.innerWidth <= 900) {
+                    toggleSidebar(false);
+                }
+            });
+        });
+
+        reloadChatbotBtn.addEventListener('click', () => reloadFile('/api/settings/chatbot-file', reloadChatbotBtn, chatbotCode, chatbotStatusMessage));
+        reloadEscalaBtn.addEventListener('click', () => reloadFile('/api/settings/escala-file', reloadEscalaBtn, escalaCode, escalaStatusMessage));
+
+        saveChatbotBtn.addEventListener('click', () => saveFile('/api/settings/chatbot-file', saveChatbotBtn, chatbotCode, chatbotStatusMessage, 'Salvar no projeto'));
+        saveEscalaBtn.addEventListener('click', () => saveFile('/api/settings/escala-file', saveEscalaBtn, escalaCode, escalaStatusMessage, 'Salvar no projeto'));
+    </script>
+</body>
+</html>

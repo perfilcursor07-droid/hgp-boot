@@ -1,0 +1,81 @@
+pm2 delete all
+
+taskkill /F /IM chrome.exe /T
+
+pm2 start index.js --name bot-hgp -f
+
+node index.js
+
+node chatbot.js
+
+Para atualizar o código: use pm2 restart bot-hgp.
+
+Para começar do zero: use pm2 delete bot-hgp e depois o start
+
+node teste_logica.js
+
+taskkill /f /im chrome.exe
+taskkill /f /im node.exe
+
+pm2 stop all
+pm2 delete all
+
+Limpeza Manual (Se o erro persistir)
+Se mesmo após fechar os processos o erro continuar, existe um arquivo de "trava" (lock) na pasta da sessão.
+Vá até a pasta: C:\Users\00164210199\Desktop\Chatbot\.wwebjs_auth\session
+Procure por uma pasta chamada Default ou arquivos chamados SingletonLock.
+Apague apenas o arquivo SingletonLock.
+
+
+No seu terminal, instale o PM2 globalmente:
+
+Bash
+npm install pm2 -g
+Inicie o seu bot com ele:
+
+Bash
+pm2 start chatbot.js --name "bot-hgp"
+Vantagens de usar o PM2:
+
+Se o bot der erro e cair, o PM2 reinicia ele sozinho instantaneamente.
+
+Você pode fechar o terminal e o bot continua vivo.
+
+Para ver se ele está rodando, digite: pm2 status.
+
+Para ver as mensagens/logs do bot, digite: pm2 logs bot-hgp.
+
+Para parar o bot: pm2 stop bot-hgp.
+
+
+. Se você quer apenas REINICIAR o bot (Recomendado)
+Se você alterou o código e quer que as mudanças entrem em vigor, use o comando restart:
+
+Bash
+pm2 restart chatbot.js
+(Ou use o nome que você deu: pm2 restart bot-hgp)
+
+2. Se você quer APAGAR a lista atual e começar do zero
+Se você fez muitas tentativas e a lista do PM2 está bagunçada, o melhor é limpar tudo:
+
+Bash
+pm2 delete all
+pm2 start chatbot.js --name "bot-hgp"
+3. Se você realmente quer rodar duas cópias (Não recomendado)
+Como o erro sugere, o comando -f (force) força uma nova execução, mas cuidado: isso pode causar o erro de "pasta ocupada" que vimos antes, pois dois bots tentarão usar o mesmo WhatsApp ao mesmo tempo.
+
+Bash
+pm2 start chatbot.js --name "bot-hgp-2" -f
+
+
+
+Feriado
+
+https://docs.google.com/spreadsheets/d/1T3IVBx-cfDxUKYx5M_TW_pkbilWywQwaXlNljiQGspw/edit?gid=0#gid=0
+
+Escala de Sobre Aviso
+
+https://docs.google.com/spreadsheets/d/1Nd27YtqlotTvapmZjz3sz_BfLJ7wyXPWvhkinY7UkYA/edit?gid=0#gid=0
+
+
+
