@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS chamados (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    protocolo VARCHAR(50) UNIQUE NOT NULL,
+    categoria VARCHAR(100) NOT NULL,
+    solicitante_nome VARCHAR(150) NOT NULL,
+    nome_whatsapp VARCHAR(150) NULL,
+    setor VARCHAR(150) NOT NULL,
+    ip_maquina VARCHAR(50) NULL,
+    telefone_contato VARCHAR(50) NULL,
+    descricao TEXT NOT NULL,
+    status VARCHAR(20) DEFAULT 'pendente',
+    tecnico_nome VARCHAR(150) NULL,
+    tecnico_telefone VARCHAR(50) NULL,
+    chat_origem VARCHAR(100) NULL,
+    atribuido_em DATETIME NULL,
+    criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_chamados_status (status),
+    INDEX idx_chamados_tecnico (tecnico_nome),
+    INDEX idx_chamados_criado_em (criado_em)
+);

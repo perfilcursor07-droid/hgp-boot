@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chamados - WhatsApp HGP</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="dashboard">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1><span>WhatsApp HGP</span></h1>
+            </div>
+
+            <nav class="sidebar-menu">
+                <a href="/dashboard" class="menu-item">
+                    <span class="menu-item-icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="/chamados" class="menu-item active">
+                    <span class="menu-item-icon">🧾</span>
+                    <span>Chamados</span>
+                </a>
+                <a href="/messages" class="menu-item">
+                    <span class="menu-item-icon">💬</span>
+                    <span>Mensagens</span>
+                </a>
+                <a href="/contacts" class="menu-item">
+                    <span class="menu-item-icon">👥</span>
+                    <span>Contatos</span>
+                </a>
+                <a href="/settings" class="menu-item">
+                    <span class="menu-item-icon">⚙️</span>
+                    <span>Configurações</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="user-avatar"><%= username.charAt(0).toUpperCase() %></div>
+                    <div class="user-details">
+                        <div class="user-name"><%= username %></div>
+                        <div class="user-role">Administrador</div>
+                    </div>
+                </div>
+                <a href="/logout" class="btn-logout">
+                    <span>🚪 Sair</span>
+                </a>
+            </div>
+        </aside>
+
+        <div class="sidebar-overlay"></div>
+
+        <main class="main-content">
+            <div class="topbar">
+                <div class="topbar-title-group">
+                    <button type="button" class="menu-toggle" aria-label="Abrir menu">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                    <h2>Chamados</h2>
+                </div>
+                <div class="topbar-actions">
+                    <span class="badge info"><%= contagem.total %> chamados</span>
+                </div>
+            </div>
+
+            <div class="content">
+                <section class="dashboard-hero">
+                    <div>
+                        <p class="eyebrow">Fila de atendimento</p>
+                        <h1>Gestão de chamados</h1>
+                        <p class="hero-text">Cada chamado registrado pelo chatbot aparece aqui com o técnico da escala e o status inicial do atendimento.</p>
+                    </div>
+                    <div class="hero-highlight">
+                        <span class="hero-highlight-label">Abertos</span>
+                        <strong><%= contagem.aberto %></strong>
+                        <small><%= contagem.pendente %> pendentes e <%= contagem.finalizado %> finalizados</small>
+                    </div>
+                </section>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon green">🟢</div>
+                        <div class="stat-info">
+                            <h3><%= contagem.aberto %></h3>
+                            <p>Abertos</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange">🕗</div>
+                        <div class="stat-info">
+                            <h3><%= contagem.pendente %></h3>
+                            <p>Pendentes</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon blue">✅</div>
+                        <div class="stat-info">
+                            <h3><%= contagem.finalizado %></h3>
+                            <p>Finalizados</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon purple">📦</div>
+                        <div class="stat-info">
+                            <h3><%= contagem.total %></h3>
+                            <p>Total registrados</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Lista de chamados</h2>
+
+                    <div class="messages-container">
+                        <% if (chamados.length === 0) { %>
+                            <p class="no-messages">📭 Nenhum chamado registrado ainda</p>
+                        <% } else { %>
+                            <table class="messages-table chamados-table">
+                                <thead>
+                                    <tr>
+                                        <th>Protocolo</th>
+                                        <th>Solicitante</th>
+                                        <th>Categoria</th>
+                                        <th>Status</th>
+                                        <th>Técnico</th>
+                                        <th>Contato</th>
+                                        <th>Data</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <% chamados.forEach((chamado) => { %>
+                                        <tr>
+                                            <td>
+                                                <strong><%= chamado.protocolo %></strong>
+                                                <div class="table-subtext"><%= chamado.setor %></div>
+                                            </td>
+                                            <td>
+                                                <strong><%= chamado.solicitante_nome %></strong>
+                                                <div class="table-subtext"><%= chamado.nome_whatsapp || '-' %></div>
+                                            </td>
+                                            <td>
+                                                <strong><%= chamado.categoria %></strong>
+                                                <div class="table-subtext"><%= chamado.ip_maquina || '-' %></div>
+                                            </td>
+                                            <td>
+                                                <span class="badge <%= chamado.status === 'aberto' ? 'success' : (chamado.status === 'finalizado' ? 'info' : 'warning') %>">
+                                                    <%= chamado.status %>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <strong><%= chamado.tecnico_nome || 'Não atribuído' %></strong>
+                                                <div class="table-subtext"><%= chamado.tecnico_nome ? `Enviado para ${chamado.tecnico_nome}` : 'Aguardando escala' %></div>
+                                            </td>
+                                            <td><%= chamado.tecnico_telefone || chamado.telefone_contato || '-' %></td>
+                                            <td><%= new Date(chamado.criado_em).toLocaleString('pt-BR') %></td>
+                                        </tr>
+                                    <% }) %>
+                                </tbody>
+                            </table>
+                        <% } %>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const menuToggle = document.querySelector('.menu-toggle');
+        const sidebarOverlay = document.querySelector('.sidebar-overlay');
+
+        function toggleSidebar(forceOpen) {
+            if (typeof forceOpen === 'boolean') {
+                document.body.classList.toggle('sidebar-open', forceOpen);
+                return;
+            }
+
+            document.body.classList.toggle('sidebar-open');
+        }
+
+        if (menuToggle) {
+            menuToggle.addEventListener('click', () => toggleSidebar());
+        }
+
+        if (sidebarOverlay) {
+            sidebarOverlay.addEventListener('click', () => toggleSidebar(false));
+        }
+
+        document.querySelectorAll('.menu-item, .btn-logout').forEach((item) => {
+            item.addEventListener('click', () => {
+                if (window.innerWidth <= 900) {
+                    toggleSidebar(false);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

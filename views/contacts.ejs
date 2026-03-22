@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contatos - WhatsApp HGP</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <nav class="sidebar">
+            <div class="logo">💬 WhatsApp HGP</div>
+            <ul class="menu">
+                <li><a href="/dashboard">📊 Dashboard</a></li>
+                <li><a href="/messages">💬 Mensagens</a></li>
+                <li><a href="/chamados">📋 Chamados</a></li>
+                <li><a href="/contacts" class="active">👥 Contatos</a></li>
+                <li><a href="/settings">⚙️ Configurações</a></li>
+                <li><a href="/logout">🚪 Sair</a></li>
+            </ul>
+            <div class="user-info">
+                👤 <%= username %>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <div class="header">
+                <h1>👥 Contatos</h1>
+                <div class="header-actions">
+                    <button onclick="syncContacts()" class="btn btn-primary">🔄 Sincronizar Contatos</button>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value"><%= stats.total %></div>
+                    <div class="stat-label">Total de Contatos</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value"><%= stats.today %></div>
+                    <div class="stat-label">Novos Hoje</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value"><%= stats.week %></div>
+                    <div class="stat-label">Ativos (7 dias)</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2>Lista de Contatos</h2>
+                    <input type="text" id="searchInput" placeholder="🔍 Buscar por nome ou telefone..." class="search-input">
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Telefone</th>
+                                <th>Nome</th>
+                                <th>Primeira Mensagem</th>
+                                <th>Última Mensagem</th>
+                                <th>Total de Mensagens</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contactsTable">
+                            <% if (contacts.length === 0) { %>
+                                <tr>
+                                    <td colspan="5" style="text-align: center; padding: 2rem;">
+                                        Nenhum contato encontrado. Clique em "Sincronizar Contatos" para atualizar.
+                                    </td>
+                                </tr>
+                            <% } else { %>
+                                <% contacts.forEach(contact => { %>
+                                    <tr>
+                                        <td><%= contact.phone_number %></td>
+                                        <td><%= contact.contact_name || 'Sem nome' %></td>
+                                        <td><%= contact.first_message_at ? new Date(contact.first_message_at).toLocaleString('pt-BR') : '-' %></td>
+                                        <td><%= contact.last_message_at ? new Date(contact.last_message_at).toLocaleString('pt-BR') : '-' %></td>
+                                        <td><%= contact.message_count %></td>
+                                    </tr>
+                                <% }) %>
+                            <% } %>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Busca em tempo real
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#contactsTable tr');
+            
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(searchTerm) ? '' : 'none';
+            });
+        });
+
+        // Sincronizar contatos
+        async function syncContacts() {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = '⏳ Sincronizando...';
+            
+            try {
+                const response = await fetch('/api/contacts/sync', {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(`✓ ${data.message}\n\nContatos sincronizados: ${data.synced}`);
+                    location.reload();
+                } else {
+                    alert('✗ ' + data.message);
+                }
+            } catch (error) {
+                alert('✗ Erro ao sincronizar contatos');
+                console.error(error);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔄 Sincronizar Contatos';
+            }
+        }
+    </script>
+</body>
+</html>

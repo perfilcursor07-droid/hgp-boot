@@ -1,0 +1,132 @@
+// =====================================
+// BOT HGP - COM MARCAÇÃO DE NÃO LIDA
+// =====================================
+const qrcode = require("qrcode-terminal");
+const { Client, LocalAuth } = require("whatsapp-web.js");
+
+const client = new Client({
+  authStrategy: new LocalAuth(),
+  puppeteer: {
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  },
+});
+
+const estados = new Map();
+const bloqueados = new Map();
+
+const TABELA_SOBREAVISO = [
+  { data: "2026-03-14", tecnico: "Pedro Vinicius", telefone: "(63) 98406-8194" },
+  { data: "2026-03-15", tecnico: "Pedro Vinicius", telefone: "(63) 98406-8194" }
+];
+
+client.on("qr", (qr) => {
+  console.log("📲 Escaneie o QR Code:");
+  qrcode.generate(qr, { small: true });
+});
+
+client.on("ready", () => console.log("✅ BOT HGP ONLINE!"));
+client.initialize();
+
+const obterSobreavisoHoje = () => {
+  const hoje = new Date().toISOString().split('T')[0];
+  return TABELA_SOBREAVISO.find(s => s.data === hoje);
+};
+
+const gerarRelatorioFinal = async (estado, chatId, msg) => {
+  const hora = new Date().toLocaleString('pt-BR');
+  
+  const relatorio = `🔄 *Brevemente iremos lhe atender*\n\n` +
+    `🛠️ TI Suporte HGP - RELATÓRIO 📊\n\n` +
+    `👤 *Nome:* ${estado.nomeCompleto}\n` +
+    `🏢 *Setor/Ala:* ${estado.setor}\n` +
+    `💻 *IP do computador:* ${estado.ip}\n` +
+    `📱 *Telefone para contato:* ${estado.telefone}\n` +
+    `📝 *Descrição do problema:* ${estado.descricao}\n\n` +
+    `🔢 *Opção selecionada:* ${estado.opcao}\n` +
+    `⏰ ${hora}\n` +
+    `📧 cpd.hgp@gmail.com\n` +
+    `📞 (63) 3027-5205`;
+
+  await client.sendMessage(chatId, relatorio);
+  
+  // MARCA COMO NÃO LIDA (Sobe a conversa no WhatsApp)
+  await msg.getChat().then(chat => chat.markUnread());
+  
+  console.log("✅ RELATÓRIO ENVIADO:", estado.nomeCompleto);
+  
+  bloqueados.set(chatId, Date.now() + 30 * 60 * 1000);
+  setTimeout(() => bloqueados.delete(chatId), 30 * 60 * 1000);
+};
+
+client.on("message", async (msg) => {
+  try {
+    if (!msg.from || msg.from.endsWith("@g.us")) return;
+
+    const chatId = msg.from;
+    const corpo = msg.body ? msg.body.trim() : "";
+    const texto = corpo.toUpperCase();
+
+    if (bloqueados.has(chatId) && Date.now() < bloqueados.get(chatId)) return;
+
+    let estado = estados.get(chatId) || { step: 0 };
+
+    if (obterSobreavisoHoje()) {
+      const s = obterSobreavisoHoje();
+      await client.sendMessage(chatId, `*🛠️ TI Suporte HGP* 🚨\n\n📅 *${s.data}*\n👨‍💻 *${s.tecnico}*\n📞 **${s.telefone}**\n\n🔥 *CONTATE DIRETAMENTE*`);
+      return;
+    }
+
+    // MENU
+    if (estado.step === 0 && (/^(MENU|OI|OLÁ|BOM DIA|BOA TARDE|BOA NOITE)$/.test(texto) || corpo === "")) {
+      const hora = new Date().getHours();
+      const saudacao = hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
+      await client.sendMessage(chatId, `*🛠️ TI Suporte HGP* 👋\n\n${saudacao}! Escolha uma opção:\n\n1️⃣ Soul MV\n2️⃣ Impressora\n3️⃣ Suporte Técnico\n4️⃣ VOIP\n5️⃣ Outros`);
+      return;
+    }
+
+    // SELEÇÃO
+    if (estado.step === 0 && ["1", "2", "3", "4", "5"].includes(texto)) {
+      estado = { opcao: texto, step: 1 };
+      estados.set(chatId, estado);
+      if (texto === "1") await client.sendMessage(chatId, `*Soul MV:* https://sites.google.com/view/hgpalmas/início`);
+      await client.sendMessage(chatId, `👤 *Nome:*`);
+      return;
+    }
+
+    // PASSOS DO FORMULÁRIO
+    if (estado.step > 0) {
+      switch (estado.step) {
+        case 1:
+          estado.nomeCompleto = corpo;
+          estado.step = 2;
+          await client.sendMessage(chatId, `🏢 *Setor/Ala:*`);
+          break;
+        case 2:
+          estado.setor = corpo;
+          estado.step = 3;
+          await client.sendMessage(chatId, `💻 *IP do computador:*`);
+          break;
+        case 3:
+          estado.ip = corpo;
+          estado.step = 4;
+          await client.sendMessage(chatId, `📱 *Telefone para contato:*`);
+          break;
+        case 4:
+          estado.telefone = corpo;
+          estado.step = 5;
+          await client.sendMessage(chatId, `📝 *Descrição do problema:*`);
+          break;
+        case 5:
+          estado.descricao = corpo;
+          await gerarRelatorioFinal(estado, chatId, msg);
+          estados.delete(chatId);
+          return;
+      }
+      estados.set(chatId, estado);
+    }
+
+  } catch (error) {
+    console.error("❌ Erro:", error.message);
+  }
+});

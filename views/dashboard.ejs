@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - WhatsApp HGP</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body data-bot-connected="<%= session && session.is_connected ? 'true' : 'false' %>">
+    <div class="dashboard">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1><span>WhatsApp HGP</span></h1>
+            </div>
+            
+            <nav class="sidebar-menu">
+                <a href="/dashboard" class="menu-item active">
+                    <span class="menu-item-icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="/chamados" class="menu-item">
+                    <span class="menu-item-icon">🧾</span>
+                    <span>Chamados</span>
+                </a>
+                <a href="/messages" class="menu-item">
+                    <span class="menu-item-icon">💬</span>
+                    <span>Mensagens</span>
+                </a>
+                <a href="/contacts" class="menu-item">
+                    <span class="menu-item-icon">👥</span>
+                    <span>Contatos</span>
+                </a>
+                <a href="/settings" class="menu-item">
+                    <span class="menu-item-icon">⚙️</span>
+                    <span>Configurações</span>
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="user-avatar"><%= username.charAt(0).toUpperCase() %></div>
+                    <div class="user-details">
+                        <div class="user-name"><%= username %></div>
+                        <div class="user-role">Administrador</div>
+                    </div>
+                </div>
+                <a href="/logout" class="btn-logout">
+                    <span>🚪 Sair</span>
+                </a>
+            </div>
+        </aside>
+
+        <div class="sidebar-overlay"></div>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="topbar">
+                <div class="topbar-title-group">
+                    <button type="button" class="menu-toggle" aria-label="Abrir menu">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                    <h2>Dashboard</h2>
+                </div>
+                <div class="topbar-actions">
+                    <% if (session && session.is_connected) { %>
+                        <span class="badge success">✓ WhatsApp Conectado</span>
+                    <% } else { %>
+                        <span class="badge info">○ Desconectado</span>
+                    <% } %>
+                </div>
+            </div>
+
+            <div class="content">
+                <section class="dashboard-hero">
+                    <div>
+                        <p class="eyebrow">Painel de controle</p>
+                        <h1>Dashboard WhatsApp</h1>
+                        <p class="hero-text">A conexão do WhatsApp e o bot de atendimento agora usam a mesma sessão. Ao conectar acima, o chatbot já fica ativo.</p>
+                    </div>
+                    <div class="hero-highlight">
+                        <span class="hero-highlight-label">Status</span>
+                        <strong><%= session && session.is_connected ? 'Conectado' : 'Desconectado' %></strong>
+                        <small><%= session && session.last_connected ? new Date(session.last_connected).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Aguardando conexão' %></small>
+                    </div>
+                </section>
+
+                <!-- Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon green">📱</div>
+                        <div class="stat-info">
+                            <h3><%= session && session.is_connected ? 'Bot online' : 'Bot offline' %></h3>
+                            <p>Status do chatbot</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon blue">💬</div>
+                        <div class="stat-info">
+                            <h3 id="messageCount">0</h3>
+                            <p>Mensagens Hoje</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon purple">👥</div>
+                        <div class="stat-info">
+                            <h3 id="contactCount">0</h3>
+                            <p>Contatos Ativos</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon orange">⏱️</div>
+                        <div class="stat-info">
+                            <h3><%= session && session.last_connected ? new Date(session.last_connected).toLocaleDateString('pt-BR') : '-' %></h3>
+                            <p>Última Conexão</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-panels">
+                    <div class="card card-connection">
+                        <h2>Conexão WhatsApp</h2>
+                        
+                        <div id="status-container">
+                            <% if (session && session.is_connected) { %>
+                                <div class="status connected">Conectado</div>
+                                <p>Última conexão: <%= new Date(session.last_connected).toLocaleString('pt-BR') %></p>
+                            <% } else { %>
+                                <div class="status disconnected">Desconectado</div>
+                                <p>Clique no botão abaixo para conectar seu WhatsApp</p>
+                            <% } %>
+                        </div>
+
+                        <div class="connection-actions">
+                            <% if (!session || !session.is_connected) { %>
+                                <button id="connectBtn" class="btn-primary">🔗 Conectar WhatsApp</button>
+                            <% } %>
+
+                            <% if (session && session.is_connected) { %>
+                                <button id="disconnectBtn" class="btn-danger">⛔ Desconectar WhatsApp</button>
+                            <% } else { %>
+                                <button id="disconnectBtn" class="btn-danger" style="display: none;">⛔ Desconectar WhatsApp</button>
+                            <% } %>
+                        </div>
+
+                        <div id="qrcode-container" style="display: none;">
+                            <h3>📱 Escaneie o QR Code</h3>
+                            <img id="qrcode" src="" alt="QR Code">
+                            <p>Abra o WhatsApp no seu celular. Ao conectar esta sessão, o bot de atendimento também será ativado.</p>
+                        </div>
+                    </div>
+
+                    <div class="card card-connection">
+                        <h2>Bot de Atendimento</h2>
+
+                        <div id="bot-status-container">
+                            <% if (session && session.is_connected) { %>
+                                <div class="status connected">Bot online</div>
+                                <p>O chatbot está ativo usando a mesma conexão do WhatsApp acima.</p>
+                            <% } else { %>
+                                <div class="status disconnected">Aguardando conexão do WhatsApp</div>
+                                <p>Conecte o WhatsApp no card acima. Não existe mais QR Code separado para o bot.</p>
+                            <% } %>
+                        </div>
+
+                        <div class="bot-last-message">
+                            <span class="quick-label">Ativação</span>
+                            <strong id="botLastMessage"><%= session && session.is_connected ? 'Ativo automaticamente na mesma sessão do WhatsApp.' : 'Conecte o WhatsApp para ativar o atendimento.' %></strong>
+                        </div>
+                    </div>
+
+                    <aside class="card quick-panel">
+                        <h2>Resumo rápido</h2>
+                        <div class="quick-list">
+                            <div class="quick-item">
+                                <span class="quick-label">Situação</span>
+                                <strong id="botSituation"><%= session && session.is_connected ? 'Bot online' : 'Bot offline' %></strong>
+                            </div>
+                            <div class="quick-item">
+                                <span class="quick-label">Mensagens hoje</span>
+                                <strong id="messageCountPanel">0</strong>
+                            </div>
+                            <div class="quick-item">
+                                <span class="quick-label">Contatos ativos</span>
+                                <strong id="contactCountPanel">0</strong>
+                            </div>
+                            <div class="quick-item">
+                                <span class="quick-label">Acesso</span>
+                                <strong><%= username %></strong>
+                            </div>
+                        </div>
+                    </aside>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const initialBotConnected = document.body.dataset.botConnected === 'true';
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const qrcodeContainer = document.getElementById('qrcode-container');
+        const qrcodeImg = document.getElementById('qrcode');
+        const statusContainer = document.getElementById('status-container');
+        const botStatusContainer = document.getElementById('bot-status-container');
+        const botLastMessage = document.getElementById('botLastMessage');
+        const botSituation = document.getElementById('botSituation');
+        const menuToggle = document.querySelector('.menu-toggle');
+        const sidebarOverlay = document.querySelector('.sidebar-overlay');
+
+        function toggleSidebar(forceOpen) {
+            if (typeof forceOpen === 'boolean') {
+                document.body.classList.toggle('sidebar-open', forceOpen);
+                return;
+            }
+
+            document.body.classList.toggle('sidebar-open');
+        }
+
+        if (menuToggle) {
+            menuToggle.addEventListener('click', () => toggleSidebar());
+        }
+
+        if (sidebarOverlay) {
+            sidebarOverlay.addEventListener('click', () => toggleSidebar(false));
+        }
+
+        document.querySelectorAll('.menu-item, .btn-logout').forEach((item) => {
+            item.addEventListener('click', () => {
+                if (window.innerWidth <= 900) {
+                    toggleSidebar(false);
+                }
+            });
+        });
+
+        async function getJsonOrThrow(response) {
+            if (response.status === 401) {
+                window.location.href = '/';
+                throw new Error('Sessão expirada');
+            }
+
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                throw new Error('Resposta inválida do servidor');
+            }
+
+            return response.json();
+        }
+
+        function renderConnectingState() {
+            statusContainer.innerHTML = `
+                <div class="status disconnected">Aguardando leitura do QR Code</div>
+                <p>Escaneie o QR Code abaixo para concluir a conexão com o WhatsApp</p>
+            `;
+        }
+
+        function renderConnectionError(message) {
+            statusContainer.innerHTML = `
+                <div class="status disconnected">Falha ao iniciar a conexão</div>
+                <p>${message}</p>
+            `;
+
+            qrcodeContainer.style.display = 'none';
+            qrcodeImg.src = '';
+
+            if (connectBtn) {
+                connectBtn.disabled = false;
+                connectBtn.textContent = '🔗 Conectar WhatsApp';
+            }
+        }
+
+        function renderBotStatus(isConnected) {
+            botStatusContainer.innerHTML = `
+                <div class="status ${isConnected ? 'connected' : 'disconnected'}">${isConnected ? 'Bot online' : 'Aguardando conexão do WhatsApp'}</div>
+                <p>${isConnected ? 'O chatbot está ativo usando a mesma conexão do WhatsApp acima.' : 'Conecte o WhatsApp no card acima. Não existe mais QR Code separado para o bot.'}</p>
+            `;
+
+            if (botSituation) {
+                botSituation.textContent = isConnected ? 'Bot online' : 'Bot offline';
+            }
+
+            botLastMessage.textContent = isConnected
+                ? 'Ativo automaticamente na mesma sessão do WhatsApp.'
+                : 'Conecte o WhatsApp para ativar o atendimento.';
+        }
+
+        if (connectBtn) {
+            connectBtn.addEventListener('click', async () => {
+                connectBtn.disabled = true;
+                connectBtn.textContent = '⏳ Conectando...';
+                renderConnectingState();
+
+                try {
+                    const response = await fetch('/whatsapp/connect', { method: 'POST' });
+                    const data = await getJsonOrThrow(response);
+
+                    if (data.success) {
+                        if (data.connected) {
+                            location.reload();
+                            return;
+                        }
+
+                        checkStatus();
+                    } else {
+                        alert(data.message);
+                        connectBtn.disabled = false;
+                        connectBtn.textContent = '🔗 Conectar WhatsApp';
+                    }
+                } catch (error) {
+                    alert('Erro ao conectar');
+                    connectBtn.disabled = false;
+                    connectBtn.textContent = '🔗 Conectar WhatsApp';
+                }
+            });
+        }
+
+        if (disconnectBtn) {
+            disconnectBtn.addEventListener('click', async () => {
+                disconnectBtn.disabled = true;
+                disconnectBtn.textContent = '⏳ Desconectando...';
+
+                try {
+                    const response = await fetch('/whatsapp/disconnect', { method: 'POST' });
+                    const data = await getJsonOrThrow(response);
+
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert(data.message || 'Erro ao desconectar');
+                    }
+                } catch (error) {
+                    alert('Erro ao desconectar');
+                } finally {
+                    disconnectBtn.disabled = false;
+                    disconnectBtn.textContent = '⛔ Desconectar WhatsApp';
+                }
+            });
+        }
+
+        function checkStatus() {
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch('/whatsapp/status');
+                    const data = await getJsonOrThrow(response);
+
+                    if (data.qrCode) {
+                        qrcodeImg.src = data.qrCode;
+                        qrcodeContainer.style.display = 'block';
+                    }
+
+                    if (!data.connected && !data.qrCode && data.error) {
+                        clearInterval(interval);
+                        renderConnectionError(data.error);
+                        return;
+                    }
+
+                    renderBotStatus(Boolean(data.connected));
+
+                    if (data.connected) {
+                        clearInterval(interval);
+                        location.reload();
+                    }
+                } catch (error) {
+                    console.error('Erro ao verificar status:', error);
+                }
+            }, 2000);
+        }
+
+        // Load stats
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const data = await getJsonOrThrow(response);
+                document.getElementById('messageCount').textContent = data.messagesToday || 0;
+                document.getElementById('contactCount').textContent = data.activeContacts || 0;
+                document.getElementById('messageCountPanel').textContent = data.messagesToday || 0;
+                document.getElementById('contactCountPanel').textContent = data.activeContacts || 0;
+            } catch (error) {
+                console.error('Erro ao carregar estatísticas:', error);
+            }
+        }
+
+        loadStats();
+        renderBotStatus(initialBotConnected);
+    </script>
+</body>
+</html>

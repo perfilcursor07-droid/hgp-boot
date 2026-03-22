@@ -1,0 +1,45 @@
+# GUIA DE CONFIGURAÇÃO DO GIT
+# Execute estes comandos após instalar o Git
+
+# 1. Baixe e instale o Git:
+#    https://git-scm.com/download/win
+
+# 2. Reinicie o terminal PowerShell
+
+# 3. Configure seu nome e email (SUBSTITUA pelos seus dados):
+git config --global user.name "Seu Nome Aqui"
+git config --global user.email "seu.email@exemplo.com"
+
+# 4. Inicialize o repositório:
+git init
+
+# 5. Adicione todos os arquivos:
+git add .
+
+# 6. Faça o primeiro commit:
+git commit -m "feat: sistema WhatsApp HGP com página de contatos"
+
+# 7. (OPCIONAL) Se você tem um repositório remoto no GitHub/GitLab:
+# git remote add origin https://github.com/seu-usuario/seu-repositorio.git
+# git branch -M main
+# git push -u origin main
+
+# COMANDOS ÚTEIS PARA O DIA A DIA:
+
+# Ver status dos arquivos:
+git status
+
+# Adicionar arquivos modificados:
+git add .
+
+# Fazer commit das alterações:
+git commit -m "descrição das alterações"
+
+# Enviar para o repositório remoto:
+git push
+
+# Ver histórico de commits:
+git log --oneline
+
+# Ver diferenças nos arquivos:
+git diff
