@@ -88,6 +88,16 @@ const formatWhatsAppError = (error) => {
     return rawMessage;
 };
 
+const isIgnorableWhatsAppRuntimeError = (error) => {
+    const rawMessage = error?.message || String(error || '');
+
+    return /Execution context was destroyed|Cannot find context with specified id|Target closed|Session closed|Most likely the page has been closed/i.test(rawMessage);
+};
+
+const logRuntimeError = (label, error) => {
+    console.error(`${label}:`, error);
+};
+
 const isApiRequest = (req) => req.path.startsWith('/api/') || req.path.startsWith('/whatsapp/');
 
 const syncDisconnectedSession = async () => {
@@ -569,6 +579,24 @@ app.get('/logout', (req, res) => {
 
 app.get('/favicon.ico', (req, res) => {
     res.status(204).end();
+});
+
+process.on('uncaughtException', (error) => {
+    if (isIgnorableWhatsAppRuntimeError(error)) {
+        logRuntimeError('Erro transitório ignorado do WhatsApp', error);
+        return;
+    }
+
+    logRuntimeError('Exceção não capturada no servidor', error);
+});
+
+process.on('unhandledRejection', (reason) => {
+    if (isIgnorableWhatsAppRuntimeError(reason)) {
+        logRuntimeError('Promessa rejeitada transitória do WhatsApp', reason);
+        return;
+    }
+
+    logRuntimeError('Promessa rejeitada não tratada no servidor', reason);
 });
 
 syncDisconnectedSession();
