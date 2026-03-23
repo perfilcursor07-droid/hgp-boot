@@ -3,12 +3,12 @@
     const sidebarRole = typeof role !== 'undefined' ? role : 'Administrador';
     const userInitial = typeof username === 'string' && username.length ? username.charAt(0).toUpperCase() : 'U';
     const menuItems = [
-        { key: 'dashboard', href: '/dashboard', label: 'Dashboard', caption: 'Visão geral do painel', icon: '📊', visible: isSidebarAdmin },
-        { key: 'chamados', href: '/chamados', label: 'Chamados', caption: 'Fila e atendimento ativo', icon: '🧾', visible: true },
-        { key: 'messages', href: '/messages', label: 'Mensagens', caption: 'Histórico de conversas', icon: '💬', visible: isSidebarAdmin },
-        { key: 'contacts', href: '/contacts', label: 'Contatos', caption: 'Base sincronizada', icon: '👥', visible: isSidebarAdmin },
-        { key: 'usuarios', href: '/usuarios', label: 'Usuários', caption: 'Permissões e acessos', icon: '👤', visible: isSidebarAdmin },
-        { key: 'settings', href: '/settings', label: 'Configurações', caption: 'Arquivos e parâmetros', icon: '⚙️', visible: isSidebarAdmin }
+        { key: 'dashboard', href: '/dashboard', label: 'Dashboard', icon: '📊', visible: isSidebarAdmin },
+        { key: 'chamados', href: '/chamados', label: 'Chamados', icon: '🧾', visible: true },
+        { key: 'messages', href: '/messages', label: 'Mensagens', icon: '💬', visible: isSidebarAdmin },
+        { key: 'contacts', href: '/contacts', label: 'Contatos', icon: '👥', visible: isSidebarAdmin },
+        { key: 'usuarios', href: '/usuarios', label: 'Usuários', icon: '👤', visible: isSidebarAdmin },
+        { key: 'settings', href: '/settings', label: 'Configurações', icon: '⚙️', visible: isSidebarAdmin }
     ];
 %>
 
@@ -22,10 +22,7 @@
                     <h1>WhatsApp HGP</h1>
                 </div>
             </div>
-            <p class="sidebar-subtitle">Atendimento, monitoramento e configuração em um painel central com visual mais limpo.</p>
         </div>
-
-        <div class="sidebar-section-label">Navegação</div>
 
         <nav class="sidebar-menu">
             <% menuItems.forEach((item) => { %>
@@ -34,7 +31,6 @@
                         <span class="menu-item-icon"><%= item.icon %></span>
                         <span class="menu-item-content">
                             <span class="menu-item-title"><%= item.label %></span>
-                            <span class="menu-item-caption"><%= item.caption %></span>
                         </span>
                     </a>
                 <% } %>
@@ -42,8 +38,6 @@
         </nav>
 
         <div class="sidebar-footer">
-            <div class="sidebar-status">Frontend administrativo em Node + EJS</div>
-
             <div class="user-info">
                 <div class="user-avatar"><%= userInitial %></div>
                 <div class="user-details">
