@@ -2,7 +2,12 @@
 CREATE TABLE IF NOT EXISTS admins (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) UNIQUE NOT NULL,
+    nome_completo VARCHAR(150) NULL,
+    cpf VARCHAR(20) UNIQUE NULL,
+    telefone VARCHAR(30) NULL,
+    nivel_acesso VARCHAR(20) NOT NULL DEFAULT 'administrador',
     password VARCHAR(255) NOT NULL,
+    ativo BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -33,6 +38,6 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 
 -- Inserir admin padrão (senha: admin123)
-INSERT INTO admins (username, password) VALUES 
-('admin', '$2b$10$rKvVPZqGsYKHXq7K5Y5zXeJ8YqGqYqGqYqGqYqGqYqGqYqGqYqGqY')
+INSERT INTO admins (username, nome_completo, nivel_acesso, password, ativo) VALUES 
+('admin', 'Administrador', 'administrador', '$2b$10$rKvVPZqGsYKHXq7K5Y5zXeJ8YqGqYqGqYqGqYqGqYqGqYqGqY', TRUE)
 ON DUPLICATE KEY UPDATE username = username;
