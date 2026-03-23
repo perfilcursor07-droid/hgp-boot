@@ -8,8 +8,6 @@ const db = require('./config/database');
 const GATILHO_TESTE = 'JOHNTESTE';
 const MEU_NUMERO_SIMULACAO = '5563984425197';
 const URL_WEBHOOK_HISTORICO = 'https://script.google.com/macros/s/AKfycbyG30F-V52xN773jLyqDYdER0HzBoiYrvSjPc4lijgl2bOD-LnCR0xGtJi6JzhTFRi/exec';
-const URL_PLANILHA_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTXqSf5qMNA7Zd7jolV5IeplWYz-beU5-ypZHgmvUSlPxGIisq51hGbhHtlpnMf96OgG-TE4WIrLvKp/pub?gid=0&single=true&output=csv';
-const ESCALA_LOCAL_FILE = path.join(__dirname, 'escala.json');
 const CHATBOT_ATTACHED_FLAG = Symbol.for('hgp.chatbot.attached');
 
 function registrarErro(erro, contexto = '') {
@@ -120,23 +118,23 @@ function attachChatbot(client, options = {}) {
         try {
             const hojeISO = dayjs().format('YYYY-MM-DD');
 
-            if (fs.existsSync(ESCALA_LOCAL_FILE)) {
-                const escala = JSON.parse(fs.readFileSync(ESCALA_LOCAL_FILE, 'utf8'));
-                const tecnicoHoje = escala.find((item) => item.data === hojeISO);
-                if (tecnicoHoje) {
-                    return { nome: tecnicoHoje.tecnico, telefone: tecnicoHoje.telefone };
-                }
-            }
+            const [rows] = await db.query(
+                `SELECT
+                    COALESCE(NULLIF(a.nome_completo, ''), a.username) AS nome,
+                    a.telefone AS telefone
+                 FROM escalas e
+                 INNER JOIN admins a ON a.id = e.admin_id
+                 WHERE e.data_escala = ?
+                   AND a.ativo = TRUE
+                 LIMIT 1`,
+                [hojeISO]
+            );
 
-            const res = await axios.get(URL_PLANILHA_CSV, { timeout: 15000 });
-            const linhas = res.data.split(/\r?\n/).slice(1);
-            const hojeBR = dayjs().format('DD/MM/YYYY');
-
-            for (const linha of linhas) {
-                const col = linha.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map((value) => value.replace(/"/g, '').trim());
-                if (col[0] === hojeISO || col[0] === hojeBR) {
-                    return { nome: col[1], telefone: col[2] };
-                }
+            if (rows.length > 0) {
+                return {
+                    nome: rows[0].nome,
+                    telefone: rows[0].telefone
+                };
             }
 
             return null;

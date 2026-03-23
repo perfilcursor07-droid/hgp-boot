@@ -9,7 +9,8 @@ Sistema completo de administração e automação de atendimento via WhatsApp pa
 - 💬 **Mensagens** - Histórico completo de conversas
 - 📋 **Chamados** - Gestão de tickets de TI
 - 👥 **Contatos** - Lista de todos os usuários que interagiram com o bot
-- ⚙️ **Configurações** - Editor de código do chatbot e escala de técnicos
+- ⚙️ **Configurações** - Editor de código do chatbot
+- 📅 **Escala** - Cadastro de técnicos por data direto no sistema
 - 🤖 **Chatbot Inteligente** - Atendimento automatizado 24/7
 - 📊 **Relatórios** - Estatísticas e métricas de atendimento
 
@@ -159,7 +160,7 @@ hgp-boot-main/
 ├── chatbot.js          # Lógica do chatbot (editável via painel)
 ├── chatbot-handler.js  # Handler do chatbot
 ├── server.js           # Servidor Express principal
-├── escala.json         # Escala de técnicos
+├── views/escala.ejs    # Tela de cadastro da escala
 └── package.json        # Dependências do projeto
 ```
 

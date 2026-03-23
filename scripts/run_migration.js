@@ -22,7 +22,7 @@ async function runMigration() {
         }
         
         console.log('✓ Migration executada com sucesso!');
-        console.log('✓ Tabelas criadas/atualizadas: admins, whatsapp_sessions, messages, chamados, contacts, chat_messages');
+        console.log('✓ Tabelas criadas/atualizadas: admins, whatsapp_sessions, messages, chamados, contacts, chat_messages, escalas');
 
         await connection.end();
         process.exit(0);

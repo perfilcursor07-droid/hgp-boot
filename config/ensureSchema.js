@@ -158,6 +158,18 @@ async function ensureSchema(connection) {
     `);
 
     await connection.query(`
+        CREATE TABLE IF NOT EXISTS escalas (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            data_escala DATE NOT NULL,
+            admin_id INT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_escalas_data (data_escala),
+            INDEX idx_escalas_admin_id (admin_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+    `);
+
+    await connection.query(`
         CREATE TABLE IF NOT EXISTS chat_messages (
             id INT AUTO_INCREMENT PRIMARY KEY,
             chamado_id INT NOT NULL,
@@ -214,6 +226,10 @@ async function ensureSchema(connection) {
 
     if (await ensureForeignKey(connection, 'chat_messages', 'fk_chat_chamado', 'FOREIGN KEY (chamado_id) REFERENCES chamados(id) ON DELETE CASCADE')) {
         changes.push('chat_messages.fk_chat_chamado');
+    }
+
+    if (await ensureForeignKey(connection, 'escalas', 'fk_escalas_admin', 'FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE')) {
+        changes.push('escalas.fk_escalas_admin');
     }
 
     await connection.query(`

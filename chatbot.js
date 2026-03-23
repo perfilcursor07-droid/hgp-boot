@@ -5,13 +5,13 @@ const dayjs = require('dayjs');
 const path = require('path');
 const fs = require("fs");
 const qrcode = require('qrcode-terminal');
+const db = require('./config/database');
 
 // ================= CONFIG =================
 const CONFIG = {
   MEU_NUMERO_SIMULACAO: "5563984425197",
   GATILHO_TESTE: "JOHNTESTE",
-  URL_WEBHOOK_HISTORICO: "https://script.google.com/macros/s/AKfycbzFWguJIjPAUw7SlXXgdmtSZQCasBuOdNzFwdEaCzK0SplFyhYSZQxujD_LZMaBEh38hw/exec",
-  URL_PLANILHA_CSV: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTXqSf5qMNA7Zd7jolV5IeplWYz-beU5-ypZHgmvUSlPxGIisq51hGbhHtlpnMf96OgG-TE4WIrLvKp/pub?gid=0&single=true&output=csv"
+  URL_WEBHOOK_HISTORICO: "https://script.google.com/macros/s/AKfycbzFWguJIjPAUw7SlXXgdmtSZQCasBuOdNzFwdEaCzK0SplFyhYSZQxujD_LZMaBEh38hw/exec"
 };
 
 // ================= LOGGER =================
@@ -106,19 +106,22 @@ async function enviarMensagemDireta(numeroBruto, mensagem) {
 
 async function buscarTecnicoEscala() {
   try {
-    const res = await axios.get(CONFIG.URL_PLANILHA_CSV, { timeout: 15000 });
-    const linhas = res.data.split(/\r?\n/).slice(1);
-
     const hojeISO = dayjs().format('YYYY-MM-DD');
-    const hojeBR = dayjs().format('DD/MM/YYYY');
 
-    for (let linha of linhas) {
-      const col = linha.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/)
-        .map(v => v.replace(/"/g,'').trim());
+    const [rows] = await db.query(
+      `SELECT
+          COALESCE(NULLIF(a.nome_completo, ''), a.username) AS nome,
+          a.telefone AS telefone
+       FROM escalas e
+       INNER JOIN admins a ON a.id = e.admin_id
+       WHERE e.data_escala = ?
+         AND a.ativo = TRUE
+       LIMIT 1`,
+      [hojeISO]
+    );
 
-      if (col[0] === hojeISO || col[0] === hojeBR) {
-        return { nome: col[1], telefone: col[2] };
-      }
+    if (rows.length > 0) {
+      return { nome: rows[0].nome, telefone: rows[0].telefone };
     }
 
     return null;

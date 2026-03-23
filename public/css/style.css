@@ -1381,6 +1381,17 @@ body {
     border: 1px solid rgba(52, 183, 241, 0.3);
 }
 
+.escala-card-note {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%);
+    border: 1px solid rgba(59, 130, 246, 0.14);
+    color: #1e3a8a;
+}
+
 .badge-inactive {
     background: rgba(148, 163, 184, 0.1);
     color: #64748b;

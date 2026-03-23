@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Escala - WhatsApp HGP</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="dashboard">
+        <%- include('partials/sidebar', { activePage: 'escala', username, role: 'Administrador', isAdmin: true }) %>
+
+        <main class="main-content">
+            <div class="topbar">
+                <div class="topbar-title-group">
+                    <button type="button" class="menu-toggle" aria-label="Abrir menu">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                    <h2>📅 Escala de Plantão</h2>
+                </div>
+                <div class="topbar-actions">
+                    <button type="button" onclick="abrirModalNovaEscala()" class="btn btn-primary">➕ Nova Escala</button>
+                </div>
+            </div>
+
+            <div class="content">
+                <section class="dashboard-hero settings-hero">
+                    <div>
+                        <p class="eyebrow">Gestão interna</p>
+                        <h1>Escala cadastrada no sistema</h1>
+                        <p class="hero-text">O bot usa os usuários cadastrados com telefone ativo para definir automaticamente quem recebe o chamado em cada data.</p>
+                    </div>
+                    <div class="hero-highlight">
+                        <span class="hero-highlight-label">Origem atual</span>
+                        <strong>Banco de dados</strong>
+                        <small>Sem dependência de Google Sheets ou escala.json</small>
+                    </div>
+                </section>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">📆</div>
+                        <div class="stat-info">
+                            <h3><%= stats.total %></h3>
+                            <p>Datas cadastradas</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green">🟢</div>
+                        <div class="stat-info">
+                            <h3><%= stats.hoje %></h3>
+                            <p>Escalas hoje</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange">⏭️</div>
+                        <div class="stat-info">
+                            <h3><%= stats.futuras %></h3>
+                            <p>Datas futuras</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon purple">👨‍🔧</div>
+                        <div class="stat-info">
+                            <h3><%= stats.tecnicos %></h3>
+                            <p>Técnicos na escala</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2>Escalas cadastradas</h2>
+                            <p class="settings-helper">Selecione um usuário ativo com telefone cadastrado e vincule a data do plantão.</p>
+                        </div>
+                        <input type="text" id="searchInput" placeholder="🔍 Buscar por data, nome ou telefone..." class="search-input">
+                    </div>
+
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Técnico</th>
+                                    <th>Telefone</th>
+                                    <th>Nível</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="escalaTable">
+                                <% if (escalas.length === 0) { %>
+                                    <tr>
+                                        <td colspan="6" class="no-messages">Nenhuma escala cadastrada ainda.</td>
+                                    </tr>
+                                <% } else { %>
+                                    <% escalas.forEach((escala) => { %>
+                                        <% const isToday = escala.data_escala === hoje; %>
+                                        <% const isFuture = escala.data_escala > hoje; %>
+                                        <tr>
+                                            <td>
+                                                <strong><%= new Date(`${escala.data_escala}T00:00:00`).toLocaleDateString('pt-BR') %></strong>
+                                                <div class="table-subtext"><%= escala.data_escala %></div>
+                                            </td>
+                                            <td>
+                                                <strong><%= escala.tecnico_nome %></strong>
+                                                <div class="table-subtext">@<%= escala.username %></div>
+                                            </td>
+                                            <td><%= escala.telefone %></td>
+                                            <td>
+                                                <span class="badge <%= escala.nivel_acesso === 'administrador' ? 'badge-admin' : 'badge-gestor' %>">
+                                                    <%= escala.nivel_acesso === 'administrador' ? '🔑 Administrador' : '📊 Gestor' %>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <% if (isToday) { %>
+                                                    <span class="badge success">🟢 Hoje</span>
+                                                <% } else if (isFuture) { %>
+                                                    <span class="badge info">📅 Futura</span>
+                                                <% } else { %>
+                                                    <span class="badge warning">🕘 Encerrada</span>
+                                                <% } %>
+                                            </td>
+                                            <td>
+                                                <button type="button" onclick="editarEscala(<%= escala.id %>)" class="btn-icon" title="Editar">✏️</button>
+                                                <button type="button" onclick="excluirEscala(<%= escala.id %>, '<%= escala.data_escala %>')" class="btn-icon btn-danger" title="Excluir">🗑️</button>
+                                            </td>
+                                        </tr>
+                                    <% }) %>
+                                <% } %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="modalEscala" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalEscalaTitle">Nova Escala</h2>
+                <span class="modal-close" onclick="fecharModalEscala()">&times;</span>
+            </div>
+            <form id="formEscala" onsubmit="salvarEscala(event)">
+                <input type="hidden" id="escalaId" name="id">
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="data_escala">Data da Escala *</label>
+                        <input type="date" id="data_escala" name="data_escala" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="admin_id">Técnico *</label>
+                        <select id="admin_id" name="admin_id" required onchange="atualizarResumoTecnico()">
+                            <option value="">Selecione um técnico...</option>
+                            <% usuariosEscala.forEach((usuario) => { %>
+                                <option value="<%= usuario.id %>" data-nome="<%= usuario.nome_exibicao %>" data-telefone="<%= usuario.telefone %>" data-nivel="<%= usuario.nivel_acesso %>">
+                                    <%= usuario.nome_exibicao %> (<%= usuario.telefone %>)
+                                </option>
+                            <% }) %>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="tecnicoResumo" class="settings-status info" style="display: block;">
+                    Selecione um usuário ativo com telefone cadastrado para usar como técnico da escala.
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" onclick="fecharModalEscala()" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" id="salvarEscalaBtn" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const menuToggle = document.querySelector('.menu-toggle');
+        const sidebarOverlay = document.querySelector('.sidebar-overlay');
+        const modalEscala = document.getElementById('modalEscala');
+        const formEscala = document.getElementById('formEscala');
+        const escalaId = document.getElementById('escalaId');
+        const dataEscala = document.getElementById('data_escala');
+        const adminId = document.getElementById('admin_id');
+        const tecnicoResumo = document.getElementById('tecnicoResumo');
+        const salvarEscalaBtn = document.getElementById('salvarEscalaBtn');
+        const modalEscalaTitle = document.getElementById('modalEscalaTitle');
+
+        function toggleSidebar(forceOpen) {
+            if (typeof forceOpen === 'boolean') {
+                document.body.classList.toggle('sidebar-open', forceOpen);
+                return;
+            }
+
+            document.body.classList.toggle('sidebar-open');
+        }
+
+        if (menuToggle) {
+            menuToggle.addEventListener('click', () => toggleSidebar());
+        }
+
+        if (sidebarOverlay) {
+            sidebarOverlay.addEventListener('click', () => toggleSidebar(false));
+        }
+
+        document.querySelectorAll('.menu-item, .btn-logout').forEach((item) => {
+            item.addEventListener('click', () => {
+                if (window.innerWidth <= 900) {
+                    toggleSidebar(false);
+                }
+            });
+        });
+
+        document.getElementById('searchInput').addEventListener('input', function(event) {
+            const searchTerm = event.target.value.toLowerCase();
+            document.querySelectorAll('#escalaTable tr').forEach((row) => {
+                row.style.display = row.textContent.toLowerCase().includes(searchTerm) ? '' : 'none';
+            });
+        });
+
+        function abrirModalNovaEscala() {
+            modalEscalaTitle.textContent = 'Nova Escala';
+            formEscala.reset();
+            escalaId.value = '';
+            tecnicoResumo.textContent = 'Selecione um usuário ativo com telefone cadastrado para usar como técnico da escala.';
+            modalEscala.style.display = 'flex';
+        }
+
+        function fecharModalEscala() {
+            modalEscala.style.display = 'none';
+        }
+
+        function atualizarResumoTecnico() {
+            const selectedOption = adminId.options[adminId.selectedIndex];
+
+            if (!selectedOption || !selectedOption.value) {
+                tecnicoResumo.textContent = 'Selecione um usuário ativo com telefone cadastrado para usar como técnico da escala.';
+                return;
+            }
+
+            const nome = selectedOption.dataset.nome || '';
+            const telefone = selectedOption.dataset.telefone || '';
+            const nivel = selectedOption.dataset.nivel || '';
+            tecnicoResumo.textContent = `Técnico selecionado: ${nome} | Telefone: ${telefone} | Perfil: ${nivel}`;
+        }
+
+        async function editarEscala(id) {
+            try {
+                const response = await fetch(`/api/escala/${id}`);
+                const result = await response.json();
+
+                if (!result.success) {
+                    alert(result.message || 'Erro ao carregar escala');
+                    return;
+                }
+
+                modalEscalaTitle.textContent = 'Editar Escala';
+                escalaId.value = result.escala.id;
+                dataEscala.value = result.escala.data_escala;
+                adminId.value = String(result.escala.admin_id);
+                atualizarResumoTecnico();
+                modalEscala.style.display = 'flex';
+            } catch (error) {
+                alert('Erro ao carregar escala');
+                console.error(error);
+            }
+        }
+
+        async function salvarEscala(event) {
+            event.preventDefault();
+
+            const payload = {
+                data_escala: dataEscala.value,
+                admin_id: adminId.value
+            };
+
+            if (!payload.data_escala || !payload.admin_id) {
+                alert('Preencha a data e selecione um técnico');
+                return;
+            }
+
+            const isEditing = Boolean(escalaId.value);
+            const url = isEditing ? `/api/escala/${escalaId.value}` : '/api/escala';
+            const method = isEditing ? 'PUT' : 'POST';
+
+            salvarEscalaBtn.disabled = true;
+            salvarEscalaBtn.textContent = 'Salvando...';
+
+            try {
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                if (!result.success) {
+                    alert(result.message || 'Erro ao salvar escala');
+                    return;
+                }
+
+                alert(result.message);
+                location.reload();
+            } catch (error) {
+                alert('Erro ao salvar escala');
+                console.error(error);
+            } finally {
+                salvarEscalaBtn.disabled = false;
+                salvarEscalaBtn.textContent = 'Salvar';
+            }
+        }
+
+        async function excluirEscala(id, data) {
+            if (!confirm(`Deseja realmente excluir a escala do dia ${data}?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/escala/${id}`, { method: 'DELETE' });
+                const result = await response.json();
+
+                if (!result.success) {
+                    alert(result.message || 'Erro ao excluir escala');
+                    return;
+                }
+
+                alert(result.message);
+                location.reload();
+            } catch (error) {
+                alert('Erro ao excluir escala');
+                console.error(error);
+            }
+        }
+
+        window.onclick = function(event) {
+            if (event.target === modalEscala) {
+                fecharModalEscala();
+            }
+        };
+    </script>
+</body>
+</html>

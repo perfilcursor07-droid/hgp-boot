@@ -29,13 +29,13 @@
                 <section class="dashboard-hero settings-hero">
                     <div>
                         <p class="eyebrow">Editor interno</p>
-                        <h1>Arquivos de configuração</h1>
-                        <p class="hero-text">Edite o código do atendimento e a escala do plantão sem abrir IDE. Cada arquivo é validado antes de ser salvo.</p>
+                        <h1>Configurações do chatbot</h1>
+                        <p class="hero-text">Edite a lógica do atendimento sem abrir IDE. A escala de plantão agora é cadastrada no módulo Escala, direto no sistema.</p>
                     </div>
                     <div class="hero-highlight">
-                        <span class="hero-highlight-label">Arquivos</span>
-                        <strong>chatbot.js + escala.json</strong>
-                        <small>Salvamento direto no projeto</small>
+                        <span class="hero-highlight-label">Módulos</span>
+                        <strong>chatbot.js</strong>
+                        <small>Escala separada em menu próprio</small>
                     </div>
                 </section>
 
@@ -61,19 +61,17 @@
                     <div class="card settings-card">
                         <div class="settings-toolbar">
                             <div>
-                                <h2>Editor de Escala</h2>
-                                <p class="settings-helper">Configure aqui a escala que o backend usa para definir para qual técnico cada chamado será enviado.</p>
+                                <h2>Módulo de Escala</h2>
+                                <p class="settings-helper">O plantão agora usa usuários e datas cadastrados no sistema. Gerencie os técnicos em Escala.</p>
                             </div>
                             <div class="settings-actions">
-                                <button type="button" id="reloadEscalaBtn" class="btn-secondary">Recarregar arquivo</button>
-                                <button type="button" id="saveEscalaBtn" class="btn-primary settings-save-btn">Salvar no projeto</button>
+                                <a href="/escala" class="btn-primary settings-save-btn" style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center;">Abrir módulo</a>
                             </div>
                         </div>
 
-                        <div id="escalaStatusMessage" class="settings-status" style="display: none;"></div>
-
-                        <label class="settings-label" for="escalaCode">Conteúdo de <%= escalaFileName %></label>
-                        <textarea id="escalaCode" class="code-editor code-editor-small" spellcheck="false"><%= escalaCode %></textarea>
+                        <div class="settings-status info" style="display: block;">
+                            A origem do técnico de plantão deixou de depender de escala.json e passou a vir do banco de dados.
+                        </div>
                     </div>
                 </div>
             </div>
@@ -85,12 +83,8 @@
         const sidebarOverlay = document.querySelector('.sidebar-overlay');
         const saveChatbotBtn = document.getElementById('saveChatbotBtn');
         const reloadChatbotBtn = document.getElementById('reloadChatbotBtn');
-        const saveEscalaBtn = document.getElementById('saveEscalaBtn');
-        const reloadEscalaBtn = document.getElementById('reloadEscalaBtn');
         const chatbotCode = document.getElementById('chatbotCode');
-        const escalaCode = document.getElementById('escalaCode');
         const chatbotStatusMessage = document.getElementById('chatbotStatusMessage');
-        const escalaStatusMessage = document.getElementById('escalaStatusMessage');
 
         function toggleSidebar(forceOpen) {
             if (typeof forceOpen === 'boolean') {
@@ -176,10 +170,7 @@
         });
 
         reloadChatbotBtn.addEventListener('click', () => reloadFile('/api/settings/chatbot-file', reloadChatbotBtn, chatbotCode, chatbotStatusMessage));
-        reloadEscalaBtn.addEventListener('click', () => reloadFile('/api/settings/escala-file', reloadEscalaBtn, escalaCode, escalaStatusMessage));
-
         saveChatbotBtn.addEventListener('click', () => saveFile('/api/settings/chatbot-file', saveChatbotBtn, chatbotCode, chatbotStatusMessage, 'Salvar no projeto'));
-        saveEscalaBtn.addEventListener('click', () => saveFile('/api/settings/escala-file', saveEscalaBtn, escalaCode, escalaStatusMessage, 'Salvar no projeto'));
     </script>
 </body>
 </html>

@@ -8,6 +8,7 @@ const os = require('os');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 const bcrypt = require('bcrypt');
+const dayjs = require('dayjs');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const db = require('./config/database');
@@ -18,7 +19,6 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const execFileAsync = promisify(execFile);
 const CHATBOT_FILE_PATH = path.join(__dirname, 'chatbot.js');
-const ESCALA_FILE_PATH = path.join(__dirname, 'escala.json');
 
 // Middleware
 app.set('view engine', 'ejs');
@@ -120,7 +120,6 @@ const resetWhatsAppRuntime = async () => {
 };
 
 const readChatbotFile = async () => fs.readFile(CHATBOT_FILE_PATH, 'utf8');
-const readEscalaFile = async () => fs.readFile(ESCALA_FILE_PATH, 'utf8');
 
 const validateChatbotSource = async (source) => {
     const tempFile = path.join(
@@ -140,36 +139,55 @@ const validateChatbotSource = async (source) => {
     }
 };
 
-const validateEscalaSource = async (source) => {
-    try {
-        const parsed = JSON.parse(source);
+const isValidIsoDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
 
-        if (!Array.isArray(parsed)) {
-            return 'O arquivo da escala deve conter uma lista JSON.';
-        }
+const listEscalaUsers = async () => {
+    const [users] = await db.query(`
+        SELECT
+            id,
+            username,
+            COALESCE(NULLIF(nome_completo, ''), username) AS nome_exibicao,
+            telefone,
+            nivel_acesso
+        FROM admins
+        WHERE ativo = TRUE
+          AND telefone IS NOT NULL
+          AND telefone <> ''
+        ORDER BY nome_exibicao ASC
+    `);
 
-        for (const [index, item] of parsed.entries()) {
-            if (!item || typeof item !== 'object') {
-                return `Registro inválido na posição ${index + 1}.`;
-            }
+    return users;
+};
 
-            if (typeof item.data !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(item.data)) {
-                return `O campo data do registro ${index + 1} deve estar no formato YYYY-MM-DD.`;
-            }
+const listEscalas = async () => {
+    const [rows] = await db.query(`
+        SELECT
+            e.id,
+            DATE_FORMAT(e.data_escala, '%Y-%m-%d') AS data_escala,
+            e.admin_id,
+            a.username,
+            COALESCE(NULLIF(a.nome_completo, ''), a.username) AS tecnico_nome,
+            a.telefone,
+            a.nivel_acesso,
+            e.created_at,
+            e.updated_at
+        FROM escalas e
+        INNER JOIN admins a ON a.id = e.admin_id
+        ORDER BY e.data_escala DESC, tecnico_nome ASC
+    `);
 
-            if (typeof item.tecnico !== 'string' || !item.tecnico.trim()) {
-                return `O campo tecnico do registro ${index + 1} é obrigatório.`;
-            }
+    return rows;
+};
 
-            if (typeof item.telefone !== 'string' || !item.telefone.trim()) {
-                return `O campo telefone do registro ${index + 1} é obrigatório.`;
-            }
-        }
+const buildEscalaStats = (escalas) => {
+    const hoje = dayjs().format('YYYY-MM-DD');
 
-        return null;
-    } catch (error) {
-        return error.message || 'JSON inválido na escala.';
-    }
+    return {
+        total: escalas.length,
+        hoje: escalas.filter((item) => item.data_escala === hoje).length,
+        futuras: escalas.filter((item) => item.data_escala >= hoje).length,
+        tecnicos: new Set(escalas.map((item) => item.admin_id)).size
+    };
 };
 
 // Middleware de autenticação
@@ -592,28 +610,47 @@ app.post('/api/contacts/sync', isAuthenticated, async (req, res) => {
     }
 });
 
+app.get('/escala', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const [escalas, usuariosEscala] = await Promise.all([
+            listEscalas(),
+            listEscalaUsers()
+        ]);
+
+        res.render('escala', {
+            username: req.session.username,
+            escalas,
+            usuariosEscala,
+            stats: buildEscalaStats(escalas),
+            hoje: dayjs().format('YYYY-MM-DD')
+        });
+    } catch (error) {
+        console.error('Erro ao carregar página de escala:', error);
+        res.status(500).render('escala', {
+            username: req.session.username,
+            escalas: [],
+            usuariosEscala: [],
+            stats: { total: 0, hoje: 0, futuras: 0, tecnicos: 0 },
+            hoje: dayjs().format('YYYY-MM-DD')
+        });
+    }
+});
+
 app.get('/settings', isAuthenticated, isAdmin, async (req, res) => {
     try {
-        const [chatbotCode, escalaCode] = await Promise.all([
-            readChatbotFile(),
-            readEscalaFile()
-        ]);
+        const chatbotCode = await readChatbotFile();
 
         res.render('settings', {
             username: req.session.username,
             chatbotCode,
-            escalaCode,
-            chatbotFileName: 'chatbot.js',
-            escalaFileName: 'escala.json'
+            chatbotFileName: 'chatbot.js'
         });
     } catch (error) {
         console.error('Erro ao carregar configurações:', error);
         res.status(500).render('settings', {
             username: req.session.username,
             chatbotCode: '',
-            escalaCode: '[]',
-            chatbotFileName: 'chatbot.js',
-            escalaFileName: 'escala.json'
+            chatbotFileName: 'chatbot.js'
         });
     }
 });
@@ -658,43 +695,137 @@ app.post('/api/settings/chatbot-file', isAuthenticated, async (req, res) => {
     }
 });
 
-app.get('/api/settings/escala-file', isAuthenticated, async (req, res) => {
+app.get('/api/escala', isAuthenticated, isAdmin, async (req, res) => {
     try {
-        const content = await readEscalaFile();
-        res.json({ success: true, content, fileName: 'escala.json' });
+        const escalas = await listEscalas();
+        res.json({ success: true, escalas });
     } catch (error) {
-        console.error('Erro ao ler escala.json:', error);
-        res.status(500).json({ success: false, message: 'Erro ao carregar escala.json' });
+        console.error('Erro ao listar escala:', error);
+        res.status(500).json({ success: false, message: 'Erro ao listar escala' });
     }
 });
 
-app.post('/api/settings/escala-file', isAuthenticated, async (req, res) => {
-    const { content } = req.body;
+app.get('/api/escala/:id', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            `SELECT id, DATE_FORMAT(data_escala, '%Y-%m-%d') AS data_escala, admin_id
+             FROM escalas
+             WHERE id = ?`,
+            [req.params.id]
+        );
 
-    if (typeof content !== 'string' || !content.trim()) {
-        return res.status(400).json({ success: false, message: 'O conteúdo da escala não pode ficar vazio' });
+        if (rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Registro de escala não encontrado' });
+        }
+
+        res.json({ success: true, escala: rows[0] });
+    } catch (error) {
+        console.error('Erro ao buscar registro de escala:', error);
+        res.status(500).json({ success: false, message: 'Erro ao buscar registro de escala' });
+    }
+});
+
+app.post('/api/escala', isAuthenticated, isAdmin, async (req, res) => {
+    const { data_escala, admin_id } = req.body;
+
+    if (!isValidIsoDate(data_escala)) {
+        return res.status(400).json({ success: false, message: 'Informe uma data válida no formato YYYY-MM-DD' });
+    }
+
+    if (!admin_id) {
+        return res.status(400).json({ success: false, message: 'Selecione um técnico para a escala' });
     }
 
     try {
-        const validationError = await validateEscalaSource(content);
+        const [usuarios] = await db.query(
+            `SELECT id
+             FROM admins
+             WHERE id = ? AND ativo = TRUE AND telefone IS NOT NULL AND telefone <> ''`,
+            [admin_id]
+        );
 
-        if (validationError) {
-            return res.status(400).json({
-                success: false,
-                message: 'A escala não foi salva porque há erro de validação',
-                details: validationError
-            });
+        if (usuarios.length === 0) {
+            return res.status(400).json({ success: false, message: 'O técnico selecionado precisa estar ativo e ter telefone cadastrado' });
         }
 
-        await fs.writeFile(ESCALA_FILE_PATH, content, 'utf8');
+        const [existente] = await db.query('SELECT id FROM escalas WHERE data_escala = ?', [data_escala]);
+        if (existente.length > 0) {
+            return res.status(400).json({ success: false, message: 'Já existe uma escala cadastrada para esta data' });
+        }
 
-        res.json({
-            success: true,
-            message: 'escala.json atualizado no projeto com sucesso'
-        });
+        await db.query(
+            'INSERT INTO escalas (data_escala, admin_id) VALUES (?, ?)',
+            [data_escala, admin_id]
+        );
+
+        res.json({ success: true, message: 'Escala cadastrada com sucesso' });
     } catch (error) {
-        console.error('Erro ao salvar escala.json:', error);
-        res.status(500).json({ success: false, message: 'Erro ao salvar escala.json' });
+        console.error('Erro ao cadastrar escala:', error);
+        res.status(500).json({ success: false, message: 'Erro ao cadastrar escala' });
+    }
+});
+
+app.put('/api/escala/:id', isAuthenticated, isAdmin, async (req, res) => {
+    const { data_escala, admin_id } = req.body;
+
+    if (!isValidIsoDate(data_escala)) {
+        return res.status(400).json({ success: false, message: 'Informe uma data válida no formato YYYY-MM-DD' });
+    }
+
+    if (!admin_id) {
+        return res.status(400).json({ success: false, message: 'Selecione um técnico para a escala' });
+    }
+
+    try {
+        const [registro] = await db.query('SELECT id FROM escalas WHERE id = ?', [req.params.id]);
+        if (registro.length === 0) {
+            return res.status(404).json({ success: false, message: 'Registro de escala não encontrado' });
+        }
+
+        const [usuarios] = await db.query(
+            `SELECT id
+             FROM admins
+             WHERE id = ? AND ativo = TRUE AND telefone IS NOT NULL AND telefone <> ''`,
+            [admin_id]
+        );
+
+        if (usuarios.length === 0) {
+            return res.status(400).json({ success: false, message: 'O técnico selecionado precisa estar ativo e ter telefone cadastrado' });
+        }
+
+        const [existente] = await db.query(
+            'SELECT id FROM escalas WHERE data_escala = ? AND id <> ?',
+            [data_escala, req.params.id]
+        );
+
+        if (existente.length > 0) {
+            return res.status(400).json({ success: false, message: 'Já existe uma escala cadastrada para esta data' });
+        }
+
+        await db.query(
+            'UPDATE escalas SET data_escala = ?, admin_id = ? WHERE id = ?',
+            [data_escala, admin_id, req.params.id]
+        );
+
+        res.json({ success: true, message: 'Escala atualizada com sucesso' });
+    } catch (error) {
+        console.error('Erro ao atualizar escala:', error);
+        res.status(500).json({ success: false, message: 'Erro ao atualizar escala' });
+    }
+});
+
+app.delete('/api/escala/:id', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const [registro] = await db.query('SELECT id FROM escalas WHERE id = ?', [req.params.id]);
+        if (registro.length === 0) {
+            return res.status(404).json({ success: false, message: 'Registro de escala não encontrado' });
+        }
+
+        await db.query('DELETE FROM escalas WHERE id = ?', [req.params.id]);
+        res.json({ success: true, message: 'Escala removida com sucesso' });
+    } catch (error) {
+        console.error('Erro ao excluir escala:', error);
+        res.status(500).json({ success: false, message: 'Erro ao excluir escala' });
     }
 });
 
