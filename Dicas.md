@@ -5,3 +5,4 @@ npm run migrate
 git add .
 git commit -m "Implementação de questionários dinâmicos e override de competência"
 git push -u origin main
+
