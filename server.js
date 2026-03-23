@@ -11,6 +11,7 @@ const bcrypt = require('bcrypt');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const db = require('./config/database');
+const { ensureSchema } = require('./config/ensureSchema');
 const { attachChatbot } = require('./chatbot-handler');
 
 const app = express();
@@ -1245,8 +1246,22 @@ process.on('unhandledRejection', (reason) => {
     logRuntimeError('Promessa rejeitada não tratada no servidor', reason);
 });
 
-syncDisconnectedSession();
+async function startServer() {
+    try {
+        const schemaChanges = await ensureSchema(db);
+        if (schemaChanges.length > 0) {
+            console.log(`Schema sincronizado automaticamente: ${schemaChanges.join(', ')}`);
+        }
 
-app.listen(PORT, () => {
-    console.log(`Servidor rodando em http://localhost:${PORT}`);
-});
+        await syncDisconnectedSession();
+
+        app.listen(PORT, () => {
+            console.log(`Servidor rodando em http://localhost:${PORT}`);
+        });
+    } catch (error) {
+        console.error('Falha ao sincronizar schema do banco antes de iniciar o servidor:', error);
+        process.exit(1);
+    }
+}
+
+startServer();

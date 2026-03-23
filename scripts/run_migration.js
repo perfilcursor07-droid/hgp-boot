@@ -1,11 +1,9 @@
 require('dotenv').config();
-const fs = require('fs');
-const path = require('path');
 const mysql = require('mysql2/promise');
+const { ensureSchema } = require('../config/ensureSchema');
 
 async function runMigration() {
     try {
-        // Conectar ao MySQL
         const connection = await mysql.createConnection({
             host: process.env.DB_HOST || 'localhost',
             user: process.env.DB_USER || 'root',
@@ -16,20 +14,15 @@ async function runMigration() {
 
         console.log('✓ Conectado ao banco de dados');
 
-        const migrationsDir = path.join(__dirname, '../migrations');
-        const sqlFiles = fs.readdirSync(migrationsDir)
-            .filter((file) => file.endsWith('.sql'))
-            .sort();
-
-        for (const file of sqlFiles) {
-            const sqlFile = path.join(migrationsDir, file);
-            const sql = fs.readFileSync(sqlFile, 'utf8');
-            await connection.query(sql);
-            console.log(`✓ Migration executada: ${file}`);
+        const changes = await ensureSchema(connection);
+        if (changes.length > 0) {
+            console.log(`✓ Schema sincronizado com ${changes.length} ajuste(s): ${changes.join(', ')}`);
+        } else {
+            console.log('✓ Schema já estava atualizado');
         }
         
         console.log('✓ Migration executada com sucesso!');
-        console.log('✓ Tabelas criadas/atualizadas: admins, whatsapp_sessions, messages, chamados');
+        console.log('✓ Tabelas criadas/atualizadas: admins, whatsapp_sessions, messages, chamados, contacts, chat_messages');
 
         await connection.end();
         process.exit(0);
