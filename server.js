@@ -35,6 +35,7 @@ app.use(session({
 
 // WhatsApp client
 let whatsappClient = null;
+let whatsappChatbotController = null;
 let currentQR = null;
 let whatsappState = 'disconnected';
 let whatsappLastError = null;
@@ -115,6 +116,7 @@ const syncDisconnectedSession = async () => {
 const resetWhatsAppRuntime = async () => {
     currentQR = null;
     whatsappClient = null;
+    whatsappChatbotController = null;
     whatsappState = 'disconnected';
     await syncDisconnectedSession();
 };
@@ -189,6 +191,84 @@ const buildEscalaStats = (escalas) => {
         tecnicos: new Set(escalas.map((item) => item.admin_id)).size
     };
 };
+
+const buildSlug = (value) => String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 140);
+
+const listChatbotFlows = async () => {
+    const [rows] = await db.query(`
+        SELECT
+            f.id,
+            f.name,
+            f.slug,
+            f.description,
+            f.is_default,
+            f.is_active,
+            f.source_file,
+            f.created_at,
+            f.updated_at,
+            COUNT(s.id) AS total_steps
+        FROM chatbot_flows f
+        LEFT JOIN chatbot_flow_steps s ON s.flow_id = f.id
+        GROUP BY f.id, f.name, f.slug, f.description, f.is_default, f.is_active, f.source_file, f.created_at, f.updated_at
+        ORDER BY f.is_default DESC, f.updated_at DESC, f.name ASC
+    `);
+
+    return rows;
+};
+
+const getChatbotFlowById = async (flowId) => {
+    const [flows] = await db.query(
+        `SELECT id, name, slug, description, is_default, is_active, source_file, created_at, updated_at
+         FROM chatbot_flows
+         WHERE id = ?`,
+        [flowId]
+    );
+
+    if (flows.length === 0) {
+        return null;
+    }
+
+    const [steps] = await db.query(
+        `SELECT
+            id,
+            flow_id,
+            step_key,
+            title,
+            prompt_text,
+            field_key,
+            validation_type,
+            next_step,
+            error_message,
+            conditions_text,
+            action_summary,
+            sort_order,
+            is_terminal,
+            created_at,
+            updated_at
+         FROM chatbot_flow_steps
+         WHERE flow_id = ?
+         ORDER BY sort_order ASC, step_key ASC`,
+        [flowId]
+    );
+
+    return {
+        flow: flows[0],
+        steps
+    };
+};
+
+const buildFluxoStats = (flows, selectedFlowData) => ({
+    totalFlows: flows.length,
+    ativos: flows.filter((flow) => flow.is_active).length,
+    padroes: flows.filter((flow) => flow.is_default).length,
+    etapas: selectedFlowData?.steps?.length || 0
+});
 
 // Middleware de autenticação
 const isAuthenticated = (req, res, next) => {
@@ -308,7 +388,7 @@ app.post('/whatsapp/connect', isAuthenticated, async (req, res) => {
             puppeteer: buildPuppeteerConfig()
         });
 
-        attachChatbot(whatsappClient, { managedByServer: true });
+        whatsappChatbotController = attachChatbot(whatsappClient, { managedByServer: true });
 
         whatsappClient.on('qr', async (qr) => {
             whatsappState = 'connecting';
@@ -636,6 +716,29 @@ app.get('/escala', isAuthenticated, isAdmin, async (req, res) => {
     }
 });
 
+app.get('/fluxo', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const flows = await listChatbotFlows();
+        const selectedFlowId = req.query.flowId ? Number(req.query.flowId) : flows[0]?.id;
+        const selectedFlowData = selectedFlowId ? await getChatbotFlowById(selectedFlowId) : null;
+
+        res.render('fluxo', {
+            username: req.session.username,
+            flows,
+            selectedFlowData,
+            stats: buildFluxoStats(flows, selectedFlowData)
+        });
+    } catch (error) {
+        console.error('Erro ao carregar módulo de fluxo:', error);
+        res.status(500).render('fluxo', {
+            username: req.session.username,
+            flows: [],
+            selectedFlowData: null,
+            stats: { totalFlows: 0, ativos: 0, padroes: 0, etapas: 0 }
+        });
+    }
+});
+
 app.get('/settings', isAuthenticated, isAdmin, async (req, res) => {
     try {
         const chatbotCode = await readChatbotFile();
@@ -722,6 +825,259 @@ app.get('/api/escala/:id', isAuthenticated, isAdmin, async (req, res) => {
     } catch (error) {
         console.error('Erro ao buscar registro de escala:', error);
         res.status(500).json({ success: false, message: 'Erro ao buscar registro de escala' });
+    }
+});
+
+app.get('/api/fluxos', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const flows = await listChatbotFlows();
+        res.json({ success: true, flows });
+    } catch (error) {
+        console.error('Erro ao listar fluxos:', error);
+        res.status(500).json({ success: false, message: 'Erro ao listar fluxos' });
+    }
+});
+
+app.get('/api/fluxos/:id', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const flowData = await getChatbotFlowById(req.params.id);
+
+        if (!flowData) {
+            return res.status(404).json({ success: false, message: 'Fluxo não encontrado' });
+        }
+
+        res.json({ success: true, ...flowData });
+    } catch (error) {
+        console.error('Erro ao buscar fluxo:', error);
+        res.status(500).json({ success: false, message: 'Erro ao buscar fluxo' });
+    }
+});
+
+app.post('/api/fluxos', isAuthenticated, isAdmin, async (req, res) => {
+    const { name, description, is_active } = req.body;
+
+    if (typeof name !== 'string' || !name.trim()) {
+        return res.status(400).json({ success: false, message: 'Informe o nome do fluxo' });
+    }
+
+    try {
+        const baseSlug = buildSlug(name);
+        const slug = baseSlug || `fluxo-${Date.now()}`;
+        const [existing] = await db.query('SELECT id FROM chatbot_flows WHERE slug = ?', [slug]);
+        const finalSlug = existing.length > 0 ? `${slug}-${Date.now()}` : slug;
+
+        const [result] = await db.query(
+            `INSERT INTO chatbot_flows (name, slug, description, is_default, is_active, source_file)
+             VALUES (?, ?, ?, FALSE, ?, NULL)`,
+            [name.trim(), finalSlug, description || null, Boolean(is_active)]
+        );
+
+        res.json({ success: true, message: 'Fluxo criado com sucesso', id: result.insertId });
+    } catch (error) {
+        console.error('Erro ao criar fluxo:', error);
+        res.status(500).json({ success: false, message: 'Erro ao criar fluxo' });
+    }
+});
+
+app.put('/api/fluxos/:id', isAuthenticated, isAdmin, async (req, res) => {
+    const { name, description, is_active } = req.body;
+
+    if (typeof name !== 'string' || !name.trim()) {
+        return res.status(400).json({ success: false, message: 'Informe o nome do fluxo' });
+    }
+
+    try {
+        const [flows] = await db.query('SELECT id, slug FROM chatbot_flows WHERE id = ?', [req.params.id]);
+        if (flows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Fluxo não encontrado' });
+        }
+
+        await db.query(
+            `UPDATE chatbot_flows
+             SET name = ?, description = ?, is_active = ?
+             WHERE id = ?`,
+            [name.trim(), description || null, Boolean(is_active), req.params.id]
+        );
+
+        res.json({ success: true, message: 'Fluxo atualizado com sucesso' });
+    } catch (error) {
+        console.error('Erro ao atualizar fluxo:', error);
+        res.status(500).json({ success: false, message: 'Erro ao atualizar fluxo' });
+    }
+});
+
+app.delete('/api/fluxos/:id', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const [flows] = await db.query('SELECT id, is_default FROM chatbot_flows WHERE id = ?', [req.params.id]);
+        if (flows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Fluxo não encontrado' });
+        }
+
+        if (flows[0].is_default) {
+            return res.status(400).json({ success: false, message: 'O fluxo padrão não pode ser excluído' });
+        }
+
+        await db.query('DELETE FROM chatbot_flows WHERE id = ?', [req.params.id]);
+        res.json({ success: true, message: 'Fluxo excluído com sucesso' });
+    } catch (error) {
+        console.error('Erro ao excluir fluxo:', error);
+        res.status(500).json({ success: false, message: 'Erro ao excluir fluxo' });
+    }
+});
+
+app.post('/api/fluxos/:id/steps', isAuthenticated, isAdmin, async (req, res) => {
+    const {
+        step_key,
+        title,
+        prompt_text,
+        field_key,
+        validation_type,
+        next_step,
+        error_message,
+        conditions_text,
+        action_summary,
+        sort_order,
+        is_terminal
+    } = req.body;
+
+    if (typeof step_key !== 'string' || !step_key.trim()) {
+        return res.status(400).json({ success: false, message: 'Informe a chave da etapa' });
+    }
+
+    if (typeof title !== 'string' || !title.trim()) {
+        return res.status(400).json({ success: false, message: 'Informe o título da etapa' });
+    }
+
+    try {
+        const [flows] = await db.query('SELECT id FROM chatbot_flows WHERE id = ?', [req.params.id]);
+        if (flows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Fluxo não encontrado' });
+        }
+
+        const [existing] = await db.query(
+            'SELECT id FROM chatbot_flow_steps WHERE flow_id = ? AND step_key = ?',
+            [req.params.id, step_key.trim()]
+        );
+
+        if (existing.length > 0) {
+            return res.status(400).json({ success: false, message: 'Já existe uma etapa com essa chave neste fluxo' });
+        }
+
+        await db.query(
+            `INSERT INTO chatbot_flow_steps (
+                flow_id, step_key, title, prompt_text, field_key, validation_type, next_step,
+                error_message, conditions_text, action_summary, sort_order, is_terminal
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                req.params.id,
+                step_key.trim(),
+                title.trim(),
+                prompt_text || null,
+                field_key || null,
+                validation_type || null,
+                next_step || null,
+                error_message || null,
+                conditions_text || null,
+                action_summary || null,
+                Number(sort_order) || 0,
+                Boolean(is_terminal)
+            ]
+        );
+
+        res.json({ success: true, message: 'Etapa criada com sucesso' });
+    } catch (error) {
+        console.error('Erro ao criar etapa:', error);
+        res.status(500).json({ success: false, message: 'Erro ao criar etapa' });
+    }
+});
+
+app.put('/api/fluxos/:flowId/steps/:stepId', isAuthenticated, isAdmin, async (req, res) => {
+    const {
+        step_key,
+        title,
+        prompt_text,
+        field_key,
+        validation_type,
+        next_step,
+        error_message,
+        conditions_text,
+        action_summary,
+        sort_order,
+        is_terminal
+    } = req.body;
+
+    if (typeof step_key !== 'string' || !step_key.trim()) {
+        return res.status(400).json({ success: false, message: 'Informe a chave da etapa' });
+    }
+
+    if (typeof title !== 'string' || !title.trim()) {
+        return res.status(400).json({ success: false, message: 'Informe o título da etapa' });
+    }
+
+    try {
+        const [steps] = await db.query(
+            'SELECT id FROM chatbot_flow_steps WHERE id = ? AND flow_id = ?',
+            [req.params.stepId, req.params.flowId]
+        );
+
+        if (steps.length === 0) {
+            return res.status(404).json({ success: false, message: 'Etapa não encontrada' });
+        }
+
+        const [existing] = await db.query(
+            'SELECT id FROM chatbot_flow_steps WHERE flow_id = ? AND step_key = ? AND id <> ?',
+            [req.params.flowId, step_key.trim(), req.params.stepId]
+        );
+
+        if (existing.length > 0) {
+            return res.status(400).json({ success: false, message: 'Já existe outra etapa com essa chave neste fluxo' });
+        }
+
+        await db.query(
+            `UPDATE chatbot_flow_steps
+             SET step_key = ?, title = ?, prompt_text = ?, field_key = ?, validation_type = ?, next_step = ?,
+                 error_message = ?, conditions_text = ?, action_summary = ?, sort_order = ?, is_terminal = ?
+             WHERE id = ? AND flow_id = ?`,
+            [
+                step_key.trim(),
+                title.trim(),
+                prompt_text || null,
+                field_key || null,
+                validation_type || null,
+                next_step || null,
+                error_message || null,
+                conditions_text || null,
+                action_summary || null,
+                Number(sort_order) || 0,
+                Boolean(is_terminal),
+                req.params.stepId,
+                req.params.flowId
+            ]
+        );
+
+        res.json({ success: true, message: 'Etapa atualizada com sucesso' });
+    } catch (error) {
+        console.error('Erro ao atualizar etapa:', error);
+        res.status(500).json({ success: false, message: 'Erro ao atualizar etapa' });
+    }
+});
+
+app.delete('/api/fluxos/:flowId/steps/:stepId', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const [steps] = await db.query(
+            'SELECT id FROM chatbot_flow_steps WHERE id = ? AND flow_id = ?',
+            [req.params.stepId, req.params.flowId]
+        );
+
+        if (steps.length === 0) {
+            return res.status(404).json({ success: false, message: 'Etapa não encontrada' });
+        }
+
+        await db.query('DELETE FROM chatbot_flow_steps WHERE id = ? AND flow_id = ?', [req.params.stepId, req.params.flowId]);
+        res.json({ success: true, message: 'Etapa excluída com sucesso' });
+    } catch (error) {
+        console.error('Erro ao excluir etapa:', error);
+        res.status(500).json({ success: false, message: 'Erro ao excluir etapa' });
     }
 });
 
@@ -1208,16 +1564,24 @@ app.post('/api/chamados/:id/encerrar', isAuthenticated, async (req, res) => {
             [observacoes || null, chamadoId]
         );
 
-        // Enviar mensagem pelo WhatsApp
+        // Enviar mensagem pelo WhatsApp e reabrir o fluxo para o usuário
         if (whatsappClient && whatsappState === 'connected' && chamado[0].chat_origem) {
             try {
-                const mensagem = `✅ *CHAMADO ENCERRADO*\n\n` +
-                    `📌 *Protocolo:* ${chamado[0].protocolo}\n` +
-                    `👤 *Atendido por:* ${chamado[0].atendente_nome || 'Equipe TI'}\n` +
-                    `📊 *Status:* Finalizado\n\n` +
-                    `Seu chamado foi encerrado. Obrigado por utilizar nossos serviços!`;
-                
-                await whatsappClient.sendMessage(chamado[0].chat_origem, mensagem);
+                if (whatsappChatbotController?.reiniciarFluxoPorEncerramento) {
+                    await whatsappChatbotController.reiniciarFluxoPorEncerramento(chamado[0].chat_origem, {
+                        protocolo: chamado[0].protocolo,
+                        atendenteNome: chamado[0].atendente_nome || 'Equipe TI',
+                        nomeExibicao: chamado[0].solicitante_nome || 'Prezado'
+                    });
+                } else {
+                    const mensagem = `✅ *CHAMADO ENCERRADO*\n\n` +
+                        `📌 *Protocolo:* ${chamado[0].protocolo}\n` +
+                        `👤 *Atendido por:* ${chamado[0].atendente_nome || 'Equipe TI'}\n` +
+                        `📊 *Status:* Finalizado\n\n` +
+                        `Seu chamado foi encerrado. Obrigado por utilizar nossos serviços!`;
+
+                    await whatsappClient.sendMessage(chamado[0].chat_origem, mensagem);
+                }
             } catch (error) {
                 console.error('Erro ao enviar mensagem WhatsApp:', error);
             }

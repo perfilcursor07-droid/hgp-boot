@@ -126,39 +126,41 @@
                                             <td><%= chamado.atendente_nome || '-' %></td>
                                             <td><%= new Date(chamado.criado_em).toLocaleString('pt-BR') %></td>
                                             <td>
+                                                <div class="action-buttons">
                                                 <% if (chamado.status !== 'finalizado') { %>
-                                                    <button onclick="verDetalhes('<%= chamado.protocolo %>', '<%= chamado.categoria %>', '<%= chamado.solicitante_nome %>', '<%= chamado.setor %>', '<%= chamado.ip_maquina || '' %>', '<%= chamado.telefone_contato || '' %>', `<%= (chamado.descricao || '').replace(/`/g, '\\`').replace(/\n/g, '\\n') %>`)" class="btn-icon" title="Ver Detalhes">
-                                                        📋
+                                                    <button onclick="verDetalhes('<%= chamado.protocolo %>', '<%= chamado.categoria %>', '<%= chamado.solicitante_nome %>', '<%= chamado.setor %>', '<%= chamado.ip_maquina || '' %>', '<%= chamado.telefone_contato || '' %>', `<%= (chamado.descricao || '').replace(/`/g, '\`').replace(/\n/g, '\n') %>` )" class="btn-action-mini" title="Ver Detalhes">
+                                                        Detalhes
                                                     </button>
-                                                    <button onclick="abrirChat(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-icon" title="Chat" style="position: relative;">
-                                                        💬
+                                                    <button onclick="abrirChat(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-action-mini" title="Chat" style="position: relative;">
+                                                        Chat
                                                         <span id="badge-<%= chamado.id %>" class="chat-badge" style="display: none;"></span>
                                                     </button>
                                                     <% if (chamado.status !== 'em_atendimento') { %>
-                                                        <button onclick="atenderChamado(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-icon" title="Atender">
-                                                            ✋
+                                                        <button onclick="atenderChamado(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-action-mini" title="Atender">
+                                                            Atender
                                                         </button>
                                                         <% if (isAdmin) { %>
-                                                            <button onclick="abrirModalEncaminhar(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-icon" title="Encaminhar">
-                                                                📤
+                                                            <button onclick="abrirModalEncaminhar(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-action-mini" title="Encaminhar">
+                                                                Encam.
                                                             </button>
                                                         <% } %>
                                                     <% } else if (isAdmin) { %>
-                                                        <button onclick="abrirModalEncaminhar(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-icon" title="Reencaminhar">
-                                                            🔄
+                                                        <button onclick="abrirModalEncaminhar(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-action-mini" title="Reencaminhar">
+                                                            Reenc.
                                                         </button>
                                                     <% } %>
-                                                    <button onclick="abrirModalEncerrar(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-icon" title="Encerrar">
-                                                        ✅
+                                                    <button onclick="abrirModalEncerrar(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-action-mini btn-action-danger" title="Encerrar">
+                                                        Encerrar
                                                     </button>
                                                 <% } else { %>
-                                                    <button onclick="verDetalhes('<%= chamado.protocolo %>', '<%= chamado.categoria %>', '<%= chamado.solicitante_nome %>', '<%= chamado.setor %>', '<%= chamado.ip_maquina || '' %>', '<%= chamado.telefone_contato || '' %>', `<%= (chamado.descricao || '').replace(/`/g, '\\`').replace(/\n/g, '\\n') %>`)" class="btn-icon" title="Ver Detalhes">
-                                                        📋
+                                                    <button onclick="verDetalhes('<%= chamado.protocolo %>', '<%= chamado.categoria %>', '<%= chamado.solicitante_nome %>', '<%= chamado.setor %>', '<%= chamado.ip_maquina || '' %>', '<%= chamado.telefone_contato || '' %>', `<%= (chamado.descricao || '').replace(/`/g, '\`').replace(/\n/g, '\n') %>` )" class="btn-action-mini" title="Ver Detalhes">
+                                                        Detalhes
                                                     </button>
-                                                    <button onclick="abrirChat(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-icon" title="Ver Chat">
-                                                        💬
+                                                    <button onclick="abrirChat(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-action-mini" title="Ver Chat">
+                                                        Chat
                                                     </button>
                                                 <% } %>
+                                                </div>
                                             </td>
                                         </tr>
                                     <% }) %>

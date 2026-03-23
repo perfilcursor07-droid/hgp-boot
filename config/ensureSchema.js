@@ -68,6 +68,187 @@ async function ensureForeignKey(connection, tableName, constraintName, definitio
     return true;
 }
 
+const DEFAULT_CHATBOT_FLOW = {
+    name: 'Fluxo Padrão chatbot.js',
+    slug: 'chatbot-js-padrao',
+    description: 'Representação visual do fluxo atual do chatbot que já está em produção.',
+    source_file: 'chatbot.js',
+    steps: [
+        {
+            step_key: 'start',
+            title: 'Boas-vindas e menu',
+            prompt_text: 'Apresenta a saudação inicial e mostra as opções 1 a 6 com possibilidade de CANCELAR.',
+            field_key: 'opcao',
+            validation_type: 'menu',
+            next_step: '0.5',
+            error_message: 'Ignora entradas fora do menu até o usuário escolher uma opção válida.',
+            conditions_text: 'Se a mensagem inicial for o gatilho de teste, marca o estado como teste antes de iniciar.',
+            action_summary: 'Envia o menu principal com categorias e opção de ramais.',
+            sort_order: 1,
+            is_terminal: false
+        },
+        {
+            step_key: '0.5',
+            title: 'Escolha da categoria',
+            prompt_text: 'Recebe a opção escolhida pelo usuário.',
+            field_key: 'opcao',
+            validation_type: 'categoria',
+            next_step: '1',
+            error_message: 'Se a opção não existir, o fluxo aguarda nova resposta.',
+            conditions_text: 'Se a opção for 6, envia o PDF de ramais e encerra o estado.',
+            action_summary: 'Quando a categoria é válida, avança para coleta do nome completo.',
+            sort_order: 2,
+            is_terminal: false
+        },
+        {
+            step_key: '1',
+            title: 'Nome completo',
+            prompt_text: '👤 Seu *Nome Completo*:',
+            field_key: 'nome',
+            validation_type: 'texto',
+            next_step: '2',
+            error_message: '',
+            conditions_text: '',
+            action_summary: 'Salva o nome do solicitante e solicita o setor e ala.',
+            sort_order: 3,
+            is_terminal: false
+        },
+        {
+            step_key: '2',
+            title: 'Setor e ala',
+            prompt_text: '🏢 Seu *Setor e Ala*:',
+            field_key: 'setor',
+            validation_type: 'texto',
+            next_step: '3',
+            error_message: '',
+            conditions_text: '',
+            action_summary: 'Salva setor/ala e solicita o IP da máquina.',
+            sort_order: 4,
+            is_terminal: false
+        },
+        {
+            step_key: '3',
+            title: 'IP da máquina',
+            prompt_text: '💻 *IP da Máquina*:',
+            field_key: 'ip',
+            validation_type: 'ip',
+            next_step: '4',
+            error_message: '❌ IP inválido. Tente novamente:',
+            conditions_text: 'Se a categoria escolhida for Impressora (2), o próximo passo vira 3.5 para pedir o código da impressora.',
+            action_summary: 'Valida o IP e decide se o fluxo segue para o código da impressora ou telefone.',
+            sort_order: 5,
+            is_terminal: false
+        },
+        {
+            step_key: '3.5',
+            title: 'Código da impressora',
+            prompt_text: '🖨️ Qual é o *código da impressora*? (Ex: TC1020)',
+            field_key: 'codImpressora',
+            validation_type: 'texto',
+            next_step: '4',
+            error_message: '',
+            conditions_text: 'Executado somente quando a categoria for Impressora.',
+            action_summary: 'Salva o código da impressora e segue para o telefone de contato.',
+            sort_order: 6,
+            is_terminal: false
+        },
+        {
+            step_key: '4',
+            title: 'Telefone de contato',
+            prompt_text: '📱 *Telefone* de contato:',
+            field_key: 'tel',
+            validation_type: 'telefone',
+            next_step: '5',
+            error_message: '',
+            conditions_text: '',
+            action_summary: 'Salva o telefone informado e pede a descrição do problema.',
+            sort_order: 7,
+            is_terminal: false
+        },
+        {
+            step_key: '5',
+            title: 'Descrição e fechamento',
+            prompt_text: '📝 Descreva o *Problema*:',
+            field_key: 'desc',
+            validation_type: 'texto-livre',
+            next_step: '',
+            error_message: '',
+            conditions_text: 'Monta o relatório, salva chamado, envia ao técnico da escala e dispara o webhook histórico.',
+            action_summary: 'Conclui o fluxo do chamado e limpa o estado do usuário.',
+            sort_order: 8,
+            is_terminal: true
+        }
+    ]
+};
+
+async function ensureDefaultChatbotFlow(connection) {
+    const [existingFlows] = await connection.query(
+        'SELECT id FROM chatbot_flows WHERE slug = ? LIMIT 1',
+        [DEFAULT_CHATBOT_FLOW.slug]
+    );
+
+    let flowId = existingFlows[0]?.id;
+
+    if (!flowId) {
+        const [result] = await connection.query(
+            `INSERT INTO chatbot_flows (name, slug, description, is_default, is_active, source_file)
+             VALUES (?, ?, ?, TRUE, TRUE, ?)`,
+            [
+                DEFAULT_CHATBOT_FLOW.name,
+                DEFAULT_CHATBOT_FLOW.slug,
+                DEFAULT_CHATBOT_FLOW.description,
+                DEFAULT_CHATBOT_FLOW.source_file
+            ]
+        );
+
+        flowId = result.insertId;
+    }
+
+    const [stepCountRows] = await connection.query(
+        'SELECT COUNT(*) AS total FROM chatbot_flow_steps WHERE flow_id = ?',
+        [flowId]
+    );
+
+    if (stepCountRows[0].total > 0) {
+        return false;
+    }
+
+    for (const step of DEFAULT_CHATBOT_FLOW.steps) {
+        await connection.query(
+            `INSERT INTO chatbot_flow_steps (
+                flow_id,
+                step_key,
+                title,
+                prompt_text,
+                field_key,
+                validation_type,
+                next_step,
+                error_message,
+                conditions_text,
+                action_summary,
+                sort_order,
+                is_terminal
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                flowId,
+                step.step_key,
+                step.title,
+                step.prompt_text,
+                step.field_key,
+                step.validation_type,
+                step.next_step,
+                step.error_message,
+                step.conditions_text,
+                step.action_summary,
+                step.sort_order,
+                step.is_terminal
+            ]
+        );
+    }
+
+    return true;
+}
+
 async function ensureSchema(connection) {
     const changes = [];
 
@@ -170,6 +351,44 @@ async function ensureSchema(connection) {
     `);
 
     await connection.query(`
+        CREATE TABLE IF NOT EXISTS chatbot_flows (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(150) NOT NULL,
+            slug VARCHAR(160) NOT NULL,
+            description TEXT NULL,
+            is_default BOOLEAN NOT NULL DEFAULT FALSE,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            source_file VARCHAR(120) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_chatbot_flows_slug (slug)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+    `);
+
+    await connection.query(`
+        CREATE TABLE IF NOT EXISTS chatbot_flow_steps (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            flow_id INT NOT NULL,
+            step_key VARCHAR(20) NOT NULL,
+            title VARCHAR(150) NOT NULL,
+            prompt_text TEXT NULL,
+            field_key VARCHAR(80) NULL,
+            validation_type VARCHAR(50) NULL,
+            next_step VARCHAR(20) NULL,
+            error_message TEXT NULL,
+            conditions_text TEXT NULL,
+            action_summary TEXT NULL,
+            sort_order INT NOT NULL DEFAULT 0,
+            is_terminal BOOLEAN NOT NULL DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_chatbot_flow_step (flow_id, step_key),
+            INDEX idx_chatbot_flow_steps_flow_id (flow_id),
+            INDEX idx_chatbot_flow_steps_order (flow_id, sort_order)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+    `);
+
+    await connection.query(`
         CREATE TABLE IF NOT EXISTS chat_messages (
             id INT AUTO_INCREMENT PRIMARY KEY,
             chamado_id INT NOT NULL,
@@ -230,6 +449,14 @@ async function ensureSchema(connection) {
 
     if (await ensureForeignKey(connection, 'escalas', 'fk_escalas_admin', 'FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE')) {
         changes.push('escalas.fk_escalas_admin');
+    }
+
+    if (await ensureForeignKey(connection, 'chatbot_flow_steps', 'fk_chatbot_flow_steps_flow', 'FOREIGN KEY (flow_id) REFERENCES chatbot_flows(id) ON DELETE CASCADE')) {
+        changes.push('chatbot_flow_steps.fk_chatbot_flow_steps_flow');
+    }
+
+    if (await ensureDefaultChatbotFlow(connection)) {
+        changes.push('chatbot_flows.default_seed');
     }
 
     await connection.query(`

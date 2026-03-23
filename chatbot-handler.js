@@ -64,6 +64,8 @@ function attachChatbot(client, options = {}) {
     };
     const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+    const menuPrincipal = '1️⃣ Soul MV\n2️⃣ Impressora\n3️⃣ Suporte Técnico\n4️⃣ Telefonia / VOIP\n5️⃣ Outras\n6️⃣ Ramais\n\n_Ou envie CANCELAR._';
+
     async function resolverIdChatPorNumero(numeroBruto) {
         const variacoes = gerarVariacoesNumero(numeroBruto);
 
@@ -111,6 +113,60 @@ function attachChatbot(client, options = {}) {
         }
 
         await client.sendMessage(resolvido.chatId, mensagem);
+        return true;
+    }
+
+    async function resolverDestinoSaida(sessionOrChatId) {
+        const destino = String(sessionOrChatId || '').trim();
+
+        if (!destino) {
+            return null;
+        }
+
+        if (destino.endsWith('@c.us') || destino.endsWith('@g.us')) {
+            return destino;
+        }
+
+        const resolvido = await resolverIdChatPorNumero(destino);
+        return resolvido?.chatId || null;
+    }
+
+    function liberarSessao(sessionId) {
+        if (!sessionId) {
+            return;
+        }
+
+        estados.delete(sessionId);
+        bloqueados.delete(sessionId);
+    }
+
+    async function reiniciarFluxoPorEncerramento(sessionId, options = {}) {
+        const chatId = await resolverDestinoSaida(sessionId);
+        if (!chatId) {
+            return false;
+        }
+
+        liberarSessao(sessionId);
+
+        const nomeExibicao = options.nomeExibicao || 'Prezado';
+        const protocolo = options.protocolo ? `\n\n📌 *Protocolo encerrado:* ${options.protocolo}` : '';
+        const atendenteNome = options.atendenteNome ? `\n👤 *Atendido por:* ${options.atendenteNome}` : '';
+
+        await client.sendMessage(
+            chatId,
+            `✅ *CHAMADO ENCERRADO*${protocolo}${atendenteNome}\n\nSeu atendimento foi finalizado. Se precisar abrir um novo chamado, o menu já está disponível abaixo.`
+        );
+        await delay(500);
+        await client.sendMessage(chatId, `*🛠️ TI - HGP*\nOlá, *${nomeExibicao}*.`);
+        await delay(400);
+        await client.sendMessage(chatId, menuPrincipal);
+
+        estados.set(sessionId, {
+            step: 0.5,
+            nomeWhats: nomeExibicao,
+            isTeste: false
+        });
+
         return true;
     }
 
@@ -332,7 +388,7 @@ function attachChatbot(client, options = {}) {
 
                 await client.sendMessage(chatId, saudacao);
                 await delay(500);
-                await client.sendMessage(chatId, '1️⃣ Soul MV\n2️⃣ Impressora\n3️⃣ Suporte Técnico\n4️⃣ Telefonia / VOIP\n5️⃣ Outras\n6️⃣ Ramais\n\n_Ou envie CANCELAR._');
+                await client.sendMessage(chatId, menuPrincipal);
                 estados.set(sessionId, { step: 0.5, nomeWhats: contato.pushname || 'Prezado', isTeste: texto === GATILHO_TESTE });
                 return;
             }
@@ -482,7 +538,9 @@ function attachChatbot(client, options = {}) {
 
     const controller = {
         categories: categoriasMap,
-        mode: options.managedByServer ? 'shared-session' : 'standalone'
+        mode: options.managedByServer ? 'shared-session' : 'standalone',
+        liberarSessao,
+        reiniciarFluxoPorEncerramento
     };
 
     client[CHATBOT_ATTACHED_FLAG] = controller;

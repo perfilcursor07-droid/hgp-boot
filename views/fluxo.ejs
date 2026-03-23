@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fluxo - WhatsApp HGP</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="dashboard">
+        <%- include('partials/sidebar', { activePage: 'fluxo', username, role: 'Administrador', isAdmin: true }) %>
+
+        <main class="main-content">
+            <div class="topbar">
+                <div class="topbar-title-group">
+                    <button type="button" class="menu-toggle" aria-label="Abrir menu">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                    <h2>🧭 Fluxos do Chatbot</h2>
+                </div>
+                <div class="topbar-actions">
+                    <button type="button" onclick="abrirModalFluxo()" class="btn btn-secondary">Novo fluxo</button>
+                    <button type="button" onclick="abrirModalEtapa()" class="btn btn-primary" id="newStepBtn">Nova etapa</button>
+                </div>
+            </div>
+
+            <div class="content">
+                <section class="dashboard-hero settings-hero">
+                    <div>
+                        <p class="eyebrow">Editor visual</p>
+                        <h1>Fluxo em quadros</h1>
+                        <p class="hero-text">O fluxo atual do chatbot foi padronizado como fluxo visual. Agora o administrador consegue visualizar, editar e criar novas variações sem depender de leitura direta do arquivo.</p>
+                    </div>
+                    <div class="hero-highlight">
+                        <span class="hero-highlight-label">Base atual</span>
+                        <strong><%= selectedFlowData?.flow?.name || 'Sem fluxo selecionado' %></strong>
+                        <small><%= selectedFlowData?.flow?.source_file || 'Fluxo visual salvo no banco' %></small>
+                    </div>
+                </section>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">🧭</div>
+                        <div class="stat-info">
+                            <h3><%= stats.totalFlows %></h3>
+                            <p>Fluxos cadastrados</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green">✅</div>
+                        <div class="stat-info">
+                            <h3><%= stats.ativos %></h3>
+                            <p>Fluxos ativos</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon purple">⭐</div>
+                        <div class="stat-info">
+                            <h3><%= stats.padroes %></h3>
+                            <p>Fluxos padrão</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange">🧱</div>
+                        <div class="stat-info">
+                            <h3><%= stats.etapas %></h3>
+                            <p>Etapas no fluxo</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="fluxo-layout">
+                    <aside class="card fluxo-sidebar-card">
+                        <div class="card-header">
+                            <div>
+                                <h2>Fluxos disponíveis</h2>
+                                <p class="settings-helper">Selecione um fluxo para abrir os quadros e editar suas etapas.</p>
+                            </div>
+                        </div>
+
+                        <div class="fluxo-list" id="flowList"></div>
+                    </aside>
+
+                    <section class="card fluxo-board-card">
+                        <div class="fluxo-board-header" id="flowHeader"></div>
+                        <div class="fluxo-board" id="flowStepsBoard"></div>
+                    </section>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="modalFluxo" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalFluxoTitle">Novo Fluxo</h2>
+                <span class="modal-close" onclick="fecharModalFluxo()">&times;</span>
+            </div>
+            <form id="formFluxo" onsubmit="salvarFluxo(event)">
+                <input type="hidden" id="fluxoId" name="id">
+
+                <div class="form-group">
+                    <label for="fluxoNome">Nome *</label>
+                    <input type="text" id="fluxoNome" name="name" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="fluxoDescricao">Descrição</label>
+                    <textarea id="fluxoDescricao" name="description" rows="4" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; resize: vertical; font-family: inherit;"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="fluxoAtivo" name="is_active" checked>
+                        Fluxo ativo
+                    </label>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" onclick="fecharModalFluxo()" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modalEtapa" class="modal">
+        <div class="modal-content" style="max-width: 760px;">
+            <div class="modal-header">
+                <h2 id="modalEtapaTitle">Nova Etapa</h2>
+                <span class="modal-close" onclick="fecharModalEtapa()">&times;</span>
+            </div>
+            <form id="formEtapa" onsubmit="salvarEtapa(event)">
+                <input type="hidden" id="etapaId" name="id">
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="etapaKey">Chave da etapa *</label>
+                        <input type="text" id="etapaKey" name="step_key" required placeholder="Ex: 1, 3.5 ou start">
+                    </div>
+                    <div class="form-group">
+                        <label for="etapaTitulo">Título *</label>
+                        <input type="text" id="etapaTitulo" name="title" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="etapaPrompt">Mensagem / pergunta</label>
+                    <textarea id="etapaPrompt" name="prompt_text" rows="3" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; resize: vertical; font-family: inherit;"></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="etapaCampo">Campo salvo</label>
+                        <input type="text" id="etapaCampo" name="field_key" placeholder="Ex: nome, setor, ip">
+                    </div>
+                    <div class="form-group">
+                        <label for="etapaValidacao">Validação</label>
+                        <input type="text" id="etapaValidacao" name="validation_type" placeholder="Ex: texto, ip, menu">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="etapaProxima">Próxima etapa</label>
+                        <input type="text" id="etapaProxima" name="next_step" placeholder="Ex: 2 ou 5">
+                    </div>
+                    <div class="form-group">
+                        <label for="etapaOrdem">Ordem visual</label>
+                        <input type="number" id="etapaOrdem" name="sort_order" min="0" step="1" value="0">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="etapaErro">Mensagem de erro</label>
+                    <textarea id="etapaErro" name="error_message" rows="2" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; resize: vertical; font-family: inherit;"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="etapaCondicoes">Condições / desvios</label>
+                    <textarea id="etapaCondicoes" name="conditions_text" rows="3" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; resize: vertical; font-family: inherit;"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="etapaAcao">Resumo da ação</label>
+                    <textarea id="etapaAcao" name="action_summary" rows="3" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; resize: vertical; font-family: inherit;"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="etapaTerminal" name="is_terminal">
+                        Etapa terminal
+                    </label>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" onclick="fecharModalEtapa()" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const initialFlows = <%- JSON.stringify(flows || []) %>;
+        const initialSelectedFlowData = <%- JSON.stringify(selectedFlowData || null) %>;
+
+        const menuToggle = document.querySelector('.menu-toggle');
+        const sidebarOverlay = document.querySelector('.sidebar-overlay');
+        const flowList = document.getElementById('flowList');
+        const flowHeader = document.getElementById('flowHeader');
+        const flowStepsBoard = document.getElementById('flowStepsBoard');
+        const newStepBtn = document.getElementById('newStepBtn');
+
+        const modalFluxo = document.getElementById('modalFluxo');
+        const modalFluxoTitle = document.getElementById('modalFluxoTitle');
+        const fluxoId = document.getElementById('fluxoId');
+        const fluxoNome = document.getElementById('fluxoNome');
+        const fluxoDescricao = document.getElementById('fluxoDescricao');
+        const fluxoAtivo = document.getElementById('fluxoAtivo');
+
+        const modalEtapa = document.getElementById('modalEtapa');
+        const modalEtapaTitle = document.getElementById('modalEtapaTitle');
+        const etapaId = document.getElementById('etapaId');
+        const etapaKey = document.getElementById('etapaKey');
+        const etapaTitulo = document.getElementById('etapaTitulo');
+        const etapaPrompt = document.getElementById('etapaPrompt');
+        const etapaCampo = document.getElementById('etapaCampo');
+        const etapaValidacao = document.getElementById('etapaValidacao');
+        const etapaProxima = document.getElementById('etapaProxima');
+        const etapaErro = document.getElementById('etapaErro');
+        const etapaCondicoes = document.getElementById('etapaCondicoes');
+        const etapaAcao = document.getElementById('etapaAcao');
+        const etapaOrdem = document.getElementById('etapaOrdem');
+        const etapaTerminal = document.getElementById('etapaTerminal');
+
+        let flows = initialFlows;
+        let selectedFlowData = initialSelectedFlowData;
+
+        function toggleSidebar(forceOpen) {
+            if (typeof forceOpen === 'boolean') {
+                document.body.classList.toggle('sidebar-open', forceOpen);
+                return;
+            }
+
+            document.body.classList.toggle('sidebar-open');
+        }
+
+        if (menuToggle) {
+            menuToggle.addEventListener('click', () => toggleSidebar());
+        }
+
+        if (sidebarOverlay) {
+            sidebarOverlay.addEventListener('click', () => toggleSidebar(false));
+        }
+
+        document.querySelectorAll('.menu-item, .btn-logout').forEach((item) => {
+            item.addEventListener('click', () => {
+                if (window.innerWidth <= 900) {
+                    toggleSidebar(false);
+                }
+            });
+        });
+
+        function renderFlows() {
+            if (!flows.length) {
+                flowList.innerHTML = '<p class="settings-helper">Nenhum fluxo cadastrado.</p>';
+                return;
+            }
+
+            flowList.innerHTML = flows.map((flow) => {
+                const selected = selectedFlowData?.flow?.id === flow.id;
+                const statusClass = flow.is_active ? 'success' : 'badge-inactive';
+                const defaultBadge = flow.is_default ? '<span class="badge success">Padrão</span>' : '';
+
+                return `
+                    <article class="flow-list-card ${selected ? 'active' : ''}" onclick="selecionarFluxo(${flow.id})">
+                        <div class="flow-list-card-head">
+                            <h3>${flow.name}</h3>
+                            ${defaultBadge}
+                        </div>
+                        <p>${flow.description || 'Sem descrição cadastrada.'}</p>
+                        <div class="flow-list-card-meta">
+                            <span class="badge ${statusClass}">${flow.is_active ? 'Ativo' : 'Inativo'}</span>
+                            <span class="badge info">${flow.total_steps} etapa(s)</span>
+                        </div>
+                        <div class="flow-list-card-actions">
+                            <button type="button" class="btn-action-mini" onclick="event.stopPropagation(); abrirModalFluxo(${flow.id})">Editar</button>
+                            ${flow.is_default ? '' : `<button type="button" class="btn-action-mini btn-action-danger" onclick="event.stopPropagation(); excluirFluxo(${flow.id}, '${flow.name.replace(/'/g, "\\'")}')">Excluir</button>`}
+                        </div>
+                    </article>
+                `;
+            }).join('');
+        }
+
+        function renderSelectedFlow() {
+            if (!selectedFlowData || !selectedFlowData.flow) {
+                newStepBtn.disabled = true;
+                flowHeader.innerHTML = '<div><h2>Nenhum fluxo selecionado</h2><p class="settings-helper">Crie um novo fluxo para começar.</p></div>';
+                flowStepsBoard.innerHTML = '<div class="fluxo-empty">Nenhuma etapa para exibir.</div>';
+                return;
+            }
+
+            newStepBtn.disabled = false;
+            const flow = selectedFlowData.flow;
+            const steps = selectedFlowData.steps || [];
+
+            flowHeader.innerHTML = `
+                <div>
+                    <h2>${flow.name}</h2>
+                    <p class="settings-helper">${flow.description || 'Sem descrição cadastrada.'}</p>
+                </div>
+                <div class="flow-header-badges">
+                    ${flow.source_file ? `<span class="badge info">Origem: ${flow.source_file}</span>` : ''}
+                    <span class="badge ${flow.is_active ? 'success' : 'badge-inactive'}">${flow.is_active ? 'Ativo' : 'Inativo'}</span>
+                </div>
+            `;
+
+            if (!steps.length) {
+                flowStepsBoard.innerHTML = '<div class="fluxo-empty">Esse fluxo ainda não tem etapas cadastradas.</div>';
+                return;
+            }
+
+            flowStepsBoard.innerHTML = steps.map((step) => `
+                <article class="flow-step-card ${step.is_terminal ? 'terminal' : ''}">
+                    <div class="flow-step-top">
+                        <span class="flow-step-key">${step.step_key}</span>
+                        <div class="flow-step-actions">
+                            <button type="button" class="btn-action-mini" onclick="abrirModalEtapa(${step.id})">Editar</button>
+                            <button type="button" class="btn-action-mini btn-action-danger" onclick="excluirEtapa(${step.id}, '${step.title.replace(/'/g, "\\'")}')">Excluir</button>
+                        </div>
+                    </div>
+                    <h3>${step.title}</h3>
+                    <p class="flow-step-prompt">${step.prompt_text || 'Sem mensagem configurada.'}</p>
+                    <div class="flow-step-grid">
+                        <div>
+                            <span class="flow-meta-label">Campo</span>
+                            <strong>${step.field_key || '-'}</strong>
+                        </div>
+                        <div>
+                            <span class="flow-meta-label">Validação</span>
+                            <strong>${step.validation_type || '-'}</strong>
+                        </div>
+                        <div>
+                            <span class="flow-meta-label">Próxima etapa</span>
+                            <strong>${step.next_step || 'Finaliza'}</strong>
+                        </div>
+                        <div>
+                            <span class="flow-meta-label">Ordem</span>
+                            <strong>${step.sort_order}</strong>
+                        </div>
+                    </div>
+                    ${step.error_message ? `<div class="flow-note"><span class="flow-meta-label">Erro</span><p>${step.error_message}</p></div>` : ''}
+                    ${step.conditions_text ? `<div class="flow-note"><span class="flow-meta-label">Condições</span><p>${step.conditions_text}</p></div>` : ''}
+                    ${step.action_summary ? `<div class="flow-note"><span class="flow-meta-label">Ação</span><p>${step.action_summary}</p></div>` : ''}
+                </article>
+            `).join('');
+        }
+
+        async function carregarFluxos() {
+            const response = await fetch('/api/fluxos');
+            const result = await response.json();
+            if (!result.success) {
+                throw new Error(result.message || 'Erro ao carregar fluxos');
+            }
+
+            flows = result.flows;
+            renderFlows();
+        }
+
+        async function selecionarFluxo(flowId) {
+            try {
+                const response = await fetch(`/api/fluxos/${flowId}`);
+                const result = await response.json();
+                if (!result.success) {
+                    alert(result.message || 'Erro ao carregar fluxo');
+                    return;
+                }
+
+                selectedFlowData = { flow: result.flow, steps: result.steps };
+                renderFlows();
+                renderSelectedFlow();
+            } catch (error) {
+                alert('Erro ao carregar fluxo');
+                console.error(error);
+            }
+        }
+
+        function abrirModalFluxo(flowId) {
+            if (flowId && selectedFlowData?.flow?.id === flowId) {
+                const flow = selectedFlowData.flow;
+                modalFluxoTitle.textContent = 'Editar Fluxo';
+                fluxoId.value = flow.id;
+                fluxoNome.value = flow.name || '';
+                fluxoDescricao.value = flow.description || '';
+                fluxoAtivo.checked = Boolean(flow.is_active);
+            } else {
+                modalFluxoTitle.textContent = 'Novo Fluxo';
+                document.getElementById('formFluxo').reset();
+                fluxoId.value = '';
+                fluxoAtivo.checked = true;
+            }
+
+            modalFluxo.style.display = 'flex';
+        }
+
+        function fecharModalFluxo() {
+            modalFluxo.style.display = 'none';
+        }
+
+        async function salvarFluxo(event) {
+            event.preventDefault();
+
+            const payload = {
+                name: fluxoNome.value,
+                description: fluxoDescricao.value,
+                is_active: fluxoAtivo.checked
+            };
+
+            const isEditing = Boolean(fluxoId.value);
+            const url = isEditing ? `/api/fluxos/${fluxoId.value}` : '/api/fluxos';
+            const method = isEditing ? 'PUT' : 'POST';
+
+            try {
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+
+                if (!result.success) {
+                    alert(result.message || 'Erro ao salvar fluxo');
+                    return;
+                }
+
+                await carregarFluxos();
+                if (result.id) {
+                    await selecionarFluxo(result.id);
+                } else if (isEditing) {
+                    await selecionarFluxo(Number(fluxoId.value));
+                }
+                fecharModalFluxo();
+            } catch (error) {
+                alert('Erro ao salvar fluxo');
+                console.error(error);
+            }
+        }
+
+        async function excluirFluxo(flowId, flowName) {
+            if (!confirm(`Deseja realmente excluir o fluxo ${flowName}?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/fluxos/${flowId}`, { method: 'DELETE' });
+                const result = await response.json();
+
+                if (!result.success) {
+                    alert(result.message || 'Erro ao excluir fluxo');
+                    return;
+                }
+
+                await carregarFluxos();
+                if (flows.length > 0) {
+                    await selecionarFluxo(flows[0].id);
+                } else {
+                    selectedFlowData = null;
+                    renderFlows();
+                    renderSelectedFlow();
+                }
+            } catch (error) {
+                alert('Erro ao excluir fluxo');
+                console.error(error);
+            }
+        }
+
+        function abrirModalEtapa(stepId) {
+            if (!selectedFlowData?.flow?.id) {
+                alert('Selecione um fluxo antes de criar etapas.');
+                return;
+            }
+
+            if (stepId) {
+                const step = selectedFlowData.steps.find((item) => item.id === stepId);
+                if (!step) {
+                    return;
+                }
+
+                modalEtapaTitle.textContent = 'Editar Etapa';
+                etapaId.value = step.id;
+                etapaKey.value = step.step_key || '';
+                etapaTitulo.value = step.title || '';
+                etapaPrompt.value = step.prompt_text || '';
+                etapaCampo.value = step.field_key || '';
+                etapaValidacao.value = step.validation_type || '';
+                etapaProxima.value = step.next_step || '';
+                etapaErro.value = step.error_message || '';
+                etapaCondicoes.value = step.conditions_text || '';
+                etapaAcao.value = step.action_summary || '';
+                etapaOrdem.value = step.sort_order || 0;
+                etapaTerminal.checked = Boolean(step.is_terminal);
+            } else {
+                modalEtapaTitle.textContent = 'Nova Etapa';
+                document.getElementById('formEtapa').reset();
+                etapaId.value = '';
+                etapaOrdem.value = selectedFlowData.steps.length;
+            }
+
+            modalEtapa.style.display = 'flex';
+        }
+
+        function fecharModalEtapa() {
+            modalEtapa.style.display = 'none';
+        }
+
+        async function salvarEtapa(event) {
+            event.preventDefault();
+
+            if (!selectedFlowData?.flow?.id) {
+                alert('Selecione um fluxo antes de salvar etapas.');
+                return;
+            }
+
+            const payload = {
+                step_key: etapaKey.value,
+                title: etapaTitulo.value,
+                prompt_text: etapaPrompt.value,
+                field_key: etapaCampo.value,
+                validation_type: etapaValidacao.value,
+                next_step: etapaProxima.value,
+                error_message: etapaErro.value,
+                conditions_text: etapaCondicoes.value,
+                action_summary: etapaAcao.value,
+                sort_order: Number(etapaOrdem.value || 0),
+                is_terminal: etapaTerminal.checked
+            };
+
+            const isEditing = Boolean(etapaId.value);
+            const url = isEditing
+                ? `/api/fluxos/${selectedFlowData.flow.id}/steps/${etapaId.value}`
+                : `/api/fluxos/${selectedFlowData.flow.id}/steps`;
+            const method = isEditing ? 'PUT' : 'POST';
+
+            try {
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+
+                if (!result.success) {
+                    alert(result.message || 'Erro ao salvar etapa');
+                    return;
+                }
+
+                await carregarFluxos();
+                await selecionarFluxo(selectedFlowData.flow.id);
+                fecharModalEtapa();
+            } catch (error) {
+                alert('Erro ao salvar etapa');
+                console.error(error);
+            }
+        }
+
+        async function excluirEtapa(stepId, stepTitle) {
+            if (!selectedFlowData?.flow?.id) {
+                return;
+            }
+
+            if (!confirm(`Deseja realmente excluir a etapa ${stepTitle}?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/fluxos/${selectedFlowData.flow.id}/steps/${stepId}`, { method: 'DELETE' });
+                const result = await response.json();
+
+                if (!result.success) {
+                    alert(result.message || 'Erro ao excluir etapa');
+                    return;
+                }
+
+                await carregarFluxos();
+                await selecionarFluxo(selectedFlowData.flow.id);
+            } catch (error) {
+                alert('Erro ao excluir etapa');
+                console.error(error);
+            }
+        }
+
+        window.onclick = function(event) {
+            if (event.target === modalFluxo) {
+                fecharModalFluxo();
+            }
+            if (event.target === modalEtapa) {
+                fecharModalEtapa();
+            }
+        };
+
+        renderFlows();
+        renderSelectedFlow();
+    </script>
+</body>
+</html>
