@@ -8,54 +8,7 @@
 </head>
 <body data-bot-connected="<%= session && session.is_connected ? 'true' : 'false' %>">
     <div class="dashboard">
-        <!-- Sidebar -->
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <h1><span>WhatsApp HGP</span></h1>
-            </div>
-            
-            <nav class="sidebar-menu">
-                <a href="/dashboard" class="menu-item active">
-                    <span class="menu-item-icon">📊</span>
-                    <span>Dashboard</span>
-                </a>
-                <a href="/chamados" class="menu-item">
-                    <span class="menu-item-icon">🧾</span>
-                    <span>Chamados</span>
-                </a>
-                <a href="/messages" class="menu-item">
-                    <span class="menu-item-icon">💬</span>
-                    <span>Mensagens</span>
-                </a>
-                <a href="/contacts" class="menu-item">
-                    <span class="menu-item-icon">👥</span>
-                    <span>Contatos</span>
-                </a>
-                <a href="/usuarios" class="menu-item">
-                    <span class="menu-item-icon">👤</span>
-                    <span>Usuários</span>
-                </a>
-                <a href="/settings" class="menu-item">
-                    <span class="menu-item-icon">⚙️</span>
-                    <span>Configurações</span>
-                </a>
-            </nav>
-            
-            <div class="sidebar-footer">
-                <div class="user-info">
-                    <div class="user-avatar"><%= username.charAt(0).toUpperCase() %></div>
-                    <div class="user-details">
-                        <div class="user-name"><%= username %></div>
-                        <div class="user-role">Administrador</div>
-                    </div>
-                </div>
-                <a href="/logout" class="btn-logout">
-                    <span>🚪 Sair</span>
-                </a>
-            </div>
-        </aside>
-
-        <div class="sidebar-overlay"></div>
+        <%- include('partials/sidebar', { activePage: 'dashboard', username, role: 'Administrador', isAdmin: true }) %>
 
         <!-- Main Content -->
         <main class="main-content">
