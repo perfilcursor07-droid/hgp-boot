@@ -1,71 +1,292 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
+// ================= IMPORTS =================
+const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
+const axios = require('axios');
+const dayjs = require('dayjs');
 const path = require('path');
+const fs = require("fs");
 const qrcode = require('qrcode-terminal');
-const { attachChatbot, registrarErro } = require('./chatbot-handler');
 
-// ================= INICIALIZAÇÃO (MODO RESILIENTE) =================
+// ================= CONFIG =================
+const CONFIG = {
+  MEU_NUMERO_SIMULACAO: "5563984425197",
+  GATILHO_TESTE: "JOHNTESTE",
+  URL_WEBHOOK_HISTORICO: "https://script.google.com/macros/s/AKfycbzFWguJIjPAUw7SlXXgdmtSZQCasBuOdNzFwdEaCzK0SplFyhYSZQxujD_LZMaBEh38hw/exec",
+  URL_PLANILHA_CSV: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTXqSf5qMNA7Zd7jolV5IeplWYz-beU5-ypZHgmvUSlPxGIisq51hGbhHtlpnMf96OgG-TE4WIrLvKp/pub?gid=0&single=true&output=csv"
+};
+
+// ================= LOGGER =================
+function registrarErro(erro, contexto = "") {
+  const dataHora = dayjs().format('DD/MM/YYYY HH:mm:ss');
+  const detalhe = erro.response
+    ? `Status: ${erro.response.status} - ${JSON.stringify(erro.response.data)}`
+    : (erro.stack || erro);
+
+  const logMsg = `\n[${dataHora}] ❌ ERRO: ${contexto}\n${detalhe}\n${'-'.repeat(50)}`;
+
+  console.error(logMsg);
+  try {
+    fs.appendFileSync(path.join(__dirname, 'erros_bot.txt'), logMsg);
+  } catch {}
+}
+
+// ================= UTILS =================
+const delay = ms => new Promise(res => setTimeout(res, ms));
+
+function validarIP(ip) {
+  return /^(\d{1,3}\.){3}\d{1,3}$/.test(ip);
+}
+
+function limparNumero(numero) {
+  let num = numero.replace(/\D/g, '');
+  if (!num.startsWith('55')) num = '55' + num;
+  return num;
+}
+
+function formatarNumeroBR(numero) {
+  numero = numero.replace(/\D/g, '');
+  if (numero.length === 13) {
+    return `(${numero.slice(2,4)}) ${numero[4]} ${numero.slice(5,9)}-${numero.slice(9)}`;
+  }
+  return numero;
+}
+
+function gerarProtocolo() {
+  return `HGP-${dayjs().format('DDMM')}-${Math.random().toString(36).substring(2,5).toUpperCase()}`;
+}
+
+// ================= CLIENT =================
 const client = new Client({
-    authStrategy: new LocalAuth({ 
-        clientId: 'bot-hgp-v6',
-        dataPath: path.join(__dirname, 'wwebjs_sessions')
-    }),
-    puppeteer: {
-        headless: true,
-        executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-gpu',
-            '--no-zygote',
-            '--no-first-run'
-        ]
-    }
-});
-attachChatbot(client, { managedByServer: false });
-
-// ================= MONITORAMENTO GLOBAL (CORREÇÃO DE CONFLITO) =================
-client.on('qr', (qr) => {
-    console.log('📲 Escaneie este QR Code para conectar a sessao do chatbot (bot-hgp-v6).');
-    qrcode.generate(qr, { small: true });
+  authStrategy: new LocalAuth({
+    clientId: "bot-hgp-v6",
+    dataPath: path.join(__dirname, 'wwebjs_sessions')
+  }),
+  puppeteer: {
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+  }
 });
 
-client.on('authenticated', () => {
-    console.log('🔐 Sessao do chatbot autenticada. Aguardando ficar pronta...');
-});
+// ================= ESTADO =================
+const estados = new Map();
 
-client.on('loading_screen', (percent, message) => {
-    console.log(`⏳ Inicializando chatbot: ${percent}% - ${message}`);
-});
+const categoriasMap = {
+  "1": "Soul MV",
+  "2": "Impressora",
+  "3": "Suporte Técnico",
+  "4": "Telefonia / VOIP",
+  "5": "Outras Solicitações"
+};
 
-client.on('ready', () => {
-    console.log('🚀 BOT HGP ATIVO E MONITORADO');
-});
+// ================= SERVICES =================
+async function enviarMensagemDireta(numeroBruto, mensagem) {
+  const num = limparNumero(numeroBruto);
 
-client.on('auth_failure', (message) => {
-    registrarErro(new Error(message), 'Falha de autenticacao do chatbot');
-});
-
-client.on('disconnected', async (reason) => {
-    console.log('⚠️ Bot desconectado:', reason);
+  async function tentar(id) {
     try {
-        await client.destroy(); // Fecha o Chrome corretamente
-    } catch (e) { console.log('Erro ao destruir processo antigo.'); }
-    
-    console.log('Reiniciando em 15 segundos para evitar conflito de sessão...');
-    setTimeout(() => { client.initialize(); }, 15000); 
-});
-
-process.on('unhandledRejection', (reason) => {
-    if (reason.toString().includes("already running")) {
-        console.error("⚠️ Erro Crítico: O Chrome já está aberto. Feche o processo Node/Chrome no Gerenciador de Tarefas.");
+      const res = await client.getNumberId(id);
+      if (res) {
+        await client.sendMessage(res._serialized, mensagem);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
     }
-    registrarErro(reason, 'Promessa não tratada');
+  }
+
+  let enviado = await tentar(num);
+
+  if (!enviado) {
+    if (num.length === 13) enviado = await tentar(num.slice(0, 4) + num.slice(5));
+    else if (num.length === 12) enviado = await tentar(num.slice(0, 4) + '9' + num.slice(4));
+  }
+
+  return enviado;
+}
+
+async function buscarTecnicoEscala() {
+  try {
+    const res = await axios.get(CONFIG.URL_PLANILHA_CSV, { timeout: 15000 });
+    const linhas = res.data.split(/\r?\n/).slice(1);
+
+    const hojeISO = dayjs().format('YYYY-MM-DD');
+    const hojeBR = dayjs().format('DD/MM/YYYY');
+
+    for (let linha of linhas) {
+      const col = linha.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/)
+        .map(v => v.replace(/"/g,'').trim());
+
+      if (col[0] === hojeISO || col[0] === hojeBR) {
+        return { nome: col[1], telefone: col[2] };
+      }
+    }
+
+    return null;
+  } catch (e) {
+    registrarErro(e, "Erro Escala");
+    return null;
+  }
+}
+
+// ================= FLUXO =================
+const steps = {
+  0.5: async (msg, est, chatId) => {
+    const texto = msg.body.trim();
+
+    if (texto === "6") {
+      const pdf = path.join(__dirname, 'RAMAIS TELEFÔNICOS - HGP.pdf');
+      if (fs.existsSync(pdf)) {
+        await client.sendMessage(chatId, MessageMedia.fromFilePath(pdf));
+      }
+      estados.delete(chatId);
+      return;
+    }
+
+    if (!categoriasMap[texto]) return;
+
+    est.opcao = texto;
+    est.step = 1;
+    await client.sendMessage(chatId, "👤 Seu *Nome Completo*:");
+  },
+
+  1: async (msg, est, chatId) => {
+    est.nome = msg.body;
+    est.step = 2;
+    await client.sendMessage(chatId, "🏢 Seu *Setor e Ala*:");
+  },
+
+  2: async (msg, est, chatId) => {
+    est.setor = msg.body;
+    est.step = 3;
+    await client.sendMessage(chatId, "💻 *IP da Máquina*:");
+  },
+
+  3: async (msg, est, chatId) => {
+    if (!validarIP(msg.body)) {
+      return client.sendMessage(chatId, "❌ IP inválido. Tente novamente:");
+    }
+
+    est.ip = msg.body;
+
+    if (est.opcao === "2") {
+      est.step = 3.5;
+      return client.sendMessage(chatId, "🖨️ Qual é o *código da impressora*? (Ex: TC1020)");
+    }
+
+    est.step = 4;
+    await client.sendMessage(chatId, "📱 *Telefone* de contato:");
+  },
+
+  3.5: async (msg, est, chatId) => {
+    est.codImpressora = msg.body;
+    est.step = 4;
+    await client.sendMessage(chatId, "📱 *Telefone* de contato:");
+  },
+
+  4: async (msg, est, chatId) => {
+    est.tel = msg.body;
+    est.step = 5;
+    await client.sendMessage(chatId, "📝 Descreva o *Problema*:");
+  },
+
+  5: async (msg, est, chatId) => {
+    est.desc = msg.body;
+
+    const protocolo = gerarProtocolo();
+    const contato = await msg.getContact();
+
+    const numeroWhats = formatarNumeroBR(contato.number || '');
+    const nomeWhats = contato.pushname || contato.name || "Não informado";
+
+    const relatorio = `🛠️ *CHAMADO TI HGP*
+📌 *Protocolo:* ${protocolo}
+📂 *Categoria:* ${categoriasMap[est.opcao]}
+👤 *Solicitante:* ${est.nome}
+👤 *Nome do WhatsApp:* ${nomeWhats}
+🏢 *Setor:* ${est.setor}
+💻 *IP:* ${est.ip}
+${est.codImpressora ? `🖨️ *Cod. Impressora:* ${est.codImpressora}\n` : ""}📱 *Contato Informado:* ${est.tel}
+📲 *WhatsApp:* ${numeroWhats}
+📝 *Problema:* ${est.desc}`;
+
+    await client.sendMessage(chatId, relatorio);
+    await client.sendMessage(chatId, "✅ Registrado e enviado ao técnico.");
+
+    if (est.isTeste) {
+      await enviarMensagemDireta(CONFIG.MEU_NUMERO_SIMULACAO, relatorio);
+    } else {
+      const tecnico = await buscarTecnicoEscala();
+      if (tecnico?.telefone) {
+        await enviarMensagemDireta(tecnico.telefone, relatorio);
+      }
+    }
+
+    axios.post(CONFIG.URL_WEBHOOK_HISTORICO, JSON.stringify({ ...est, protocolo }), {
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+    }).catch(e => registrarErro(e, "Webhook"));
+
+    estados.delete(chatId);
+  }
+};
+
+// ================= EVENT =================
+client.on("message", async (msg) => {
+  try {
+    const chatId = msg.from;
+
+    if (msg.fromMe || chatId.endsWith("@g.us")) return;
+
+    const texto = msg.body?.trim().toUpperCase() || "";
+    let est = estados.get(chatId);
+
+    if (texto === "CANCELAR") {
+      estados.delete(chatId);
+      return client.sendMessage(chatId, "❌ Atendimento encerrado.");
+    }
+
+    if (!est || texto === CONFIG.GATILHO_TESTE) {
+      const contato = await msg.getContact();
+
+      estados.set(chatId, {
+        step: 0.5,
+        nomeWhats: contato.pushname || contato.name || 'Prezado',
+        isTeste: texto === CONFIG.GATILHO_TESTE
+      });
+
+      await client.sendMessage(chatId, `*🛠️ TI - HGP*\nOlá, *${contato.pushname || 'Prezado'}*.`);
+      await delay(500);
+      await client.sendMessage(chatId, `1️⃣ Soul MV\n2️⃣ Impressora\n3️⃣ Suporte Técnico\n4️⃣ Telefonia / VOIP\n5️⃣ Outras\n6️⃣ Ramais\n\n_Ou envie CANCELAR._`);
+
+      return;
+    }
+
+    if (steps[est.step]) {
+      await steps[est.step](msg, est, chatId);
+    }
+
+  } catch (e) {
+    registrarErro(e, "Fluxo principal");
+  }
 });
 
-process.on('uncaughtException', (err) => {
-    registrarErro(err, 'Exceção não capturada');
+// ================= BLOQUEIO DE CHAMADAS =================
+client.on('call', async (call) => {
+  try {
+    console.log(`📞 Chamada recebida de ${call.from}`);
+    await call.reject();
+    await client.sendMessage(call.from, "🚫 Este número não recebe chamadas. Por favor, envie uma mensagem.");
+  } catch (e) {
+    registrarErro(e, "Bloqueio de chamada");
+  }
 });
 
-// Inicialização ÚNICA
-client.initialize().catch(err => registrarErro(err, "Falha na inicialização inicial"));
+// ================= MONITORAMENTO =================
+client.on('qr', qr => qrcode.generate(qr, { small: true }));
+client.on('ready', () => console.log('🚀 BOT ONLINE'));
+
+client.on('disconnected', async () => {
+  try { await client.destroy(); } catch {}
+  setTimeout(() => client.initialize(), 15000);
+});
+
+client.initialize().catch(e => registrarErro(e, "Init"));Q
