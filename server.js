@@ -165,6 +165,56 @@ const validateChatbotSource = async (source) => {
 
 const isValidIsoDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
 
+const buildWhatsAppNumberVariations = (value) => {
+    const digits = String(value || '').replace(/\D/g, '');
+    if (!digits) {
+        return [];
+    }
+
+    const normalized = digits.startsWith('55') ? digits : `55${digits}`;
+    const variations = new Set([digits, normalized]);
+
+    if (normalized.length === 13) {
+        variations.add(normalized.slice(0, 4) + normalized.slice(5));
+    }
+
+    if (normalized.length === 12) {
+        variations.add(normalized.slice(0, 4) + '9' + normalized.slice(4));
+    }
+
+    return Array.from(variations).filter(Boolean);
+};
+
+const resolveWhatsAppDestination = async (...candidates) => {
+    if (!whatsappClient || whatsappState !== 'connected') {
+        return null;
+    }
+
+    for (const candidate of candidates) {
+        const rawValue = String(candidate || '').trim();
+        if (!rawValue) {
+            continue;
+        }
+
+        if (rawValue.endsWith('@c.us') || rawValue.endsWith('@g.us') || rawValue.endsWith('@lid')) {
+            return rawValue;
+        }
+
+        for (const number of buildWhatsAppNumberVariations(rawValue)) {
+            try {
+                const numberId = await whatsappClient.getNumberId(number);
+                if (numberId?._serialized) {
+                    return numberId._serialized;
+                }
+            } catch (error) {
+                console.log(`Nao foi possivel resolver o destino ${number} no WhatsApp:`, error.message || error);
+            }
+        }
+    }
+
+    return null;
+};
+
 const listEscalaUsers = async () => {
     const [users] = await db.query(`
         SELECT
@@ -1649,23 +1699,39 @@ app.post('/api/chamados/:id/encerrar', isAuthenticated, async (req, res) => {
             [observacoes || null, chamadoId]
         );
 
+        const mensagemEncerramento = `✅ *CHAMADO ENCERRADO COM SUCESSO*\n\n` +
+            `📌 *Protocolo:* ${chamado[0].protocolo}\n` +
+            `👤 *Atendido por:* ${chamado[0].atendente_nome || 'Equipe TI'}\n\n` +
+            `Seu chamado foi encerrado com sucesso. Obrigado por entrar em contato com a equipe de TI.`;
+
         // Enviar mensagem pelo WhatsApp e reabrir o fluxo para o usuário
-        if (whatsappClient && whatsappState === 'connected' && chamado[0].chat_origem) {
+        if (whatsappClient && whatsappState === 'connected') {
             try {
+                let notificacaoEnviada = false;
+
                 if (whatsappChatbotController?.reiniciarFluxoPorEncerramento) {
-                    await whatsappChatbotController.reiniciarFluxoPorEncerramento(chamado[0].chat_origem, {
+                    notificacaoEnviada = await whatsappChatbotController.reiniciarFluxoPorEncerramento(chamado[0].chat_origem, {
                         protocolo: chamado[0].protocolo,
                         atendenteNome: chamado[0].atendente_nome || 'Equipe TI',
                         nomeExibicao: chamado[0].solicitante_nome || 'Prezado'
                     });
-                } else {
-                    const mensagem = `✅ *CHAMADO ENCERRADO*\n\n` +
-                        `📌 *Protocolo:* ${chamado[0].protocolo}\n` +
-                        `👤 *Atendido por:* ${chamado[0].atendente_nome || 'Equipe TI'}\n` +
-                        `📊 *Status:* Finalizado\n\n` +
-                        `Seu chamado foi encerrado. Obrigado por utilizar nossos serviços!`;
+                }
 
-                    await whatsappClient.sendMessage(chamado[0].chat_origem, mensagem);
+                if (!notificacaoEnviada) {
+                    const destinoSolicitante = await resolveWhatsAppDestination(
+                        chamado[0].chat_origem,
+                        chamado[0].telefone_whatsapp,
+                        chamado[0].telefone_contato
+                    );
+
+                    if (destinoSolicitante) {
+                        await whatsappClient.sendMessage(destinoSolicitante, mensagemEncerramento);
+                        notificacaoEnviada = true;
+                    }
+                }
+
+                if (!notificacaoEnviada) {
+                    console.error(`Nao foi possivel enviar a mensagem de encerramento do chamado ${chamado[0].protocolo}`);
                 }
             } catch (error) {
                 console.error('Erro ao enviar mensagem WhatsApp:', error);
