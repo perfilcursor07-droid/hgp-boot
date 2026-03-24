@@ -1,4 +1,5 @@
 // ================= IMPORTS =================
+require('./config/timezone');
 const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
 const axios = require('axios');
 const dayjs = require('dayjs');

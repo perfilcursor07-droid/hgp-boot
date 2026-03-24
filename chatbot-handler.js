@@ -2,6 +2,7 @@ const axios = require('axios');
 const dayjs = require('dayjs');
 const path = require('path');
 const fs = require('fs');
+const fsPromises = require('fs/promises');
 const { MessageMedia } = require('whatsapp-web.js');
 const db = require('./config/database');
 
@@ -9,6 +10,7 @@ const GATILHO_TESTE = 'JOHNTESTE';
 const MEU_NUMERO_SIMULACAO = '5563984425197';
 const URL_WEBHOOK_HISTORICO = 'https://script.google.com/macros/s/AKfycbyG30F-V52xN773jLyqDYdER0HzBoiYrvSjPc4lijgl2bOD-LnCR0xGtJi6JzhTFRi/exec';
 const CHATBOT_ATTACHED_FLAG = Symbol.for('hgp.chatbot.attached');
+const CHAT_MEDIA_DIR = path.join(__dirname, 'public', 'uploads', 'chat-media');
 
 function registrarErro(erro, contexto = '') {
     const dataHora = dayjs().format('DD/MM/YYYY HH:mm:ss');
@@ -154,7 +156,7 @@ function attachChatbot(client, options = {}) {
 
         await client.sendMessage(
             chatId,
-            `✅ *CHAMADO ENCERRADO*${protocolo}${atendenteNome}\n\nSeu atendimento foi finalizado. Se precisar abrir um novo chamado, o menu já está disponível abaixo.`
+            `✅ *CHAMADO ENCERRADO COM SUCESSO*${protocolo}${atendenteNome}\n\nSeu chamado foi encerrado com sucesso. Obrigado por entrar em contato com a equipe de TI.\n\nSe precisar abrir um novo chamado, o menu já está disponível abaixo.`
         );
         await delay(500);
         await client.sendMessage(chatId, `*🛠️ TI - HGP*\nOlá, *${nomeExibicao}*.`);
@@ -241,6 +243,86 @@ function attachChatbot(client, options = {}) {
         }
     }
 
+    async function buscarChamadoAtivo(sessionId) {
+        const [chamadosAtivos] = await db.query(
+            `SELECT id, protocolo, atendente_nome, status FROM chamados
+             WHERE chat_origem = ? AND status IN ('pendente', 'aberto', 'em_atendimento')
+             ORDER BY criado_em DESC LIMIT 1`,
+            [sessionId]
+        );
+
+        return chamadosAtivos[0] || null;
+    }
+
+    function resumirMensagemSolicitante(msg) {
+        const textoOriginal = typeof msg.body === 'string' ? msg.body.trim() : '';
+        if (textoOriginal) {
+            return textoOriginal;
+        }
+
+        const tiposMidia = {
+            image: '📷 Imagem enviada',
+            video: '🎥 Vídeo enviado',
+            audio: '🎧 Áudio enviado',
+            ptt: '🎤 Áudio enviado',
+            document: '📄 Documento enviado',
+            sticker: '🏷️ Figurinha enviada'
+        };
+
+        return tiposMidia[msg.type] || `📎 Arquivo enviado (${msg.type || 'mídia'})`;
+    }
+
+    function mensagemEscolhaOpcao() {
+        return '⚠️ Antes de enviar áudio, imagem, vídeo ou outra mensagem, por favor escolha uma das opções do menu digitando o número correspondente.';
+    }
+
+    function detectarExtensaoMidia(media, msg) {
+        const extOriginal = path.extname(media?.filename || '');
+        if (extOriginal) {
+            return extOriginal;
+        }
+
+        const mime = String(media?.mimetype || '').toLowerCase();
+        const extPorMime = {
+            'image/jpeg': '.jpg',
+            'image/png': '.png',
+            'image/webp': '.webp',
+            'audio/ogg': '.ogg',
+            'audio/mpeg': '.mp3',
+            'audio/mp4': '.m4a',
+            'video/mp4': '.mp4',
+            'application/pdf': '.pdf'
+        };
+
+        return extPorMime[mime] || (msg.type ? `.${msg.type}` : '.bin');
+    }
+
+    async function salvarMidiaMensagem(msg, chamadoId) {
+        if (!msg.hasMedia) {
+            return null;
+        }
+
+        const media = await msg.downloadMedia();
+        if (!media?.data) {
+            return null;
+        }
+
+        await fsPromises.mkdir(CHAT_MEDIA_DIR, { recursive: true });
+
+        const extensao = detectarExtensaoMidia(media, msg);
+        const nomeArquivo = `chamado-${chamadoId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${extensao}`;
+        const caminhoArquivo = path.join(CHAT_MEDIA_DIR, nomeArquivo);
+
+        await fsPromises.writeFile(caminhoArquivo, media.data, 'base64');
+
+        return {
+            messageType: String(msg.type || 'media'),
+            mediaUrl: `/uploads/chat-media/${nomeArquivo}`,
+            mediaMimeType: media.mimetype || null,
+            mediaFilename: media.filename || nomeArquivo
+        };
+    }
+
     function mensagemJaProcessada(msg) {
         const idMensagem = obterIdMensagem(msg);
         const agora = Date.now();
@@ -268,6 +350,7 @@ function attachChatbot(client, options = {}) {
             const { contato, chatId, sessionId } = await resolverDestinoMensagem(msg);
             const texto = msg.body ? msg.body.trim().toUpperCase() : '';
             let est = estados.get(sessionId);
+            let chamadoAtivo = null;
 
             const agora = dayjs();
             const diaSemana = agora.day();
@@ -308,25 +391,40 @@ function attachChatbot(client, options = {}) {
             // Não salvar se o usuário está no meio do fluxo de criação de chamado
             try {
                 if (!est || est.step === undefined) {
-                    const [chamadosAbertos] = await db.query(
-                        `SELECT id, protocolo, atendente_nome, status FROM chamados 
-                         WHERE chat_origem = ? AND status IN ('pendente', 'aberto', 'em_atendimento') 
-                         ORDER BY criado_em DESC LIMIT 1`,
-                        [sessionId]
-                    );
+                    chamadoAtivo = await buscarChamadoAtivo(sessionId);
 
-                    if (chamadosAbertos.length > 0 && msg.body && !texto.startsWith(GATILHO_TESTE) && texto !== 'CANCELAR') {
-                        const chamado = chamadosAbertos[0];
+                    if (chamadoAtivo && !texto.startsWith(GATILHO_TESTE) && texto !== 'CANCELAR') {
                         const contactName = contato.pushname || contato.name || 'Solicitante';
+                        const resumoMensagem = resumirMensagemSolicitante(msg);
+                        const midiaSalva = await salvarMidiaMensagem(msg, chamadoAtivo.id).catch((erro) => {
+                            registrarErro(erro, 'Erro ao salvar mídia do solicitante');
+                            return null;
+                        });
                         
                         // Salvar mensagem do solicitante no chat
                         await db.query(
-                            `INSERT INTO chat_messages (chamado_id, remetente_tipo, remetente_nome, mensagem) 
-                             VALUES (?, 'solicitante', ?, ?)`,
-                            [chamado.id, contactName, msg.body]
+                            `INSERT INTO chat_messages (
+                                chamado_id,
+                                remetente_tipo,
+                                remetente_nome,
+                                mensagem,
+                                message_type,
+                                media_url,
+                                media_mime_type,
+                                media_filename
+                             ) VALUES (?, 'solicitante', ?, ?, ?, ?, ?, ?)`,
+                            [
+                                chamadoAtivo.id,
+                                contactName,
+                                resumoMensagem,
+                                midiaSalva?.messageType || 'text',
+                                midiaSalva?.mediaUrl || null,
+                                midiaSalva?.mediaMimeType || null,
+                                midiaSalva?.mediaFilename || null
+                            ]
                         );
 
-                        console.log(`💬 Mensagem do solicitante salva no chamado ${chamado.protocolo}`);
+                        console.log(`💬 Mensagem do solicitante salva no chamado ${chamadoAtivo.protocolo}`);
                     }
                 }
             } catch (erro) {
@@ -341,34 +439,12 @@ function attachChatbot(client, options = {}) {
 
             // Verificar se existe chamado não finalizado - bloquear novo chamado
             if (texto === GATILHO_TESTE || !est) {
-                // Verificar se já existe chamado não finalizado
                 try {
-                    const [chamadosAtivos] = await db.query(
-                        `SELECT id, protocolo, atendente_nome, status FROM chamados 
-                         WHERE chat_origem = ? AND status IN ('pendente', 'aberto', 'em_atendimento') 
-                         ORDER BY criado_em DESC LIMIT 1`,
-                        [sessionId]
-                    );
+                    if (!chamadoAtivo) {
+                        chamadoAtivo = await buscarChamadoAtivo(sessionId);
+                    }
 
-                    if (chamadosAtivos.length > 0 && texto !== GATILHO_TESTE) {
-                        const chamado = chamadosAtivos[0];
-                        let statusTexto = '';
-                        
-                        if (chamado.status === 'em_atendimento') {
-                            statusTexto = `em atendimento por *${chamado.atendente_nome}*`;
-                        } else if (chamado.status === 'aberto') {
-                            statusTexto = 'aguardando atendimento';
-                        } else if (chamado.status === 'pendente') {
-                            statusTexto = 'aguardando distribuição para um técnico';
-                        }
-                        
-                        await client.sendMessage(chatId, 
-                            `⚠️ *ATENÇÃO*\n\n` +
-                            `Você já possui um chamado ${statusTexto}.\n\n` +
-                            `📌 *Protocolo:* ${chamado.protocolo}\n\n` +
-                            `Aguarde o retorno ou envie mensagens que serão encaminhadas ao atendente.\n\n` +
-                            `_Seu chamado será encerrado quando o atendimento for finalizado._`
-                        );
+                    if (chamadoAtivo && texto !== GATILHO_TESTE) {
                         return;
                     }
                 } catch (erro) {
@@ -389,6 +465,10 @@ function attachChatbot(client, options = {}) {
                 await client.sendMessage(chatId, saudacao);
                 await delay(500);
                 await client.sendMessage(chatId, menuPrincipal);
+                if (msg.hasMedia && texto !== GATILHO_TESTE) {
+                    await delay(400);
+                    await client.sendMessage(chatId, mensagemEscolhaOpcao());
+                }
                 estados.set(sessionId, { step: 0.5, nomeWhats: contato.pushname || 'Prezado', isTeste: texto === GATILHO_TESTE });
                 return;
             }
@@ -403,7 +483,10 @@ function attachChatbot(client, options = {}) {
                     return;
                 }
 
-                if (!categoriasMap[texto]) return;
+                if (!categoriasMap[texto]) {
+                    await client.sendMessage(chatId, mensagemEscolhaOpcao());
+                    return;
+                }
                 est.opcao = texto;
                 est.step = 1;
                 await client.sendMessage(chatId, '👤 Seu *Nome Completo*:');

@@ -34,6 +34,9 @@
                         <span class="menu-item-content">
                             <span class="menu-item-title"><%= item.label %></span>
                         </span>
+                        <% if (item.key === 'chamados') { %>
+                            <span class="menu-live-badge" id="pendingChamadosBadge" style="display: <%= pendingChamadosCount > 0 ? 'inline-flex' : 'none' %>;"><%= pendingChamadosCount > 99 ? '99+' : pendingChamadosCount %></span>
+                        <% } %>
                     </a>
                 <% } %>
             <% }) %>
@@ -56,3 +59,47 @@
 </aside>
 
 <div class="sidebar-overlay" onclick="document.body.classList.remove('sidebar-open')"></div>
+
+<script>
+    (function () {
+        async function iniciarBadgeChamados() {
+            const pendingBadge = document.getElementById('pendingChamadosBadge');
+            if (!pendingBadge) {
+                return;
+            }
+
+            async function atualizarBadgeChamados() {
+                try {
+                    const response = await fetch(`/api/chamados/pending-count?t=${Date.now()}`, { cache: 'no-store' });
+                    if (!response.ok) {
+                        return;
+                    }
+
+                    const result = await response.json();
+                    if (!result.success) {
+                        return;
+                    }
+
+                    const totalPendentes = Number(result.total || 0);
+                    if (totalPendentes > 0) {
+                        pendingBadge.textContent = totalPendentes > 99 ? '99+' : String(totalPendentes);
+                        pendingBadge.style.display = 'inline-flex';
+                    } else {
+                        pendingBadge.style.display = 'none';
+                    }
+                } catch (error) {
+                    console.error('Erro ao atualizar badge de chamados:', error);
+                }
+            }
+
+            await atualizarBadgeChamados();
+            setInterval(atualizarBadgeChamados, 5000);
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', iniciarBadgeChamados, { once: true });
+        } else {
+            iniciarBadgeChamados();
+        }
+    })();
+</script>

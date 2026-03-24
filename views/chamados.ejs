@@ -37,9 +37,15 @@
                         <span></span>
                         <span></span>
                     </button>
-                    <h2>🧾 Chamados</h2>
+                    <h2 style="display: flex; align-items: center; gap: 10px;">
+                        <span>🧾 Chamados</span>
+                        <span id="topbarPendingBadge" class="menu-live-badge" style="display: <%= (contagem.pendente || 0) > 0 ? 'inline-flex' : 'none' %>;">
+                            <%= contagem.pendente || 0 %>
+                        </span>
+                    </h2>
                 </div>
                 <div class="topbar-actions">
+                    <button type="button" class="btn btn-secondary" onclick="toggleDesktopSidebar()">🗂️ Recolher lateral</button>
                     <button onclick="carregarMeusAtendimentos()" class="btn btn-secondary">📋 Meus Atendimentos</button>
                 </div>
             </div>
@@ -49,28 +55,28 @@
                     <div class="stat-card">
                         <div class="stat-icon green">🟢</div>
                         <div class="stat-info">
-                            <h3><%= contagem.aberto || 0 %></h3>
+                            <h3 id="statsAberto"><%= contagem.aberto || 0 %></h3>
                             <p>Abertos</p>
                         </div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-icon orange">🕗</div>
                         <div class="stat-info">
-                            <h3><%= contagem.pendente || 0 %></h3>
+                            <h3 id="statsPendente"><%= contagem.pendente || 0 %></h3>
                             <p>Pendentes</p>
                         </div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-icon blue">⏳</div>
                         <div class="stat-info">
-                            <h3><%= contagem.em_atendimento || 0 %></h3>
+                            <h3 id="statsAtendimento"><%= contagem.em_atendimento || 0 %></h3>
                             <p>Em Atendimento</p>
                         </div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-icon purple">✅</div>
                         <div class="stat-info">
-                            <h3><%= contagem.finalizado || 0 %></h3>
+                            <h3 id="statsFinalizado"><%= contagem.finalizado || 0 %></h3>
                             <p>Finalizados</p>
                         </div>
                     </div>
@@ -79,94 +85,75 @@
                 <div class="card">
                     <h2>Todos os Chamados</h2>
                     <div class="messages-container">
-                        <% if (chamados.length === 0) { %>
-                            <p class="no-messages">📭 Nenhum chamado registrado ainda</p>
-                        <% } else { %>
-                            <table class="messages-table">
-                                <thead>
+                        <p id="chamadosEmptyState" class="no-messages" style="display: <%= chamados.length === 0 ? 'block' : 'none' %>;">📭 Nenhum chamado registrado ainda</p>
+                        <table id="chamadosTable" class="messages-table" style="display: <%= chamados.length === 0 ? 'none' : 'table' %>;">
+                            <thead>
+                                <tr>
+                                    <th>Protocolo</th>
+                                    <th>Solicitante</th>
+                                    <th>Setor</th>
+                                    <th>Categoria</th>
+                                    <th>Status</th>
+                                    <th>Atendente</th>
+                                    <th>Data / Hora</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="chamadosTableBody">
+                                <% chamados.forEach((chamado) => { %>
                                     <tr>
-                                        <th>Protocolo</th>
-                                        <th>Solicitante</th>
-                                        <th>Setor</th>
-                                        <th>Categoria</th>
-                                        <th>Status</th>
-                                        <th>Atendente</th>
-                                        <th>Data</th>
-                                        <th>Ações</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <% chamados.forEach((chamado) => { %>
-                                        <tr>
-                                            <td><strong><%= chamado.protocolo %></strong></td>
-                                            <td>
-                                                <%= chamado.solicitante_nome %>
-                                                <% if (chamado.nome_whatsapp || chamado.telefone_whatsapp) { %>
-                                                    <button onclick="mostrarDadosWhatsApp('<%= chamado.protocolo %>', '<%= chamado.solicitante_nome %>', '<%= chamado.telefone_contato %>', '<%= chamado.nome_whatsapp || '' %>', '<%= chamado.telefone_whatsapp || '' %>')" 
-                                                            class="btn-icon" 
-                                                            title="Ver dados do WhatsApp" 
-                                                            style="font-size: 14px; margin-left: 5px;">
-                                                        📱
-                                                    </button>
-                                                <% } %>
-                                            </td>
-                                            <td><%= chamado.setor %></td>
-                                            <td><%= chamado.categoria %></td>
-                                            <td>
-                                                <% if (chamado.status === 'pendente') { %>
-                                                    <span class="badge warning">⏳ Pendente</span>
-                                                <% } else if (chamado.status === 'aberto') { %>
-                                                    <span class="badge info">🟢 Aberto</span>
-                                                <% } else if (chamado.status === 'em_atendimento') { %>
-                                                    <span class="badge badge-atendimento">⏳ Em Atendimento</span>
-                                                <% } else if (chamado.status === 'finalizado') { %>
-                                                    <span class="badge success">✅ Finalizado</span>
-                                                <% } %>
-                                            </td>
-                                            <td><%= chamado.atendente_nome || '-' %></td>
-                                            <td><%= new Date(chamado.criado_em).toLocaleString('pt-BR') %></td>
-                                            <td>
-                                                <div class="action-buttons">
-                                                <% if (chamado.status !== 'finalizado') { %>
-                                                    <button onclick="verDetalhes('<%= chamado.protocolo %>', '<%= chamado.categoria %>', '<%= chamado.solicitante_nome %>', '<%= chamado.setor %>', '<%= chamado.ip_maquina || '' %>', '<%= chamado.telefone_contato || '' %>', `<%= (chamado.descricao || '').replace(/`/g, '\`').replace(/\n/g, '\n') %>` )" class="btn-action-mini" title="Ver Detalhes">
-                                                        Detalhes
-                                                    </button>
-                                                    <button onclick="abrirChat(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-action-mini" title="Chat" style="position: relative;">
-                                                        Chat
-                                                        <span id="badge-<%= chamado.id %>" class="chat-badge" style="display: none;"></span>
-                                                    </button>
+                                        <td><strong><%= chamado.protocolo %></strong></td>
+                                        <td>
+                                            <%= chamado.solicitante_nome %>
+                                            <% if (chamado.nome_whatsapp || chamado.telefone_whatsapp) { %>
+                                                <button onclick="mostrarDadosWhatsApp('<%= chamado.protocolo %>', '<%= chamado.solicitante_nome %>', '<%= chamado.telefone_contato %>', '<%= chamado.nome_whatsapp || '' %>', '<%= chamado.telefone_whatsapp || '' %>')" class="btn-icon" title="Ver dados do WhatsApp" style="font-size: 14px; margin-left: 5px;">📱</button>
+                                            <% } %>
+                                        </td>
+                                        <td><%= chamado.setor %></td>
+                                        <td><%= chamado.categoria %></td>
+                                        <td>
+                                            <% if (chamado.status === 'pendente') { %>
+                                                <span class="badge warning">⏳ Pendente</span>
+                                            <% } else if (chamado.status === 'aberto') { %>
+                                                <span class="badge info">🟢 Aberto</span>
+                                            <% } else if (chamado.status === 'em_atendimento') { %>
+                                                <span class="badge badge-atendimento">⏳ Em Atendimento</span>
+                                            <% } else if (chamado.status === 'finalizado') { %>
+                                                <span class="badge success">✅ Finalizado</span>
+                                            <% } %>
+                                        </td>
+                                        <td><%= chamado.atendente_nome || '-' %></td>
+                                        <td>
+                                            <strong><%= new Date(chamado.criado_em).toLocaleDateString('pt-BR') %></strong><br>
+                                            <small><%= new Date(chamado.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) %></small>
+                                        </td>
+                                        <td>
+                                            <div class="action-buttons">
+                                            <% if (chamado.status !== 'finalizado') { %>
                                                     <% if (chamado.status !== 'em_atendimento') { %>
                                                         <button onclick="atenderChamado(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-action-mini" title="Atender">
-                                                            Atender
-                                                        </button>
-                                                        <% if (isAdmin) { %>
-                                                            <button onclick="abrirModalEncaminhar(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-action-mini" title="Encaminhar">
-                                                                Encam.
-                                                            </button>
-                                                        <% } %>
-                                                    <% } else if (isAdmin) { %>
-                                                        <button onclick="abrirModalEncaminhar(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-action-mini" title="Reencaminhar">
-                                                            Reenc.
+                                                            ✋ Atender
                                                         </button>
                                                     <% } %>
-                                                    <button onclick="abrirModalEncerrar(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-action-mini btn-action-danger" title="Encerrar">
-                                                        Encerrar
+                                                    <button onclick="abrirChat(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-action-mini" title="Chat" style="position: relative;">
+                                                        💬 Chat
+                                                        <span id="badge-<%= chamado.id %>" class="chat-badge" style="display: none;"></span>
                                                     </button>
-                                                <% } else { %>
-                                                    <button onclick="verDetalhes('<%= chamado.protocolo %>', '<%= chamado.categoria %>', '<%= chamado.solicitante_nome %>', '<%= chamado.setor %>', '<%= chamado.ip_maquina || '' %>', '<%= chamado.telefone_contato || '' %>', `<%= (chamado.descricao || '').replace(/`/g, '\`').replace(/\n/g, '\n') %>` )" class="btn-action-mini" title="Ver Detalhes">
-                                                        Detalhes
-                                                    </button>
-                                                    <button onclick="abrirChat(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-action-mini" title="Ver Chat">
-                                                        Chat
-                                                    </button>
+                                                <button onclick="verDetalhes('<%= chamado.protocolo %>', '<%= chamado.categoria %>', '<%= chamado.solicitante_nome %>', '<%= chamado.setor %>', '<%= chamado.ip_maquina || '' %>', '<%= chamado.telefone_contato || '' %>', `<%= (chamado.descricao || '').replace(/`/g, '\`').replace(/\n/g, '\n') %>` )" class="btn-action-mini" title="Ver Detalhes">Detalhes</button>
+                                                    <% if (isAdmin) { %>
+                                                        <button onclick="abrirModalEncaminhar(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-action-mini" title="<%= chamado.status === 'em_atendimento' ? 'Reencaminhar' : 'Encaminhar' %>"><%= chamado.status === 'em_atendimento' ? '🔄 Reenc.' : '📤 Encam.' %></button>
                                                 <% } %>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    <% }) %>
-                                </tbody>
-                            </table>
-                        <% } %>
+                                                    <button onclick="abrirModalEncerrar(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-action-mini btn-action-danger" title="Encerrar">✅ Encerrar</button>
+                                            <% } else { %>
+                                                    <button onclick="abrirChat(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-action-mini" title="Ver Chat">💬 Chat</button>
+                                                    <button onclick="verDetalhes('<%= chamado.protocolo %>', '<%= chamado.categoria %>', '<%= chamado.solicitante_nome %>', '<%= chamado.setor %>', '<%= chamado.ip_maquina || '' %>', '<%= chamado.telefone_contato || '' %>', `<%= (chamado.descricao || '').replace(/`/g, '\`').replace(/\n/g, '\n') %>` )" class="btn-action-mini" title="Ver Detalhes">📋 Detalhes</button>
+                                            <% } %>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <% }) %>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -239,7 +226,171 @@
     </div>
 
     <script>
+        const isAdmin = <%= isAdmin ? 'true' : 'false' %>;
+        const initialChamados = <%- JSON.stringify(chamados || []) %>;
         let gestoresCache = [];
+        let chamadosAutoRefresh = null;
+        let chamadosState = initialChamados;
+
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function formatarDataHora(data) {
+            const parsed = new Date(data);
+            return {
+                data: parsed.toLocaleDateString('pt-BR'),
+                hora: parsed.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+            };
+        }
+
+        function montarBadgeStatus(status) {
+            if (status === 'pendente') return '<span class="badge warning">⏳ Pendente</span>';
+            if (status === 'aberto') return '<span class="badge info">🟢 Aberto</span>';
+            if (status === 'em_atendimento') return '<span class="badge badge-atendimento">⏳ Em Atendimento</span>';
+            return '<span class="badge success">✅ Finalizado</span>';
+        }
+
+        function montarAcoesChamado(chamado) {
+            const protocolo = escapeHtml(chamado.protocolo);
+            const categoria = escapeHtml(chamado.categoria);
+            const solicitante = escapeHtml(chamado.solicitante_nome);
+            const setor = escapeHtml(chamado.setor);
+            const ip = escapeHtml(chamado.ip_maquina || '');
+            const telefone = escapeHtml(chamado.telefone_contato || '');
+            const descricao = escapeHtml(chamado.descricao || '');
+
+            let html = '<div class="action-buttons">';
+
+            if (chamado.status !== 'finalizado') {
+                if (chamado.status !== 'em_atendimento') {
+                    html += `<button onclick="atenderChamado(${chamado.id}, '${protocolo}')" class="btn-action-mini" title="Atender">✋ Atender</button>`;
+                }
+
+                html += `<button onclick="abrirChat(${chamado.id}, '${protocolo}')" class="btn-action-mini" title="Chat" style="position: relative;">💬 Chat<span id="badge-${chamado.id}" class="chat-badge" style="display: none;"></span></button>`;
+                html += `<button onclick="verDetalhes('${protocolo}', '${categoria}', '${solicitante}', '${setor}', '${ip}', '${telefone}', '${descricao}')" class="btn-action-mini" title="Ver Detalhes">📋 Detalhes</button>`;
+
+                if (isAdmin) {
+                    html += chamado.status === 'em_atendimento'
+                        ? `<button onclick="abrirModalEncaminhar(${chamado.id}, '${protocolo}')" class="btn-action-mini" title="Reencaminhar">🔄 Reenc.</button>`
+                        : `<button onclick="abrirModalEncaminhar(${chamado.id}, '${protocolo}')" class="btn-action-mini" title="Encaminhar">📤 Encam.</button>`;
+                }
+
+                html += `<button onclick="abrirModalEncerrar(${chamado.id}, '${protocolo}')" class="btn-action-mini btn-action-danger" title="Encerrar">✅ Encerrar</button>`;
+            } else {
+                html += `<button onclick="abrirChat(${chamado.id}, '${protocolo}')" class="btn-action-mini" title="Ver Chat">💬 Chat</button>`;
+                html += `<button onclick="verDetalhes('${protocolo}', '${categoria}', '${solicitante}', '${setor}', '${ip}', '${telefone}', '${descricao}')" class="btn-action-mini" title="Ver Detalhes">📋 Detalhes</button>`;
+            }
+
+            html += '</div>';
+            return html;
+        }
+
+        function renderChamadosTable(chamados) {
+            const tabelaChamados = document.getElementById('chamadosTable');
+            const tbody = document.getElementById('chamadosTableBody');
+            const emptyState = document.getElementById('chamadosEmptyState');
+            if (!tabelaChamados || !tbody || !emptyState) {
+                return;
+            }
+
+            if (!Array.isArray(chamados) || chamados.length === 0) {
+                tbody.innerHTML = '';
+                emptyState.style.display = 'block';
+                tabelaChamados.style.display = 'none';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            tabelaChamados.style.display = 'table';
+            tbody.innerHTML = chamados.map((chamado) => {
+                const dataHora = formatarDataHora(chamado.criado_em);
+                const dadosWhatsApp = (chamado.nome_whatsapp || chamado.telefone_whatsapp)
+                    ? `<button onclick="mostrarDadosWhatsApp('${escapeHtml(chamado.protocolo)}', '${escapeHtml(chamado.solicitante_nome)}', '${escapeHtml(chamado.telefone_contato || '')}', '${escapeHtml(chamado.nome_whatsapp || '')}', '${escapeHtml(chamado.telefone_whatsapp || '')}')" class="btn-icon" title="Ver dados do WhatsApp" style="font-size: 14px; margin-left: 5px;">📱</button>`
+                    : '';
+
+                return `
+                    <tr>
+                        <td><strong>${escapeHtml(chamado.protocolo)}</strong></td>
+                        <td>${escapeHtml(chamado.solicitante_nome)}${dadosWhatsApp}</td>
+                        <td>${escapeHtml(chamado.setor)}</td>
+                        <td>${escapeHtml(chamado.categoria)}</td>
+                        <td>${montarBadgeStatus(chamado.status)}</td>
+                        <td>${escapeHtml(chamado.atendente_nome || '-')}</td>
+                        <td><strong>${dataHora.data}</strong><br><small>${dataHora.hora}</small></td>
+                        <td>${montarAcoesChamado(chamado)}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderStats(contagem) {
+            document.getElementById('statsAberto').textContent = contagem.aberto || 0;
+            document.getElementById('statsPendente').textContent = contagem.pendente || 0;
+            document.getElementById('statsAtendimento').textContent = contagem.em_atendimento || 0;
+            document.getElementById('statsFinalizado').textContent = contagem.finalizado || 0;
+
+            const topbarPendingBadge = document.getElementById('topbarPendingBadge');
+            if (topbarPendingBadge) {
+                const totalPendentes = Number(contagem.pendente || 0);
+                if (totalPendentes > 0) {
+                    topbarPendingBadge.textContent = totalPendentes > 99 ? '99+' : String(totalPendentes);
+                    topbarPendingBadge.style.display = 'inline-flex';
+                } else {
+                    topbarPendingBadge.style.display = 'none';
+                }
+            }
+        }
+
+        async function atualizarOverviewChamados() {
+            try {
+                const response = await fetch(`/api/chamados/overview?t=${Date.now()}`, { cache: 'no-store' });
+                const result = await response.json();
+
+                if (!result.success) {
+                    return;
+                }
+
+                chamadosState = result.chamados || [];
+                renderStats(result.contagem || {});
+                renderChamadosTable(chamadosState);
+                await verificarMensagensNaoLidas();
+            } catch (error) {
+                console.error('Erro ao atualizar overview de chamados:', error);
+            }
+        }
+
+        function toggleDesktopSidebar() {
+            document.body.classList.toggle('sidebar-collapsed');
+            localStorage.setItem('sidebar-collapsed', document.body.classList.contains('sidebar-collapsed') ? '1' : '0');
+        }
+
+        function aplicarPreferenciaSidebar() {
+            if (localStorage.getItem('sidebar-collapsed') === '1') {
+                document.body.classList.add('sidebar-collapsed');
+            }
+        }
+
+        function algumModalAberto() {
+            return Array.from(document.querySelectorAll('.modal')).some((modal) => modal.style.display === 'flex');
+        }
+
+        function iniciarAutoRefreshChamados() {
+            if (chamadosAutoRefresh) {
+                clearInterval(chamadosAutoRefresh);
+            }
+
+            chamadosAutoRefresh = setInterval(async () => {
+                if (!document.hidden && !algumModalAberto()) {
+                    await atualizarOverviewChamados();
+                }
+            }, 5000);
+        }
 
         // Carregar gestores ao iniciar a página
         async function carregarGestores() {
@@ -266,7 +417,11 @@
 
         // Carregar gestores quando a página carregar
         document.addEventListener('DOMContentLoaded', function() {
+            aplicarPreferenciaSidebar();
             carregarGestores();
+            renderChamadosTable(chamadosState);
+            atualizarOverviewChamados();
+            iniciarAutoRefreshChamados();
         });
 
         async function abrirModalEncaminhar(id, protocolo) {
@@ -463,7 +618,7 @@
 
         // Fechar modais ao clicar fora
         window.onclick = function(event) {
-            if (event.target.classList.contains('modal')) {
+            if (event.target.classList.contains('modal') && event.target.id !== 'modalChat') {
                 event.target.style.display = 'none';
             }
         }
@@ -472,28 +627,39 @@
 </html>
 
     <!-- Modal Chat -->
-    <div id="modalChat" class="modal">
-        <div class="modal-content" style="max-width: 700px; height: 85vh; display: flex; flex-direction: column;">
-            <div class="modal-header">
-                <h2>💬 Chat - <span id="chatProtocolo"></span></h2>
+    <div id="modalChat" class="modal" data-lock-backdrop="true">
+        <div class="modal-content chat-modal-content">
+            <div class="modal-header chat-modal-header">
+                <div class="chat-modal-title-wrap">
+                    <h2>💬 Chat - <span id="chatProtocolo"></span></h2>
+                    <span class="chat-modal-subtitle">Conversa do atendimento em tempo real</span>
+                    <div class="chat-modal-contact-meta">
+                        <span id="chatSolicitanteNome">Solicitante</span>
+                        <span id="chatSolicitanteTelefone">Sem telefone</span>
+                    </div>
+                </div>
                 <span class="modal-close" onclick="fecharChat()">&times;</span>
             </div>
-            <div id="chatMessages" style="flex: 1; overflow-y: auto; padding: 20px; background: #f8fafc; border-radius: 8px; margin-bottom: 15px;">
-                <p style="text-align: center; color: #64748b;">Carregando mensagens...</p>
+            <div class="chat-modal-body">
+                <div id="chatMessages" class="chat-messages">
+                    <p class="chat-empty">Carregando mensagens...</p>
+                </div>
+                <form id="formChat" class="chat-compose" onsubmit="enviarMensagemChat(event)">
+                    <input type="hidden" id="chatChamadoId">
+                    <textarea 
+                        id="chatMensagem" 
+                        placeholder="Digite sua mensagem aqui. Você pode escrever várias linhas para orientar o usuário com mais clareza."
+                        rows="5"
+                        required
+                    ></textarea>
+                    <div class="chat-compose-actions">
+                        <span class="chat-compose-hint">O modal só fecha no botão × para evitar perda de contexto.</span>
+                        <button type="submit" class="btn btn-primary">
+                            📤 Enviar Mensagem
+                        </button>
+                    </div>
+                </form>
             </div>
-            <form id="formChat" onsubmit="enviarMensagemChat(event)" style="display: flex; flex-direction: column; gap: 10px;">
-                <input type="hidden" id="chatChamadoId">
-                <textarea 
-                    id="chatMensagem" 
-                    placeholder="Digite sua mensagem aqui... Você pode escrever várias linhas." 
-                    style="width: 100%; padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; resize: vertical; font-family: inherit; font-size: 15px; min-height: 120px; max-height: 300px;"
-                    rows="5"
-                    required
-                ></textarea>
-                <button type="submit" class="btn btn-primary" style="align-self: flex-end; padding: 12px 30px;">
-                    📤 Enviar Mensagem
-                </button>
-            </form>
         </div>
     </div>
 
@@ -548,8 +714,11 @@
         let chatInterval = null;
 
         async function abrirChat(chamadoId, protocolo) {
+            const chamadoAtual = chamadosState.find((item) => Number(item.id) === Number(chamadoId));
             document.getElementById('modalChat').style.display = 'flex';
             document.getElementById('chatProtocolo').textContent = protocolo;
+            document.getElementById('chatSolicitanteNome').textContent = chamadoAtual?.solicitante_nome || 'Solicitante';
+            document.getElementById('chatSolicitanteTelefone').textContent = chamadoAtual?.telefone_contato || chamadoAtual?.telefone_whatsapp || 'Sem telefone';
             document.getElementById('chatChamadoId').value = chamadoId;
             document.getElementById('chatMensagem').value = '';
             
@@ -583,28 +752,41 @@
                     const scrollAtBottom = chatMessages.scrollHeight - chatMessages.scrollTop === chatMessages.clientHeight;
                     
                     if (result.mensagens.length === 0) {
-                        chatMessages.innerHTML = '<p style="text-align: center; color: #64748b;">Nenhuma mensagem ainda.</p>';
+                        chatMessages.innerHTML = '<p class="chat-empty">Nenhuma mensagem ainda.</p>';
                     } else {
                         let html = '';
                         result.mensagens.forEach(msg => {
                             const isTecnico = msg.remetente_tipo === 'tecnico';
                             const isSistema = msg.remetente_tipo === 'sistema';
                             const data = new Date(msg.enviada_em).toLocaleString('pt-BR');
+                            const isImagem = msg.message_type === 'image';
+                            const isAudio = msg.message_type === 'audio' || msg.message_type === 'ptt';
+                            const isVideo = msg.message_type === 'video';
+                            const isArquivo = msg.media_url && !isImagem && !isAudio && !isVideo;
                             
-                            const bgColor = isTecnico ? '#3b82f6' : (isSistema ? '#64748b' : '#10b981');
-                            const align = isTecnico ? 'flex-end' : 'flex-start';
-                            const textColor = '#ffffff';
+                            const rowClass = isTecnico ? 'from-tech' : (isSistema ? 'from-system' : 'from-user');
+                            const bubbleClass = isTecnico ? 'from-tech' : (isSistema ? 'from-system' : 'from-user');
+                            const mediaHtml = isImagem
+                                ? `<div class="chat-media"><a href="${msg.media_url}" target="_blank" rel="noopener noreferrer"><img src="${msg.media_url}" alt="Imagem enviada"></a></div>`
+                                : isAudio
+                                    ? `<div class="chat-media"><audio controls><source src="${msg.media_url}" type="${msg.media_mime_type || 'audio/ogg'}"></audio></div>`
+                                    : isVideo
+                                        ? `<div class="chat-media"><video controls><source src="${msg.media_url}" type="${msg.media_mime_type || 'video/mp4'}"></video></div>`
+                                        : isArquivo
+                                            ? `<div class="chat-media"><a href="${msg.media_url}" target="_blank" rel="noopener noreferrer">📎 ${msg.media_filename || 'Abrir arquivo'}</a></div>`
+                                            : '';
                             
                             html += `
-                                <div style="display: flex; justify-content: ${align}; margin-bottom: 12px;">
-                                    <div style="max-width: 70%; background: ${bgColor}; color: ${textColor}; padding: 10px 14px; border-radius: 12px;">
-                                        <div style="font-weight: 600; font-size: 0.85em; margin-bottom: 4px;">
+                                <div class="chat-message-row ${rowClass}">
+                                    <div class="chat-bubble ${bubbleClass}">
+                                        <div class="chat-bubble-author">
                                             ${msg.remetente_nome || 'Sistema'}
                                         </div>
-                                        <div style="word-wrap: break-word; white-space: pre-wrap;">
+                                        <div class="chat-bubble-text">
                                             ${msg.mensagem}
                                         </div>
-                                        <div style="font-size: 0.75em; opacity: 0.8; margin-top: 4px; text-align: right;">
+                                        ${mediaHtml}
+                                        <div class="chat-bubble-time">
                                             ${data}
                                         </div>
                                     </div>
@@ -650,14 +832,6 @@
             } catch (error) {
                 alert('✗ Erro ao enviar mensagem');
                 console.error(error);
-            }
-        }
-
-        // Fechar modal ao clicar fora
-        window.onclick = function(event) {
-            const modalChat = document.getElementById('modalChat');
-            if (event.target === modalChat) {
-                fecharChat();
             }
         }
 

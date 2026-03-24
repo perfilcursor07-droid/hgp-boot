@@ -1,4 +1,5 @@
 require('dotenv').config();
+require('./config/timezone');
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
@@ -32,6 +33,27 @@ app.use(session({
     saveUninitialized: false,
     cookie: { maxAge: 24 * 60 * 60 * 1000 }
 }));
+
+app.use(async (req, res, next) => {
+    res.locals.pendingChamadosCount = 0;
+
+    if (!req.session?.userId) {
+        return next();
+    }
+
+    try {
+        const [rows] = await db.query(
+            `SELECT COUNT(*) AS total
+             FROM chamados
+             WHERE status = 'pendente'`
+        );
+        res.locals.pendingChamadosCount = Number(rows[0]?.total || 0);
+    } catch (error) {
+        console.error('Erro ao carregar contagem pendente para o menu:', error);
+    }
+
+    next();
+});
 
 // WhatsApp client
 let whatsappClient = null;
@@ -269,6 +291,24 @@ const buildFluxoStats = (flows, selectedFlowData) => ({
     padroes: flows.filter((flow) => flow.is_default).length,
     etapas: selectedFlowData?.steps?.length || 0
 });
+
+const listChamadosOverview = async () => {
+    const [chamados] = await db.query(`
+        SELECT *
+        FROM chamados
+        ORDER BY criado_em DESC
+        LIMIT 200
+    `);
+
+    const contagem = chamados.reduce((acc, chamado) => {
+        const status = chamado.status || 'pendente';
+        acc.total += 1;
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+    }, { total: 0, aberto: 0, pendente: 0, em_atendimento: 0, finalizado: 0 });
+
+    return { chamados, contagem };
+};
 
 // Middleware de autenticação
 const isAuthenticated = (req, res, next) => {
@@ -535,19 +575,7 @@ app.get('/chamados', isAuthenticated, async (req, res) => {
             req.session.nivelAcesso = 'administrador';
         }
 
-        const [chamados] = await db.query(`
-            SELECT *
-            FROM chamados
-            ORDER BY criado_em DESC
-            LIMIT 200
-        `);
-
-        const contagem = chamados.reduce((acc, chamado) => {
-            const status = chamado.status || 'pendente';
-            acc.total += 1;
-            acc[status] = (acc[status] || 0) + 1;
-            return acc;
-        }, { total: 0, aberto: 0, pendente: 0, em_atendimento: 0, finalizado: 0 });
+        const { chamados, contagem } = await listChamadosOverview();
 
         res.render('chamados', {
             username: req.session.username,
@@ -563,6 +591,38 @@ app.get('/chamados', isAuthenticated, async (req, res) => {
             chamados: [],
             contagem: { total: 0, aberto: 0, pendente: 0, em_atendimento: 0, finalizado: 0 }
         });
+    }
+});
+
+app.get('/api/chamados/overview', isAuthenticated, async (req, res) => {
+    try {
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.set('Pragma', 'no-cache');
+        res.set('Expires', '0');
+        const overview = await listChamadosOverview();
+        res.json({ success: true, ...overview });
+    } catch (error) {
+        console.error('Erro ao carregar overview de chamados:', error);
+        res.status(500).json({ success: false, message: 'Erro ao carregar chamados em tempo real' });
+    }
+});
+
+app.get('/api/chamados/pending-count', isAuthenticated, async (req, res) => {
+    try {
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.set('Pragma', 'no-cache');
+        res.set('Expires', '0');
+
+        const [rows] = await db.query(
+            `SELECT COUNT(*) AS total
+             FROM chamados
+             WHERE status = 'pendente'`
+        );
+
+        res.json({ success: true, total: Number(rows[0]?.total || 0) });
+    } catch (error) {
+        console.error('Erro ao carregar pendências de chamados:', error);
+        res.status(500).json({ success: false, message: 'Erro ao carregar pendências' });
     }
 });
 
@@ -1321,6 +1381,31 @@ app.put('/api/usuarios/:id', isAuthenticated, isAdmin, async (req, res) => {
     } catch (error) {
         console.error('Erro ao atualizar usuário:', error);
         res.status(500).json({ success: false, message: 'Erro ao atualizar usuário' });
+    }
+});
+
+app.post('/api/usuarios/:id/reset-password', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const [usuarios] = await db.query('SELECT id, username FROM admins WHERE id = ?', [userId]);
+
+        if (usuarios.length === 0) {
+            return res.status(404).json({ success: false, message: 'Usuário não encontrado' });
+        }
+
+        const senhaTemporaria = `${Math.random().toString(36).slice(-8)}A1`;
+        const hashedPassword = await bcrypt.hash(senhaTemporaria, 10);
+
+        await db.query('UPDATE admins SET password = ? WHERE id = ?', [hashedPassword, userId]);
+
+        res.json({
+            success: true,
+            message: `Senha redefinida para ${usuarios[0].username}`,
+            temporaryPassword: senhaTemporaria
+        });
+    } catch (error) {
+        console.error('Erro ao resetar senha do usuário:', error);
+        res.status(500).json({ success: false, message: 'Erro ao resetar senha do usuário' });
     }
 });
 

@@ -431,6 +431,19 @@ async function ensureSchema(connection) {
         }
     }
 
+    const chatMessageColumns = [
+        ['message_type', `VARCHAR(50) NOT NULL DEFAULT 'text' AFTER mensagem`],
+        ['media_url', 'VARCHAR(255) NULL AFTER message_type'],
+        ['media_mime_type', 'VARCHAR(120) NULL AFTER media_url'],
+        ['media_filename', 'VARCHAR(255) NULL AFTER media_mime_type']
+    ];
+
+    for (const [columnName, definition] of chatMessageColumns) {
+        if (await ensureColumn(connection, 'chat_messages', columnName, definition)) {
+            changes.push(`chat_messages.${columnName}`);
+        }
+    }
+
     if (await ensureIndex(connection, 'admins', 'idx_admins_cpf', 'UNIQUE INDEX idx_admins_cpf (cpf)')) {
         changes.push('admins.idx_admins_cpf');
     }

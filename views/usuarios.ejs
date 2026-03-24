@@ -104,6 +104,7 @@
                                             </td>
                                             <td>
                                                 <button onclick="editarUsuario(<%= usuario.id %>)" class="btn-icon" title="Editar">✏️</button>
+                                                <button onclick="resetarSenha(<%= usuario.id %>, '<%= usuario.username %>')" class="btn-icon" title="Resetar senha">🔑</button>
                                                 <% if (usuario.username !== 'admin') { %>
                                                     <button onclick="toggleStatus(<%= usuario.id %>, <%= usuario.ativo %>)" class="btn-icon" title="<%= usuario.ativo ? 'Desativar' : 'Ativar' %>">
                                                         <%= usuario.ativo ? '🔒' : '🔓' %>
@@ -331,6 +332,26 @@
                 }
             } catch (error) {
                 alert('Erro ao alterar status do usuário');
+                console.error(error);
+            }
+        }
+
+        async function resetarSenha(id, username) {
+            if (!confirm(`Deseja resetar a senha do usuário ${username}?`)) return;
+
+            try {
+                const response = await fetch(`/api/usuarios/${id}/reset-password`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(`✓ ${result.message}\n\nSenha temporária: ${result.temporaryPassword}`);
+                } else {
+                    alert('✗ ' + result.message);
+                }
+            } catch (error) {
+                alert('✗ Erro ao resetar senha');
                 console.error(error);
             }
         }
