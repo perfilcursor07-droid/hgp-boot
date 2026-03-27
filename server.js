@@ -10,11 +10,23 @@ const { execFile } = require('child_process');
 const { promisify } = require('util');
 const bcrypt = require('bcrypt');
 const dayjs = require('dayjs');
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
+const multer = require('multer');
 const db = require('./config/database');
 const { ensureSchema } = require('./config/ensureSchema');
 const { attachChatbot } = require('./chatbot-handler');
+
+const uploadChatMedia = multer({
+    storage: multer.diskStorage({
+        destination: path.join(__dirname, 'public', 'uploads', 'chat-media'),
+        filename: (req, file, cb) => {
+            const ext = path.extname(file.originalname);
+            cb(null, `chamado-${req.params.id}-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+        }
+    }),
+    limits: { fileSize: 20 * 1024 * 1024 }
+});
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -1837,6 +1849,55 @@ app.get('/api/chamados/:id/chat/nao-lidas', isAuthenticated, async (req, res) =>
     } catch (error) {
         console.error('Erro ao contar mensagens não lidas:', error);
         res.status(500).json({ success: false, message: 'Erro ao contar mensagens' });
+    }
+});
+
+// API - Enviar mídia (imagem, vídeo, áudio) no chat
+app.post('/api/chamados/:id/chat/enviar-midia', isAuthenticated, uploadChatMedia.single('midia'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: 'Nenhum arquivo enviado' });
+        }
+
+        const chamadoId = req.params.id;
+        const remetenteNome = req.session.nomeCompleto || req.session.username;
+        const legenda = req.body.mensagem?.trim() || '';
+        const mediaUrl = `/uploads/chat-media/${req.file.filename}`;
+        const mimeType = req.file.mimetype;
+
+        let messageType = 'document';
+        if (mimeType.startsWith('image/')) messageType = 'image';
+        else if (mimeType.startsWith('video/')) messageType = 'video';
+        else if (mimeType.startsWith('audio/')) messageType = 'audio';
+
+        const [chamado] = await db.query('SELECT * FROM chamados WHERE id = ?', [chamadoId]);
+        if (chamado.length === 0) {
+            return res.status(404).json({ success: false, message: 'Chamado não encontrado' });
+        }
+
+        await db.query(
+            `INSERT INTO chat_messages (chamado_id, remetente_tipo, remetente_nome, mensagem, message_type, media_url, media_mime_type, media_filename)
+             VALUES (?, 'tecnico', ?, ?, ?, ?, ?, ?)`,
+            [chamadoId, remetenteNome, legenda || null, messageType, mediaUrl, mimeType, req.file.originalname]
+        );
+
+        if (whatsappClient && whatsappState === 'connected' && chamado[0].chat_origem) {
+            try {
+                const filePath = path.join(__dirname, 'public', 'uploads', 'chat-media', req.file.filename);
+                const fileData = await fs.readFile(filePath);
+                const base64 = fileData.toString('base64');
+                const media = new MessageMedia(mimeType, base64, req.file.originalname);
+                const caption = legenda ? `📌 ${chamado[0].protocolo}\n\n${legenda}` : `📌 ${chamado[0].protocolo}`;
+                await whatsappClient.sendMessage(chamado[0].chat_origem, media, { caption });
+            } catch (waError) {
+                console.error('Erro ao enviar mídia pelo WhatsApp:', waError.message);
+            }
+        }
+
+        res.json({ success: true, message: 'Mídia enviada com sucesso' });
+    } catch (error) {
+        console.error('Erro ao enviar mídia:', error);
+        res.status(500).json({ success: false, message: 'Erro ao enviar mídia' });
     }
 });
 

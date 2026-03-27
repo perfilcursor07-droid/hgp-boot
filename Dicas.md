@@ -9,6 +9,7 @@ git push -u origin main
 
 -- PULL  PARA GIT PRODUÇÃO
 cd /home/hgpto/htdocs/hgpto.shop
+npm install multer --save 2>&1 | tail -5
 git pull origin main
 npm run migrate
 git log --oneline -5

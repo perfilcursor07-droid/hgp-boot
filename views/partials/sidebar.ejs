@@ -58,10 +58,36 @@
     </div>
 </aside>
 
+<button class="sidebar-toggle-btn" id="sidebarToggleBtn" onclick="toggleDesktopSidebar()" title="Recolher/expandir menu" aria-label="Recolher ou expandir menu lateral">
+    <svg class="toggle-chevron" width="10" height="16" viewBox="0 0 10 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 2L2 8L8 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+</button>
+
 <div class="sidebar-overlay" onclick="document.body.classList.remove('sidebar-open')"></div>
 
 <script>
     (function () {
+        function toggleDesktopSidebar() {
+            document.body.classList.toggle('sidebar-collapsed');
+            const collapsed = document.body.classList.contains('sidebar-collapsed');
+            localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0');
+        }
+
+        function aplicarPreferenciaSidebar() {
+            if (localStorage.getItem('sidebar-collapsed') === '1') {
+                document.body.classList.add('sidebar-collapsed');
+            }
+        }
+
+        window.toggleDesktopSidebar = toggleDesktopSidebar;
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', aplicarPreferenciaSidebar, { once: true });
+        } else {
+            aplicarPreferenciaSidebar();
+        }
+
         async function iniciarBadgeChamados() {
             const pendingBadge = document.getElementById('pendingChamadosBadge');
             if (!pendingBadge) {

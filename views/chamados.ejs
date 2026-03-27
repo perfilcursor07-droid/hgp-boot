@@ -45,36 +45,43 @@
                     </h2>
                 </div>
                 <div class="topbar-actions">
-                    <button type="button" class="btn btn-secondary" onclick="toggleDesktopSidebar()">🗂️ Recolher lateral</button>
                     <button onclick="carregarMeusAtendimentos()" class="btn btn-secondary">📋 Meus Atendimentos</button>
                 </div>
             </div>
 
             <div class="content">
                 <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon green">🟢</div>
+                    <div class="stat-card stat-card-clickable" data-filter="aberto" onclick="aplicarFiltro('aberto')">
+                        <div class="stat-icon green">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        </div>
                         <div class="stat-info">
                             <h3 id="statsAberto"><%= contagem.aberto || 0 %></h3>
                             <p>Abertos</p>
                         </div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon orange">🕗</div>
+                    <div class="stat-card stat-card-clickable" data-filter="pendente" onclick="aplicarFiltro('pendente')">
+                        <div class="stat-icon orange">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        </div>
                         <div class="stat-info">
                             <h3 id="statsPendente"><%= contagem.pendente || 0 %></h3>
                             <p>Pendentes</p>
                         </div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon blue">⏳</div>
+                    <div class="stat-card stat-card-clickable" data-filter="em_atendimento" onclick="aplicarFiltro('em_atendimento')">
+                        <div class="stat-icon blue">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        </div>
                         <div class="stat-info">
                             <h3 id="statsAtendimento"><%= contagem.em_atendimento || 0 %></h3>
                             <p>Em Atendimento</p>
                         </div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon purple">✅</div>
+                    <div class="stat-card stat-card-clickable" data-filter="finalizado" onclick="aplicarFiltro('finalizado')">
+                        <div class="stat-icon purple">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        </div>
                         <div class="stat-info">
                             <h3 id="statsFinalizado"><%= contagem.finalizado || 0 %></h3>
                             <p>Finalizados</p>
@@ -83,76 +90,37 @@
                 </div>
 
                 <div class="card">
-                    <h2>Todos os Chamados</h2>
+                    <div class="chamados-toolbar">
+                        <div class="filter-tabs">
+                            <button class="filter-tab active" data-filter="todos" onclick="aplicarFiltro('todos')">Todos</button>
+                            <button class="filter-tab" data-filter="pendente" onclick="aplicarFiltro('pendente')">Pendentes</button>
+                            <button class="filter-tab" data-filter="aberto" onclick="aplicarFiltro('aberto')">Abertos</button>
+                            <button class="filter-tab" data-filter="em_atendimento" onclick="aplicarFiltro('em_atendimento')">Em Atendimento</button>
+                            <button class="filter-tab" data-filter="finalizado" onclick="aplicarFiltro('finalizado')">Finalizados</button>
+                        </div>
+                        <div class="chamados-toolbar-right">
+                            <span id="chamadosCount" class="chamados-count"></span>
+                            <div class="chamados-search-wrap">
+                                <svg class="chamados-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                <input type="search" id="chamadosBusca" class="chamados-search" placeholder="Buscar protocolo ou nome..." oninput="debounceBusca(this.value)">
+                            </div>
+                        </div>
+                    </div>
                     <div class="messages-container">
-                        <p id="chamadosEmptyState" class="no-messages" style="display: <%= chamados.length === 0 ? 'block' : 'none' %>;">📭 Nenhum chamado registrado ainda</p>
+                        <p id="chamadosEmptyState" class="no-messages" style="display: <%= chamados.length === 0 ? 'block' : 'none' %>;">📭 Nenhum chamado encontrado</p>
                         <table id="chamadosTable" class="messages-table" style="display: <%= chamados.length === 0 ? 'none' : 'table' %>;">
                             <thead>
                                 <tr>
                                     <th>Protocolo</th>
                                     <th>Solicitante</th>
-                                    <th>Setor</th>
-                                    <th>Categoria</th>
+                                    <th>Setor / Categoria</th>
                                     <th>Status</th>
                                     <th>Atendente</th>
-                                    <th>Data / Hora</th>
+                                    <th>Data</th>
                                     <th>Ações</th>
                                 </tr>
                             </thead>
-                            <tbody id="chamadosTableBody">
-                                <% chamados.forEach((chamado) => { %>
-                                    <tr>
-                                        <td><strong><%= chamado.protocolo %></strong></td>
-                                        <td>
-                                            <%= chamado.solicitante_nome %>
-                                            <% if (chamado.nome_whatsapp || chamado.telefone_whatsapp) { %>
-                                                <button onclick="mostrarDadosWhatsApp('<%= chamado.protocolo %>', '<%= chamado.solicitante_nome %>', '<%= chamado.telefone_contato %>', '<%= chamado.nome_whatsapp || '' %>', '<%= chamado.telefone_whatsapp || '' %>')" class="btn-icon" title="Ver dados do WhatsApp" style="font-size: 14px; margin-left: 5px;">📱</button>
-                                            <% } %>
-                                        </td>
-                                        <td><%= chamado.setor %></td>
-                                        <td><%= chamado.categoria %></td>
-                                        <td>
-                                            <% if (chamado.status === 'pendente') { %>
-                                                <span class="badge warning">⏳ Pendente</span>
-                                            <% } else if (chamado.status === 'aberto') { %>
-                                                <span class="badge info">🟢 Aberto</span>
-                                            <% } else if (chamado.status === 'em_atendimento') { %>
-                                                <span class="badge badge-atendimento">⏳ Em Atendimento</span>
-                                            <% } else if (chamado.status === 'finalizado') { %>
-                                                <span class="badge success">✅ Finalizado</span>
-                                            <% } %>
-                                        </td>
-                                        <td><%= chamado.atendente_nome || '-' %></td>
-                                        <td>
-                                            <strong><%= new Date(chamado.criado_em).toLocaleDateString('pt-BR') %></strong><br>
-                                            <small><%= new Date(chamado.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) %></small>
-                                        </td>
-                                        <td>
-                                            <div class="action-buttons">
-                                            <% if (chamado.status !== 'finalizado') { %>
-                                                    <% if (chamado.status !== 'em_atendimento') { %>
-                                                        <button onclick="atenderChamado(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-action-mini" title="Atender">
-                                                            ✋ Atender
-                                                        </button>
-                                                    <% } %>
-                                                    <button onclick="abrirChat(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-action-mini" title="Chat" style="position: relative;">
-                                                        💬 Chat
-                                                        <span id="badge-<%= chamado.id %>" class="chat-badge" style="display: none;"></span>
-                                                    </button>
-                                                <button onclick="verDetalhes('<%= chamado.protocolo %>', '<%= chamado.categoria %>', '<%= chamado.solicitante_nome %>', '<%= chamado.setor %>', '<%= chamado.ip_maquina || '' %>', '<%= chamado.telefone_contato || '' %>', `<%= (chamado.descricao || '').replace(/`/g, '\`').replace(/\n/g, '\n') %>` )" class="btn-action-mini" title="Ver Detalhes">Detalhes</button>
-                                                    <% if (isAdmin) { %>
-                                                        <button onclick="abrirModalEncaminhar(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-action-mini" title="<%= chamado.status === 'em_atendimento' ? 'Reencaminhar' : 'Encaminhar' %>"><%= chamado.status === 'em_atendimento' ? '🔄 Reenc.' : '📤 Encam.' %></button>
-                                                <% } %>
-                                                    <button onclick="abrirModalEncerrar(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-action-mini btn-action-danger" title="Encerrar">✅ Encerrar</button>
-                                            <% } else { %>
-                                                    <button onclick="abrirChat(<%= chamado.id %>, '<%= chamado.protocolo %>')" class="btn-action-mini" title="Ver Chat">💬 Chat</button>
-                                                    <button onclick="verDetalhes('<%= chamado.protocolo %>', '<%= chamado.categoria %>', '<%= chamado.solicitante_nome %>', '<%= chamado.setor %>', '<%= chamado.ip_maquina || '' %>', '<%= chamado.telefone_contato || '' %>', `<%= (chamado.descricao || '').replace(/`/g, '\`').replace(/\n/g, '\n') %>` )" class="btn-action-mini" title="Ver Detalhes">📋 Detalhes</button>
-                                            <% } %>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                <% }) %>
-                            </tbody>
+                            <tbody id="chamadosTableBody"></tbody>
                         </table>
                     </div>
                 </div>
@@ -231,6 +199,23 @@
         let gestoresCache = [];
         let chamadosAutoRefresh = null;
         let chamadosState = initialChamados;
+        let filtroAtivo = 'todos';
+        let buscaAtiva = '';
+        let buscaTimer = null;
+
+        function mostrarToast(mensagem, tipo = 'success') {
+            const toast = document.createElement('div');
+            toast.textContent = mensagem;
+            toast.style.cssText = `
+                position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+                padding: 12px 20px; border-radius: 8px; font-size: 14px; font-weight: 500;
+                color: white; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                background: ${tipo === 'success' ? '#10b981' : '#ef4444'};
+                transition: opacity 0.3s ease;
+            `;
+            document.body.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3500);
+        }
 
         function escapeHtml(value) {
             return String(value || '')
@@ -250,56 +235,97 @@
         }
 
         function montarBadgeStatus(status) {
-            if (status === 'pendente') return '<span class="badge warning">⏳ Pendente</span>';
-            if (status === 'aberto') return '<span class="badge info">🟢 Aberto</span>';
-            if (status === 'em_atendimento') return '<span class="badge badge-atendimento">⏳ Em Atendimento</span>';
-            return '<span class="badge success">✅ Finalizado</span>';
+            const map = {
+                pendente:       ['status-pendente',      'Pendente'],
+                aberto:         ['status-aberto',        'Aberto'],
+                em_atendimento: ['status-em-atendimento','Em Atendimento'],
+                finalizado:     ['status-finalizado',    'Finalizado'],
+            };
+            const [cls, label] = map[status] || ['status-finalizado', status];
+            return `<span class="status-chip ${cls}"><span class="status-dot"></span>${label}</span>`;
+        }
+
+        function montarAvatarAtendente(nome) {
+            if (!nome) return '<span class="atendente-vazio">—</span>';
+            const inicial = nome.charAt(0).toUpperCase();
+            return `<span class="atendente-avatar" title="${escapeHtml(nome)}">${inicial}</span>`;
         }
 
         function montarAcoesChamado(chamado) {
-            const protocolo = escapeHtml(chamado.protocolo);
-            const categoria = escapeHtml(chamado.categoria);
-            const solicitante = escapeHtml(chamado.solicitante_nome);
-            const setor = escapeHtml(chamado.setor);
-            const ip = escapeHtml(chamado.ip_maquina || '');
-            const telefone = escapeHtml(chamado.telefone_contato || '');
-            const descricao = escapeHtml(chamado.descricao || '');
+            const p   = escapeHtml(chamado.protocolo);
+            const cat = escapeHtml(chamado.categoria);
+            const sol = escapeHtml(chamado.solicitante_nome);
+            const set = escapeHtml(chamado.setor);
+            const ip  = escapeHtml(chamado.ip_maquina || '');
+            const tel = escapeHtml(chamado.telefone_contato || '');
+            const des = escapeHtml(chamado.descricao || '');
+            const finalizado = chamado.status === 'finalizado';
+            const emAtendimento = chamado.status === 'em_atendimento';
 
-            let html = '<div class="action-buttons">';
+            const icAtender   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+            const icChat      = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
+            const icInfo      = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
+            const icForward   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>`;
+            const icEncerrar  = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`;
 
-            if (chamado.status !== 'finalizado') {
-                if (chamado.status !== 'em_atendimento') {
-                    html += `<button onclick="atenderChamado(${chamado.id}, '${protocolo}')" class="btn-action-mini" title="Atender">✋ Atender</button>`;
+            let html = '<div class="chamado-actions">';
+
+            if (!finalizado) {
+                if (!emAtendimento) {
+                    html += `<button onclick="atenderChamado(${chamado.id},'${p}')" class="ca-btn ca-atender" title="Atender chamado">${icAtender}<span class="ca-label">Atender</span></button>`;
                 }
-
-                html += `<button onclick="abrirChat(${chamado.id}, '${protocolo}')" class="btn-action-mini" title="Chat" style="position: relative;">💬 Chat<span id="badge-${chamado.id}" class="chat-badge" style="display: none;"></span></button>`;
-                html += `<button onclick="verDetalhes('${protocolo}', '${categoria}', '${solicitante}', '${setor}', '${ip}', '${telefone}', '${descricao}')" class="btn-action-mini" title="Ver Detalhes">📋 Detalhes</button>`;
-
+                html += `<button onclick="abrirChat(${chamado.id},'${p}')" class="ca-btn ca-chat" title="Abrir chat" style="position:relative">${icChat}<span class="ca-label">Chat</span><span id="badge-${chamado.id}" class="chat-badge" style="display:none;"></span></button>`;
+                html += `<button onclick="verDetalhes('${p}','${cat}','${sol}','${set}','${ip}','${tel}','${des}')" class="ca-btn ca-info" title="Ver detalhes">${icInfo}<span class="ca-label">Detalhes</span></button>`;
                 if (isAdmin) {
-                    html += chamado.status === 'em_atendimento'
-                        ? `<button onclick="abrirModalEncaminhar(${chamado.id}, '${protocolo}')" class="btn-action-mini" title="Reencaminhar">🔄 Reenc.</button>`
-                        : `<button onclick="abrirModalEncaminhar(${chamado.id}, '${protocolo}')" class="btn-action-mini" title="Encaminhar">📤 Encam.</button>`;
+                    const lblEnc = emAtendimento ? 'Reencaminhar' : 'Encaminhar';
+                    html += `<button onclick="abrirModalEncaminhar(${chamado.id},'${p}')" class="ca-btn ca-forward" title="${lblEnc}">${icForward}<span class="ca-label">${emAtendimento ? 'Reenc.' : 'Encam.'}</span></button>`;
                 }
-
-                html += `<button onclick="abrirModalEncerrar(${chamado.id}, '${protocolo}')" class="btn-action-mini btn-action-danger" title="Encerrar">✅ Encerrar</button>`;
+                html += `<button onclick="abrirModalEncerrar(${chamado.id},'${p}')" class="ca-btn ca-close" title="Encerrar chamado">${icEncerrar}<span class="ca-label">Encerrar</span></button>`;
             } else {
-                html += `<button onclick="abrirChat(${chamado.id}, '${protocolo}')" class="btn-action-mini" title="Ver Chat">💬 Chat</button>`;
-                html += `<button onclick="verDetalhes('${protocolo}', '${categoria}', '${solicitante}', '${setor}', '${ip}', '${telefone}', '${descricao}')" class="btn-action-mini" title="Ver Detalhes">📋 Detalhes</button>`;
+                html += `<button onclick="abrirChat(${chamado.id},'${p}')" class="ca-btn ca-chat" title="Ver chat" style="position:relative">${icChat}<span class="ca-label">Chat</span><span id="badge-${chamado.id}" class="chat-badge" style="display:none;"></span></button>`;
+                html += `<button onclick="verDetalhes('${p}','${cat}','${sol}','${set}','${ip}','${tel}','${des}')" class="ca-btn ca-info" title="Ver detalhes">${icInfo}<span class="ca-label">Detalhes</span></button>`;
             }
 
             html += '</div>';
             return html;
         }
 
+        function chamadoMatchFiltro(chamado) {
+            if (filtroAtivo !== 'todos' && chamado.status !== filtroAtivo) return false;
+            if (buscaAtiva) {
+                const q = buscaAtiva.toLowerCase();
+                return (chamado.protocolo || '').toLowerCase().includes(q)
+                    || (chamado.solicitante_nome || '').toLowerCase().includes(q)
+                    || (chamado.setor || '').toLowerCase().includes(q)
+                    || (chamado.categoria || '').toLowerCase().includes(q);
+            }
+            return true;
+        }
+
+        function aplicarFiltro(status) {
+            filtroAtivo = status;
+            document.querySelectorAll('.filter-tab').forEach(t => t.classList.toggle('active', t.dataset.filter === status));
+            document.querySelectorAll('.stat-card[data-filter]').forEach(c => c.classList.toggle('stat-card-active', c.dataset.filter === status));
+            renderChamadosTable(chamadosState);
+        }
+
+        function debounceBusca(valor) {
+            clearTimeout(buscaTimer);
+            buscaTimer = setTimeout(() => { buscaAtiva = valor.trim(); renderChamadosTable(chamadosState); }, 200);
+        }
+
         function renderChamadosTable(chamados) {
             const tabelaChamados = document.getElementById('chamadosTable');
             const tbody = document.getElementById('chamadosTableBody');
             const emptyState = document.getElementById('chamadosEmptyState');
-            if (!tabelaChamados || !tbody || !emptyState) {
-                return;
-            }
+            const countEl = document.getElementById('chamadosCount');
+            if (!tabelaChamados || !tbody || !emptyState) return;
 
-            if (!Array.isArray(chamados) || chamados.length === 0) {
+            const filtrados = Array.isArray(chamados) ? chamados.filter(chamadoMatchFiltro) : [];
+
+            if (countEl) countEl.textContent = filtrados.length > 0 ? `${filtrados.length} chamado${filtrados.length !== 1 ? 's' : ''}` : '';
+
+            if (filtrados.length === 0) {
                 tbody.innerHTML = '';
                 emptyState.style.display = 'block';
                 tabelaChamados.style.display = 'none';
@@ -308,24 +334,26 @@
 
             emptyState.style.display = 'none';
             tabelaChamados.style.display = 'table';
-            tbody.innerHTML = chamados.map((chamado) => {
-                const dataHora = formatarDataHora(chamado.criado_em);
-                const dadosWhatsApp = (chamado.nome_whatsapp || chamado.telefone_whatsapp)
-                    ? `<button onclick="mostrarDadosWhatsApp('${escapeHtml(chamado.protocolo)}', '${escapeHtml(chamado.solicitante_nome)}', '${escapeHtml(chamado.telefone_contato || '')}', '${escapeHtml(chamado.nome_whatsapp || '')}', '${escapeHtml(chamado.telefone_whatsapp || '')}')" class="btn-icon" title="Ver dados do WhatsApp" style="font-size: 14px; margin-left: 5px;">📱</button>`
-                    : '';
 
+            const whatsAppBtn = (c) => (c.nome_whatsapp || c.telefone_whatsapp)
+                ? `<button onclick="mostrarDadosWhatsApp('${escapeHtml(c.protocolo)}','${escapeHtml(c.solicitante_nome)}','${escapeHtml(c.telefone_contato||'')}','${escapeHtml(c.nome_whatsapp||'')}','${escapeHtml(c.telefone_whatsapp||'')}')" class="ca-btn ca-whatsapp" title="Dados WhatsApp"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button>`
+                : '';
+
+            tbody.innerHTML = filtrados.map(chamado => {
+                const dh = formatarDataHora(chamado.criado_em);
                 return `
-                    <tr>
-                        <td><strong>${escapeHtml(chamado.protocolo)}</strong></td>
-                        <td>${escapeHtml(chamado.solicitante_nome)}${dadosWhatsApp}</td>
-                        <td>${escapeHtml(chamado.setor)}</td>
-                        <td>${escapeHtml(chamado.categoria)}</td>
+                    <tr data-status="${chamado.status}">
+                        <td class="td-protocolo"><strong>${escapeHtml(chamado.protocolo)}</strong><br><small class="td-hora">${dh.hora}</small></td>
+                        <td class="td-solicitante">
+                            <span class="solicitante-nome">${escapeHtml(chamado.solicitante_nome)}</span>
+                            ${whatsAppBtn(chamado)}
+                        </td>
+                        <td class="td-setor"><span>${escapeHtml(chamado.setor)}</span><small>${escapeHtml(chamado.categoria)}</small></td>
                         <td>${montarBadgeStatus(chamado.status)}</td>
-                        <td>${escapeHtml(chamado.atendente_nome || '-')}</td>
-                        <td><strong>${dataHora.data}</strong><br><small>${dataHora.hora}</small></td>
+                        <td>${montarAvatarAtendente(chamado.atendente_nome)}</td>
+                        <td class="td-data">${dh.data}</td>
                         <td>${montarAcoesChamado(chamado)}</td>
-                    </tr>
-                `;
+                    </tr>`;
             }).join('');
         }
 
@@ -365,17 +393,6 @@
             }
         }
 
-        function toggleDesktopSidebar() {
-            document.body.classList.toggle('sidebar-collapsed');
-            localStorage.setItem('sidebar-collapsed', document.body.classList.contains('sidebar-collapsed') ? '1' : '0');
-        }
-
-        function aplicarPreferenciaSidebar() {
-            if (localStorage.getItem('sidebar-collapsed') === '1') {
-                document.body.classList.add('sidebar-collapsed');
-            }
-        }
-
         function algumModalAberto() {
             return Array.from(document.querySelectorAll('.modal')).some((modal) => modal.style.display === 'flex');
         }
@@ -405,69 +422,62 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    gestoresCache = result.gestores;
-                    console.log('Gestores carregados:', gestoresCache.length);
-                } else {
-                    console.error('Erro na resposta:', result.message);
+                    gestoresCache = result.gestores || [];
                 }
             } catch (error) {
                 console.error('Erro ao carregar gestores:', error);
             }
         }
 
-        // Carregar gestores quando a página carregar
         document.addEventListener('DOMContentLoaded', function() {
-            aplicarPreferenciaSidebar();
             carregarGestores();
-            renderChamadosTable(chamadosState);
             atualizarOverviewChamados();
             iniciarAutoRefreshChamados();
         });
 
+        function popularSelectGestores(select, gestores) {
+            if (gestores.length === 0) {
+                select.innerHTML = '<option value="" disabled>Nenhum gestor disponível</option>';
+                return;
+            }
+            select.innerHTML = '<option value="" disabled selected>Selecione um gestor...</option>';
+            gestores.forEach(gestor => {
+                const option = document.createElement('option');
+                option.value = gestor.id;
+                option.textContent = `${gestor.nome_completo} (${gestor.telefone || 'Sem telefone'})`;
+                select.appendChild(option);
+            });
+        }
+
         async function abrirModalEncaminhar(id, protocolo) {
             document.getElementById('encaminharChamadoId').value = id;
             document.getElementById('encaminharProtocolo').textContent = protocolo;
-            
-            const select = document.getElementById('gestorId');
-            select.innerHTML = '<option value="">Carregando gestores...</option>';
-            
             document.getElementById('modalEncaminhar').style.display = 'flex';
-            
-            // Buscar gestores diretamente
+
+            const select = document.getElementById('gestorId');
+
+            if (gestoresCache.length > 0) {
+                popularSelectGestores(select, gestoresCache);
+                return;
+            }
+
+            select.innerHTML = '<option value="" disabled selected>Carregando gestores...</option>';
             try {
                 const response = await fetch('/api/usuarios/gestores');
-                
-                console.log('Response status:', response.status);
-                console.log('Response ok:', response.ok);
-                
                 if (!response.ok) {
-                    const text = await response.text();
-                    console.error('Erro na resposta:', text);
-                    select.innerHTML = '<option value="">Erro ao carregar gestores</option>';
-                    alert('Erro ao carregar gestores. Verifique se você está logado como administrador.');
+                    select.innerHTML = '<option value="" disabled>Erro ao carregar gestores</option>';
+                    mostrarToast('✗ Erro ao carregar gestores. Verifique se você está logado como administrador.', 'error');
                     return;
                 }
-                
                 const result = await response.json();
-                console.log('Resultado:', result);
-                
-                if (result.success && result.gestores && result.gestores.length > 0) {
-                    select.innerHTML = '<option value="">Selecione um gestor...</option>';
-                    result.gestores.forEach(gestor => {
-                        const option = document.createElement('option');
-                        option.value = gestor.id;
-                        option.textContent = `${gestor.nome_completo} (${gestor.telefone || 'Sem telefone'})`;
-                        select.appendChild(option);
-                    });
-                    gestoresCache = result.gestores;
-                } else {
-                    select.innerHTML = '<option value="">Nenhum gestor disponível</option>';
-                    console.log('Nenhum gestor encontrado');
+                if (result.success) {
+                    gestoresCache = result.gestores || [];
                 }
+                popularSelectGestores(select, gestoresCache);
             } catch (error) {
                 console.error('Erro ao buscar gestores:', error);
-                select.innerHTML = '<option value="">Erro ao carregar gestores</option>';
-                alert('Erro ao carregar gestores: ' + error.message);
+                select.innerHTML = '<option value="" disabled>Erro ao carregar gestores</option>';
+                mostrarToast('✗ Erro ao carregar gestores', 'error');
             }
         }
 
@@ -482,7 +492,7 @@
             const gestorId = document.getElementById('gestorId').value;
 
             if (!gestorId) {
-                alert('Por favor, selecione um gestor');
+                mostrarToast('Por favor, selecione um gestor', 'error');
                 return;
             }
 
@@ -496,13 +506,13 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    alert('✓ ' + result.message + '\n\nNotificações foram enviadas via WhatsApp para o gestor e o solicitante.');
-                    location.reload();
+                    fecharModalEncaminhar();
+                    await atualizarOverviewChamados();
                 } else {
-                    alert('✗ ' + result.message);
+                    mostrarToast('✗ ' + result.message, 'error');
                 }
             } catch (error) {
-                alert('✗ Erro ao encaminhar chamado');
+                mostrarToast('✗ Erro ao encaminhar chamado', 'error');
                 console.error(error);
             }
         }
@@ -518,13 +528,13 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    alert('✓ ' + result.message + '\n\nUma mensagem foi enviada ao solicitante pelo WhatsApp.');
-                    location.reload();
+                    mostrarToast('✓ ' + result.message, 'success');
+                    await atualizarOverviewChamados();
                 } else {
-                    alert('✗ ' + result.message);
+                    mostrarToast('✗ ' + result.message, 'error');
                 }
             } catch (error) {
-                alert('✗ Erro ao iniciar atendimento');
+                mostrarToast('✗ Erro ao iniciar atendimento', 'error');
                 console.error(error);
             }
         }
@@ -556,13 +566,14 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    alert('✓ ' + result.message + '\n\nUma mensagem foi enviada ao solicitante pelo WhatsApp.');
-                    location.reload();
+                    fecharModalEncerrar();
+                    mostrarToast('✓ ' + result.message, 'success');
+                    await atualizarOverviewChamados();
                 } else {
-                    alert('✗ ' + result.message);
+                    mostrarToast('✗ ' + result.message, 'error');
                 }
             } catch (error) {
-                alert('✗ Erro ao encerrar chamado');
+                mostrarToast('✗ Erro ao encerrar chamado', 'error');
                 console.error(error);
             }
         }
@@ -616,48 +627,71 @@
             document.getElementById('modalMeusAtendimentos').style.display = 'none';
         }
 
-        // Fechar modais ao clicar fora
-        window.onclick = function(event) {
-            if (event.target.classList.contains('modal') && event.target.id !== 'modalChat') {
-                event.target.style.display = 'none';
-            }
-        }
     </script>
-</body>
-</html>
 
     <!-- Modal Chat -->
     <div id="modalChat" class="modal" data-lock-backdrop="true">
         <div class="modal-content chat-modal-content">
-            <div class="modal-header chat-modal-header">
-                <div class="chat-modal-title-wrap">
-                    <h2>💬 Chat - <span id="chatProtocolo"></span></h2>
-                    <span class="chat-modal-subtitle">Conversa do atendimento em tempo real</span>
-                    <div class="chat-modal-contact-meta">
-                        <span id="chatSolicitanteNome">Solicitante</span>
+            <!-- Header estilo WhatsApp -->
+            <div class="chat-modal-header">
+                <div class="chat-header-avatar" id="chatAvatarInitial">?</div>
+                <div class="chat-header-info">
+                    <div class="chat-header-name" id="chatSolicitanteNome">Solicitante</div>
+                    <div class="chat-header-sub">
                         <span id="chatSolicitanteTelefone">Sem telefone</span>
+                        <span class="chat-header-dot">·</span>
+                        <span id="chatProtocolo"></span>
                     </div>
                 </div>
-                <span class="modal-close" onclick="fecharChat()">&times;</span>
+                <span class="chat-modal-close" onclick="fecharChat()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </span>
             </div>
+
             <div class="chat-modal-body">
+                <!-- Área de mensagens -->
                 <div id="chatMessages" class="chat-messages">
                     <p class="chat-empty">Carregando mensagens...</p>
                 </div>
-                <form id="formChat" class="chat-compose" onsubmit="enviarMensagemChat(event)">
-                    <input type="hidden" id="chatChamadoId">
-                    <textarea 
-                        id="chatMensagem" 
-                        placeholder="Digite sua mensagem aqui. Você pode escrever várias linhas para orientar o usuário com mais clareza."
-                        rows="5"
-                        required
-                    ></textarea>
-                    <div class="chat-compose-actions">
-                        <span class="chat-compose-hint">O modal só fecha no botão × para evitar perda de contexto.</span>
-                        <button type="submit" class="btn btn-primary">
-                            📤 Enviar Mensagem
-                        </button>
+
+                <!-- Preview de mídia selecionada -->
+                <div id="chatMediaPreview" class="chat-media-preview" style="display:none;">
+                    <div class="chat-media-preview-inner">
+                        <img id="chatPreviewImg" src="" alt="" style="display:none;">
+                        <video id="chatPreviewVideo" style="display:none;"></video>
+                        <div id="chatPreviewAudio" class="chat-preview-audio" style="display:none;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                            <span id="chatPreviewFilename"></span>
+                        </div>
+                        <button type="button" class="chat-preview-remove" onclick="removerMidiaPreview()">×</button>
                     </div>
+                </div>
+
+                <!-- Barra de composição estilo WhatsApp -->
+                <form id="formChat" class="chat-compose-bar" onsubmit="enviarMensagemChat(event)">
+                    <input type="hidden" id="chatChamadoId">
+                    <input type="file" id="chatFileImagem" accept="image/*,video/*" style="display:none;" onchange="selecionarMidia(this,'imagem')">
+                    <input type="file" id="chatFileAudio" accept="audio/*" style="display:none;" onchange="selecionarMidia(this,'audio')">
+
+                    <button type="button" class="chat-action-btn" onclick="document.getElementById('chatFileImagem').click()" title="Enviar imagem ou vídeo">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    </button>
+                    <button type="button" class="chat-action-btn" onclick="document.getElementById('chatFileAudio').click()" title="Enviar áudio">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                    </button>
+
+                    <textarea
+                        id="chatMensagem"
+                        class="chat-compose-input"
+                        placeholder="Digite uma mensagem"
+                        rows="1"
+                        onkeydown="chatKeyDown(event)"
+                        oninput="autoResizeTextarea(this)"
+                    ></textarea>
+
+                    <button type="submit" class="chat-send-btn" title="Enviar">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    </button>
                 </form>
             </div>
         </div>
@@ -712,94 +746,138 @@
 
     <script>
         let chatInterval = null;
+        let chatIsFirstLoad = true;
+        let chatMidiaArquivo = null;
+
+        function autoResizeTextarea(el) {
+            el.style.height = 'auto';
+            el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+        }
+
+        function chatKeyDown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                document.getElementById('formChat').requestSubmit();
+            }
+        }
+
+        function selecionarMidia(input, tipo) {
+            const file = input.files[0];
+            if (!file) return;
+            chatMidiaArquivo = file;
+
+            const preview = document.getElementById('chatMediaPreview');
+            const previewImg = document.getElementById('chatPreviewImg');
+            const previewVideo = document.getElementById('chatPreviewVideo');
+            const previewAudio = document.getElementById('chatPreviewAudio');
+            const previewFilename = document.getElementById('chatPreviewFilename');
+
+            previewImg.style.display = 'none';
+            previewVideo.style.display = 'none';
+            previewAudio.style.display = 'none';
+
+            const url = URL.createObjectURL(file);
+            if (file.type.startsWith('image/')) {
+                previewImg.src = url;
+                previewImg.style.display = 'block';
+            } else if (file.type.startsWith('video/')) {
+                previewVideo.src = url;
+                previewVideo.style.display = 'block';
+            } else {
+                previewFilename.textContent = file.name;
+                previewAudio.style.display = 'flex';
+            }
+            preview.style.display = 'block';
+            input.value = '';
+        }
+
+        function removerMidiaPreview() {
+            chatMidiaArquivo = null;
+            document.getElementById('chatMediaPreview').style.display = 'none';
+            document.getElementById('chatPreviewImg').src = '';
+            document.getElementById('chatPreviewVideo').src = '';
+        }
 
         async function abrirChat(chamadoId, protocolo) {
             const chamadoAtual = chamadosState.find((item) => Number(item.id) === Number(chamadoId));
+            const nome = chamadoAtual?.solicitante_nome || 'Solicitante';
+
             document.getElementById('modalChat').style.display = 'flex';
             document.getElementById('chatProtocolo').textContent = protocolo;
-            document.getElementById('chatSolicitanteNome').textContent = chamadoAtual?.solicitante_nome || 'Solicitante';
+            document.getElementById('chatSolicitanteNome').textContent = nome;
             document.getElementById('chatSolicitanteTelefone').textContent = chamadoAtual?.telefone_contato || chamadoAtual?.telefone_whatsapp || 'Sem telefone';
+            document.getElementById('chatAvatarInitial').textContent = nome.charAt(0).toUpperCase();
             document.getElementById('chatChamadoId').value = chamadoId;
             document.getElementById('chatMensagem').value = '';
-            
-            // Limpar badge de mensagens não lidas
+            removerMidiaPreview();
+
             const badge = document.getElementById(`badge-${chamadoId}`);
-            if (badge) {
-                badge.style.display = 'none';
-            }
-            
+            if (badge) badge.style.display = 'none';
+
+            chatIsFirstLoad = true;
             await carregarMensagensChat(chamadoId);
-            
-            // Atualizar mensagens a cada 5 segundos
             chatInterval = setInterval(() => carregarMensagensChat(chamadoId), 5000);
         }
 
         function fecharChat() {
             document.getElementById('modalChat').style.display = 'none';
-            if (chatInterval) {
-                clearInterval(chatInterval);
-                chatInterval = null;
-            }
+            if (chatInterval) { clearInterval(chatInterval); chatInterval = null; }
+        }
+
+        function montarMidiaHtml(msg) {
+            const isImagem = msg.message_type === 'image';
+            const isAudio  = msg.message_type === 'audio' || msg.message_type === 'ptt';
+            const isVideo  = msg.message_type === 'video';
+            const isArquivo = msg.media_url && !isImagem && !isAudio && !isVideo;
+            if (!msg.media_url) return '';
+            if (isImagem)  return `<div class="chat-media"><a href="${msg.media_url}" target="_blank" rel="noopener noreferrer"><img src="${msg.media_url}" alt="Imagem"></a></div>`;
+            if (isAudio)   return `<div class="chat-media"><audio controls><source src="${msg.media_url}" type="${msg.media_mime_type || 'audio/ogg'}"></audio></div>`;
+            if (isVideo)   return `<div class="chat-media"><video controls><source src="${msg.media_url}" type="${msg.media_mime_type || 'video/mp4'}"></video></div>`;
+            if (isArquivo) return `<div class="chat-media"><a href="${msg.media_url}" target="_blank" rel="noopener noreferrer">📎 ${escapeHtml(msg.media_filename || 'Abrir arquivo')}</a></div>`;
+            return '';
         }
 
         async function carregarMensagensChat(chamadoId) {
             try {
                 const response = await fetch(`/api/chamados/${chamadoId}/chat`);
                 const result = await response.json();
+                if (!result.success) return;
 
-                if (result.success) {
-                    const chatMessages = document.getElementById('chatMessages');
-                    const scrollAtBottom = chatMessages.scrollHeight - chatMessages.scrollTop === chatMessages.clientHeight;
-                    
-                    if (result.mensagens.length === 0) {
-                        chatMessages.innerHTML = '<p class="chat-empty">Nenhuma mensagem ainda.</p>';
-                    } else {
-                        let html = '';
-                        result.mensagens.forEach(msg => {
-                            const isTecnico = msg.remetente_tipo === 'tecnico';
-                            const isSistema = msg.remetente_tipo === 'sistema';
-                            const data = new Date(msg.enviada_em).toLocaleString('pt-BR');
-                            const isImagem = msg.message_type === 'image';
-                            const isAudio = msg.message_type === 'audio' || msg.message_type === 'ptt';
-                            const isVideo = msg.message_type === 'video';
-                            const isArquivo = msg.media_url && !isImagem && !isAudio && !isVideo;
-                            
-                            const rowClass = isTecnico ? 'from-tech' : (isSistema ? 'from-system' : 'from-user');
-                            const bubbleClass = isTecnico ? 'from-tech' : (isSistema ? 'from-system' : 'from-user');
-                            const mediaHtml = isImagem
-                                ? `<div class="chat-media"><a href="${msg.media_url}" target="_blank" rel="noopener noreferrer"><img src="${msg.media_url}" alt="Imagem enviada"></a></div>`
-                                : isAudio
-                                    ? `<div class="chat-media"><audio controls><source src="${msg.media_url}" type="${msg.media_mime_type || 'audio/ogg'}"></audio></div>`
-                                    : isVideo
-                                        ? `<div class="chat-media"><video controls><source src="${msg.media_url}" type="${msg.media_mime_type || 'video/mp4'}"></video></div>`
-                                        : isArquivo
-                                            ? `<div class="chat-media"><a href="${msg.media_url}" target="_blank" rel="noopener noreferrer">📎 ${msg.media_filename || 'Abrir arquivo'}</a></div>`
-                                            : '';
-                            
-                            html += `
-                                <div class="chat-message-row ${rowClass}">
-                                    <div class="chat-bubble ${bubbleClass}">
-                                        <div class="chat-bubble-author">
-                                            ${msg.remetente_nome || 'Sistema'}
-                                        </div>
-                                        <div class="chat-bubble-text">
-                                            ${msg.mensagem}
-                                        </div>
-                                        ${mediaHtml}
-                                        <div class="chat-bubble-time">
-                                            ${data}
-                                        </div>
-                                    </div>
+                const chatMessages = document.getElementById('chatMessages');
+                const threshold = 80;
+                const wasAtBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < threshold;
+
+                if (result.mensagens.length === 0) {
+                    chatMessages.innerHTML = '<p class="chat-empty">Nenhuma mensagem ainda.</p>';
+                } else {
+                    let html = '';
+                    let lastDate = '';
+                    result.mensagens.forEach(msg => {
+                        const dt = new Date(msg.enviada_em);
+                        const dateKey = dt.toLocaleDateString('pt-BR');
+                        if (dateKey !== lastDate) {
+                            html += `<div class="chat-date-separator"><span>${dateKey}</span></div>`;
+                            lastDate = dateKey;
+                        }
+                        const hora = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                        const lado = msg.remetente_tipo === 'tecnico' ? 'from-tech' : (msg.remetente_tipo === 'sistema' ? 'from-system' : 'from-user');
+                        const textoHtml = msg.mensagem ? `<div class="chat-bubble-text">${escapeHtml(msg.mensagem)}</div>` : '';
+                        html += `
+                            <div class="chat-message-row ${lado}">
+                                <div class="chat-bubble ${lado}">
+                                    <div class="chat-bubble-author">${escapeHtml(msg.remetente_nome || 'Sistema')}</div>
+                                    ${textoHtml}
+                                    ${montarMidiaHtml(msg)}
+                                    <div class="chat-bubble-time">${hora}</div>
                                 </div>
-                            `;
-                        });
-                        chatMessages.innerHTML = html;
-                    }
-                    
-                    // Scroll para o final se já estava no final
-                    if (scrollAtBottom || result.mensagens.length > 0) {
-                        chatMessages.scrollTop = chatMessages.scrollHeight;
-                    }
+                            </div>`;
+                    });
+                    chatMessages.innerHTML = html;
+                }
+
+                if (chatIsFirstLoad || wasAtBottom) {
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                    chatIsFirstLoad = false;
                 }
             } catch (error) {
                 console.error('Erro ao carregar mensagens:', error);
@@ -808,9 +886,13 @@
 
         async function enviarMensagemChat(event) {
             event.preventDefault();
-
             const chamadoId = document.getElementById('chatChamadoId').value;
             const mensagem = document.getElementById('chatMensagem').value.trim();
+
+            if (chatMidiaArquivo) {
+                await enviarMidiaChat(chamadoId, chatMidiaArquivo, mensagem);
+                return;
+            }
 
             if (!mensagem) return;
 
@@ -820,18 +902,49 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ mensagem })
                 });
-
                 const result = await response.json();
-
                 if (result.success) {
                     document.getElementById('chatMensagem').value = '';
+                    autoResizeTextarea(document.getElementById('chatMensagem'));
+                    chatIsFirstLoad = true;
                     await carregarMensagensChat(chamadoId);
                 } else {
-                    alert('✗ ' + result.message);
+                    mostrarToast('✗ ' + result.message, 'error');
                 }
             } catch (error) {
-                alert('✗ Erro ao enviar mensagem');
+                mostrarToast('✗ Erro ao enviar mensagem', 'error');
                 console.error(error);
+            }
+        }
+
+        async function enviarMidiaChat(chamadoId, file, legenda) {
+            const formData = new FormData();
+            formData.append('midia', file);
+            if (legenda) formData.append('mensagem', legenda);
+
+            const btnEnviar = document.querySelector('.chat-send-btn');
+            btnEnviar.disabled = true;
+
+            try {
+                const response = await fetch(`/api/chamados/${chamadoId}/chat/enviar-midia`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                if (result.success) {
+                    document.getElementById('chatMensagem').value = '';
+                    autoResizeTextarea(document.getElementById('chatMensagem'));
+                    removerMidiaPreview();
+                    chatIsFirstLoad = true;
+                    await carregarMensagensChat(chamadoId);
+                } else {
+                    mostrarToast('✗ ' + result.message, 'error');
+                }
+            } catch (error) {
+                mostrarToast('✗ Erro ao enviar mídia', 'error');
+                console.error(error);
+            } finally {
+                btnEnviar.disabled = false;
             }
         }
 
@@ -890,16 +1003,12 @@
             document.getElementById('modalDetalhes').style.display = 'none';
         }
 
-        // Fechar modais ao clicar fora
+        // Fechar modais ao clicar fora (exceto chat que tem controle próprio)
         window.addEventListener('click', function(event) {
-            const modalWhatsApp = document.getElementById('modalWhatsApp');
-            const modalDetalhes = document.getElementById('modalDetalhes');
-            
-            if (event.target === modalWhatsApp) {
-                fecharModalWhatsApp();
-            }
-            if (event.target === modalDetalhes) {
-                fecharModalDetalhes();
+            if (event.target.classList.contains('modal') && event.target.id !== 'modalChat') {
+                event.target.style.display = 'none';
             }
         });
     </script>
+</body>
+</html>
