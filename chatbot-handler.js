@@ -57,6 +57,7 @@ function attachChatbot(client, options = {}) {
     const estados = new Map();
     const bloqueados = new Map();
     const mensagensProcessadas = new Map();
+    const lidSessionMap = new Map(); // mapeia @lid -> sessionId estável
     const categoriasMap = {
         '1': 'Soul MV',
         '2': 'Impressora',
@@ -97,13 +98,28 @@ function attachChatbot(client, options = {}) {
             };
         }
 
+        // Para @lid, verificar se já temos um sessionId mapeado
+        if (lidSessionMap.has(origem)) {
+            const cachedSessionId = lidSessionMap.get(origem);
+            return {
+                contato,
+                chatId: cachedSessionId,
+                sessionId: cachedSessionId
+            };
+        }
+
         const numeroContato = contato.number || contato.id?.user || '';
         const resolvido = await resolverIdChatPorNumero(numeroContato);
+        const chatId = resolvido?.chatId || origem;
+        const sessionId = resolvido?.chatId || normalizarNumeroBrasil(numeroContato) || origem;
+
+        // Cachear o mapeamento para manter consistência
+        lidSessionMap.set(origem, sessionId);
 
         return {
             contato,
-            chatId: resolvido?.chatId || origem,
-            sessionId: resolvido?.chatId || normalizarNumeroBrasil(numeroContato) || origem
+            chatId,
+            sessionId
         };
     }
 
@@ -145,30 +161,52 @@ function attachChatbot(client, options = {}) {
     async function reiniciarFluxoPorEncerramento(sessionId, options = {}) {
         const chatId = await resolverDestinoSaida(sessionId);
         if (!chatId) {
-            return false;
+            console.error(`Não foi possível resolver destino para sessionId: ${sessionId}`);
+            // Tentar encontrar via lidSessionMap reverso
+            let lidFallback = null;
+            for (const [lid, sid] of lidSessionMap.entries()) {
+                if (sid === sessionId) {
+                    lidFallback = lid;
+                    break;
+                }
+            }
+            if (!lidFallback) {
+                return false;
+            }
+            // Usar o @lid diretamente como fallback
+            return await _enviarFluxoEncerramento(lidFallback, sessionId, options);
         }
 
+        return await _enviarFluxoEncerramento(chatId, sessionId, options);
+    }
+
+    async function _enviarFluxoEncerramento(chatId, sessionId, options) {
         liberarSessao(sessionId);
 
         const nomeExibicao = options.nomeExibicao || 'Prezado';
         const protocolo = options.protocolo ? ` (${options.protocolo})` : '';
 
-        await client.sendMessage(
-            chatId,
-            `✅ Chamado${protocolo} encerrado com sucesso. Obrigado pelo contato!`
-        );
-        await delay(600);
-        await client.sendMessage(chatId, `*🛠️ TI - HGP*\nOlá, *${nomeExibicao}*.`);
-        await delay(400);
-        await client.sendMessage(chatId, menuPrincipal);
+        try {
+            await client.sendMessage(
+                chatId,
+                `✅ Chamado${protocolo} encerrado com sucesso. Obrigado pelo contato!`
+            );
+            await delay(600);
+            await client.sendMessage(chatId, `*🛠️ TI - HGP*\nOlá, *${nomeExibicao}*.`);
+            await delay(400);
+            await client.sendMessage(chatId, menuPrincipal);
 
-        estados.set(sessionId, {
-            step: 0.5,
-            nomeWhats: nomeExibicao,
-            isTeste: false
-        });
+            estados.set(sessionId, {
+                step: 0.5,
+                nomeWhats: nomeExibicao,
+                isTeste: false
+            });
 
-        return true;
+            return true;
+        } catch (erro) {
+            registrarErro(erro, `Erro ao enviar fluxo de encerramento para ${chatId}`);
+            return false;
+        }
     }
 
     async function buscarTecnicoEscala() {
@@ -285,6 +323,7 @@ function attachChatbot(client, options = {}) {
     }
 
     async function buscarChamadoAtivo(sessionId) {
+        // Tentar busca exata primeiro
         const [chamadosAtivos] = await db.query(
             `SELECT id, protocolo, atendente_nome, status FROM chamados
              WHERE chat_origem = ? AND status IN ('pendente', 'aberto', 'em_atendimento')
@@ -292,7 +331,37 @@ function attachChatbot(client, options = {}) {
             [sessionId]
         );
 
-        return chamadosAtivos[0] || null;
+        if (chamadosAtivos.length > 0) {
+            return chamadosAtivos[0];
+        }
+
+        // Tentar variações do número (com e sem @c.us, com e sem 9)
+        const numLimpo = String(sessionId).replace(/@.*$/, '').replace(/\D/g, '');
+        if (numLimpo.length >= 10) {
+            const variacoes = [numLimpo, `${numLimpo}@c.us`];
+            if (numLimpo.length === 13) {
+                variacoes.push(numLimpo.slice(0, 4) + numLimpo.slice(5));
+                variacoes.push(numLimpo.slice(0, 4) + numLimpo.slice(5) + '@c.us');
+            }
+            if (numLimpo.length === 12) {
+                variacoes.push(numLimpo.slice(0, 4) + '9' + numLimpo.slice(4));
+                variacoes.push(numLimpo.slice(0, 4) + '9' + numLimpo.slice(4) + '@c.us');
+            }
+
+            const placeholders = variacoes.map(() => '?').join(',');
+            const [chamadosVariacao] = await db.query(
+                `SELECT id, protocolo, atendente_nome, status FROM chamados
+                 WHERE chat_origem IN (${placeholders}) AND status IN ('pendente', 'aberto', 'em_atendimento')
+                 ORDER BY criado_em DESC LIMIT 1`,
+                variacoes
+            );
+
+            if (chamadosVariacao.length > 0) {
+                return chamadosVariacao[0];
+            }
+        }
+
+        return null;
     }
 
     function resumirMensagemSolicitante(msg) {
