@@ -1397,6 +1397,209 @@ body.sidebar-collapsed .sidebar-toggle-btn .toggle-chevron {
     .flow-step-grid {
         grid-template-columns: 1fr;
     }
+
+    /* ── Chamados mobile ──────────────────────────────── */
+    .chamados-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .chamados-toolbar-right {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .chamados-search {
+        width: 100%;
+    }
+
+    .filter-tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        flex-wrap: nowrap;
+        scrollbar-width: none;
+    }
+    .filter-tabs::-webkit-scrollbar { display: none; }
+
+    .filter-tab {
+        padding: 6px 12px;
+        font-size: 11px;
+        flex-shrink: 0;
+    }
+
+    /* Tabela vira cards no mobile */
+    .messages-table,
+    .messages-table thead,
+    .messages-table tbody,
+    .messages-table th,
+    .messages-table td,
+    .messages-table tr {
+        display: block;
+    }
+
+    .messages-table {
+        min-width: 0;
+    }
+
+    .messages-table thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0,0,0,0);
+    }
+
+    .messages-table tbody tr {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 14px;
+        margin-bottom: 10px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px 12px;
+        border-left: 3px solid transparent;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+
+    .messages-table tbody tr[data-status="pendente"]       { border-left-color: #f97316; }
+    .messages-table tbody tr[data-status="aberto"]         { border-left-color: #22c55e; }
+    .messages-table tbody tr[data-status="em_atendimento"] { border-left-color: #3b82f6; }
+    .messages-table tbody tr[data-status="finalizado"]     { border-left-color: #cbd5e1; }
+
+    .messages-table tbody td {
+        padding: 0;
+        border: none;
+        font-size: 13px;
+    }
+
+    .messages-table tbody td::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 10px;
+        font-weight: 600;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        margin-bottom: 2px;
+    }
+
+    /* Protocolo ocupa linha inteira */
+    .messages-table tbody td:nth-child(1) {
+        grid-column: 1 / -1;
+    }
+
+    /* Ações ocupam linha inteira */
+    .messages-table tbody td:last-child {
+        grid-column: 1 / -1;
+        padding-top: 8px;
+        border-top: 1px solid #f1f5f9;
+        margin-top: 4px;
+    }
+
+    .td-solicitante {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+    }
+
+    .chamado-actions {
+        gap: 6px;
+    }
+
+    .ca-btn {
+        flex: 1;
+        justify-content: center;
+        padding: 8px 6px;
+        min-width: 0;
+    }
+
+    .ca-label {
+        font-size: 10px;
+    }
+
+    /* Stats grid 2 colunas no mobile */
+    .stats-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    .stat-card {
+        padding: 12px;
+        gap: 10px;
+    }
+
+    .stat-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+    }
+
+    .stat-icon svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .stat-info h3 {
+        font-size: 20px;
+    }
+
+    .stat-info p {
+        font-size: 11px;
+    }
+
+    .stat-card-meus .stat-info h3 {
+        font-size: 14px;
+    }
+
+    /* Dashboard hero compacto */
+    .dashboard-hero {
+        flex-direction: column;
+        gap: 12px;
+        padding: 14px;
+    }
+
+    .dashboard-hero h1 {
+        font-size: 18px;
+    }
+
+    .hero-text {
+        font-size: 12px;
+    }
+
+    .hero-highlight {
+        min-width: 0;
+    }
+
+    /* Dashboard panels */
+    .dashboard-panels {
+        grid-template-columns: 1fr;
+    }
+
+    /* Card geral */
+    .card {
+        padding: 14px;
+        border-radius: 10px;
+    }
+
+    .card h2 {
+        font-size: 16px;
+    }
+
+    /* Modal mobile */
+    .modal-content {
+        width: 95%;
+        max-height: 90vh;
+        margin: 20px auto;
+    }
+
+    .chat-modal-content {
+        width: 100vw;
+        height: 100vh;
+        border-radius: 0;
+        max-width: 100vw;
+    }
 }
 
 /* Contacts Page Styles */

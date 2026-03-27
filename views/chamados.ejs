@@ -351,16 +351,16 @@
                 const dh = formatarDataHora(chamado.criado_em);
                 return `
                     <tr data-status="${chamado.status}">
-                        <td class="td-protocolo"><strong>${escapeHtml(chamado.protocolo)}</strong><br><small class="td-hora">${dh.hora}</small></td>
-                        <td class="td-solicitante">
+                        <td class="td-protocolo" data-label="Protocolo"><strong>${escapeHtml(chamado.protocolo)}</strong><br><small class="td-hora">${dh.hora}</small></td>
+                        <td class="td-solicitante" data-label="Solicitante">
                             <span class="solicitante-nome">${escapeHtml(chamado.solicitante_nome)}</span>
                             ${whatsAppBtn(chamado)}
                         </td>
-                        <td class="td-setor"><span>${escapeHtml(chamado.setor)}</span><small>${escapeHtml(chamado.categoria)}</small></td>
-                        <td>${montarBadgeStatus(chamado.status)}</td>
-                        <td>${montarAvatarAtendente(chamado.atendente_nome)}</td>
-                        <td class="td-data">${dh.data}</td>
-                        <td>${montarAcoesChamado(chamado)}</td>
+                        <td class="td-setor" data-label="Setor"><span>${escapeHtml(chamado.setor)}</span><small>${escapeHtml(chamado.categoria)}</small></td>
+                        <td data-label="Status">${montarBadgeStatus(chamado.status)}</td>
+                        <td data-label="Atendente">${montarAvatarAtendente(chamado.atendente_nome)}</td>
+                        <td class="td-data" data-label="Data">${dh.data}</td>
+                        <td data-label="">${montarAcoesChamado(chamado)}</td>
                     </tr>`;
             }).join('');
         }
