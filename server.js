@@ -1798,10 +1798,7 @@ app.post('/api/chamados/:id/encerrar', isAuthenticated, async (req, res) => {
             [observacoes || null, chamadoId]
         );
 
-        const mensagemEncerramento = `✅ *CHAMADO ENCERRADO COM SUCESSO*\n\n` +
-            `📌 *Protocolo:* ${chamado[0].protocolo}\n` +
-            `👤 *Atendido por:* ${chamado[0].atendente_nome || 'Equipe TI'}\n\n` +
-            `Seu chamado foi encerrado com sucesso. Obrigado por entrar em contato com a equipe de TI.`;
+        const mensagemEncerramento = `✅ Chamado encerrado.\n📌 Protocolo: ${chamado[0].protocolo}`;
 
         // Enviar mensagem pelo WhatsApp e reabrir o fluxo para o usuário
         if (whatsappClient && whatsappState === 'connected') {

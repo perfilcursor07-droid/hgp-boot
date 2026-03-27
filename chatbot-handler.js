@@ -151,14 +151,13 @@ function attachChatbot(client, options = {}) {
         liberarSessao(sessionId);
 
         const nomeExibicao = options.nomeExibicao || 'Prezado';
-        const protocolo = options.protocolo ? `\n\n📌 *Protocolo encerrado:* ${options.protocolo}` : '';
-        const atendenteNome = options.atendenteNome ? `\n👤 *Atendido por:* ${options.atendenteNome}` : '';
+        const protocolo = options.protocolo ? ` (${options.protocolo})` : '';
 
         await client.sendMessage(
             chatId,
-            `✅ *CHAMADO ENCERRADO COM SUCESSO*${protocolo}${atendenteNome}\n\nSeu chamado foi encerrado com sucesso. Obrigado por entrar em contato com a equipe de TI.\n\nSe precisar abrir um novo chamado, o menu já está disponível abaixo.`
+            `✅ Chamado${protocolo} encerrado com sucesso. Obrigado pelo contato!`
         );
-        await delay(500);
+        await delay(600);
         await client.sendMessage(chatId, `*🛠️ TI - HGP*\nOlá, *${nomeExibicao}*.`);
         await delay(400);
         await client.sendMessage(chatId, menuPrincipal);
