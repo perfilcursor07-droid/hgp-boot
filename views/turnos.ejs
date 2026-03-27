@@ -111,6 +111,41 @@
             color: #166534;
             line-height: 1.5;
         }
+        .turnos-legenda {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            padding: 12px 16px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+        }
+        .turnos-legenda-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #475569;
+        }
+        .turnos-legenda-dot {
+            width: 10px; height: 10px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+        .turno-select {
+            padding: 5px 8px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #334155;
+            background: white;
+            cursor: pointer;
+        }
+        .turno-select:focus {
+            outline: none;
+            border-color: #25D366;
+        }
     </style>
 </head>
 <body>
@@ -134,10 +169,16 @@
                     Se nenhum turno estiver configurado, todos os usuários com telefone serão notificados.
                 </div>
 
+                <div class="turnos-legenda">
+                    <div class="turnos-legenda-item"><span class="turnos-legenda-dot" style="background:#22c55e"></span> Manhã: 07:00 às 11:59</div>
+                    <div class="turnos-legenda-item"><span class="turnos-legenda-dot" style="background:#3b82f6"></span> Tarde: 12:00 às 18:00</div>
+                    <div class="turnos-legenda-item"><span class="turnos-legenda-dot" style="background:#8b5cf6"></span> Noite: 18:01 às 23:00</div>
+                    <div class="turnos-legenda-item"><span class="turnos-legenda-dot" style="background:#ef4444"></span> 23:01 às 06:59 = Fora do expediente</div>
+                </div>
+
                 <div class="turnos-grid">
                     <% usuarios.forEach(user => { %>
                         <% const turnos = turnosPorUsuario[user.id] || []; %>
-                        <% const diasConfigurados = turnos.map(t => t.dia_semana); %>
                         <div class="turno-card" id="card-<%= user.id %>">
                             <div class="turno-card-header">
                                 <div class="turno-avatar"><%= (user.nome_completo || user.username).charAt(0).toUpperCase() %></div>
@@ -153,18 +194,25 @@
                                 <% const dias = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']; %>
                                 <% dias.forEach((dia, idx) => { %>
                                     <% const turnoExistente = turnos.find(t => t.dia_semana === idx); %>
+                                    <% 
+                                        let turnoSelecionado = 'manha';
+                                        if (turnoExistente) {
+                                            const hi = turnoExistente.hora_inicio.slice(0,5);
+                                            if (hi === '12:00') turnoSelecionado = 'tarde';
+                                            else if (hi === '18:01') turnoSelecionado = 'noite';
+                                            else turnoSelecionado = 'manha';
+                                        }
+                                    %>
                                     <div class="turno-dia-row">
                                         <input type="checkbox" class="turno-dia-check"
                                             data-user="<%= user.id %>" data-dia="<%= idx %>"
                                             <%= turnoExistente ? 'checked' : '' %>>
                                         <span class="turno-dia-label"><%= dia %></span>
-                                        <input type="time" class="turno-hora turno-inicio"
-                                            data-user="<%= user.id %>" data-dia="<%= idx %>"
-                                            value="<%= turnoExistente ? turnoExistente.hora_inicio.slice(0,5) : '07:00' %>">
-                                        <span class="turno-hora-sep">às</span>
-                                        <input type="time" class="turno-hora turno-fim"
-                                            data-user="<%= user.id %>" data-dia="<%= idx %>"
-                                            value="<%= turnoExistente ? turnoExistente.hora_fim.slice(0,5) : '19:00' %>">
+                                        <select class="turno-select turno-periodo" data-user="<%= user.id %>" data-dia="<%= idx %>">
+                                            <option value="manha" <%= turnoSelecionado === 'manha' ? 'selected' : '' %>>☀️ Manhã (07:00-11:59)</option>
+                                            <option value="tarde" <%= turnoSelecionado === 'tarde' ? 'selected' : '' %>>🌤️ Tarde (12:00-18:00)</option>
+                                            <option value="noite" <%= turnoSelecionado === 'noite' ? 'selected' : '' %>>🌙 Noite (18:01-23:00)</option>
+                                        </select>
                                     </div>
                                 <% }); %>
                             </div>
@@ -194,6 +242,12 @@
             setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 3000);
         }
 
+        const TURNOS_HORARIOS = {
+            manha: { inicio: '07:00', fim: '11:59' },
+            tarde: { inicio: '12:00', fim: '18:00' },
+            noite: { inicio: '18:01', fim: '23:00' }
+        };
+
         async function salvarTurnos(userId) {
             const card = document.getElementById(`card-${userId}`);
             const btn = card.querySelector('.btn-salvar-turno');
@@ -203,13 +257,13 @@
             const turnos = [];
             for (let dia = 0; dia < 7; dia++) {
                 const check = card.querySelector(`.turno-dia-check[data-dia="${dia}"]`);
-                const inicio = card.querySelector(`.turno-inicio[data-dia="${dia}"]`);
-                const fim = card.querySelector(`.turno-fim[data-dia="${dia}"]`);
+                const periodo = card.querySelector(`.turno-periodo[data-dia="${dia}"]`);
+                const horario = TURNOS_HORARIOS[periodo.value];
 
                 turnos.push({
                     dia_semana: dia,
-                    hora_inicio: inicio.value || '07:00',
-                    hora_fim: fim.value || '19:00',
+                    hora_inicio: horario.inicio,
+                    hora_fim: horario.fim,
                     ativo: check.checked
                 });
             }

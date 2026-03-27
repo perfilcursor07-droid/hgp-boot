@@ -501,9 +501,11 @@ function attachChatbot(client, options = {}) {
             let mensagemAviso = '';
             if (diaSemana === 0 || diaSemana === 6) {
                 mensagemAviso = '🚨 ATENÇÃO: Atendimento em regime de SOBREAVISO para urgências.';
-                if (hora >= 18) {
-                    mensagemAviso = '⏳ INFORMATIVO: Nosso sobreaviso de final de semana encerrou às 18:00.';
+                if (hora >= 23 || hora < 7) {
+                    mensagemAviso = '⏳ INFORMATIVO: Estamos fora do horário de expediente (23:00 às 07:00). Seu chamado será registrado e atendido no próximo turno.';
                 }
+            } else if (hora >= 23 || hora < 7) {
+                mensagemAviso = '⏳ INFORMATIVO: Estamos fora do horário de expediente (23:00 às 07:00). Seu chamado será registrado e atendido no próximo turno.';
             } else if (tempoEmMinutos >= 720 && tempoEmMinutos < 840) {
                 mensagemAviso = '🍽️ PAUSA PARA ALMOÇO: Estamos em intervalo (12:00 às 14:00).';
             }
@@ -700,14 +702,17 @@ function attachChatbot(client, options = {}) {
                     const hora = agoraHorario.hour();
                     let dentroDoHorario = true;
 
-                    // Verificar se está fora do horário de sobreaviso
+                    // Fora do expediente: 23:00 às 06:59
+                    if (hora >= 23 || hora < 7) {
+                        dentroDoHorario = false;
+                    }
+
+                    // Final de semana: sobreaviso, mas fora do expediente após 23:00
                     if (diaSemana === 0 || diaSemana === 6) {
-                        // Final de semana: sobreaviso até 18:00
-                        if (hora >= 18) {
+                        if (hora >= 23 || hora < 7) {
                             dentroDoHorario = false;
                         }
                     }
-                    // Dias úteis: horário normal (não precisa verificar, sempre envia)
 
                     if (dentroDoHorario) {
                         tecnicoResponsavel = await buscarTecnicoEscala();
