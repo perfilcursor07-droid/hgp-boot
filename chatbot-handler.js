@@ -302,6 +302,7 @@ function attachChatbot(client, options = {}) {
                 FROM admins a
                 INNER JOIN user_turnos t ON t.admin_id = a.id
                 WHERE a.ativo = TRUE
+                  AND a.nivel_acesso = 'gestor'
                   AND a.telefone IS NOT NULL AND a.telefone <> ''
                   AND t.ativo = TRUE
                   AND t.dia_semana = ?
@@ -312,10 +313,10 @@ function attachChatbot(client, options = {}) {
             if (usuarios.length === 0) {
                 const [totalTurnos] = await db.query('SELECT COUNT(*) as total FROM user_turnos WHERE ativo = TRUE');
                 if (totalTurnos[0].total === 0) {
-                    // Nenhum turno configurado, enviar para todos com telefone (comportamento antigo)
+                    // Nenhum turno configurado, enviar para todos gestores com telefone
                     const [todosUsuarios] = await db.query(`
                         SELECT id, nome_completo, telefone FROM admins
-                        WHERE ativo = TRUE AND telefone IS NOT NULL AND telefone <> ''
+                        WHERE ativo = TRUE AND nivel_acesso = 'gestor' AND telefone IS NOT NULL AND telefone <> ''
                     `);
                     if (todosUsuarios.length === 0) return;
                     await _dispararNotificacoes(todosUsuarios, dadosChamado);

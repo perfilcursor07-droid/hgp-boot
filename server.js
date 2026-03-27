@@ -1658,7 +1658,7 @@ app.get('/turnos', isAuthenticated, isAdmin, async (req, res) => {
         const [usuarios] = await db.query(`
             SELECT id, username, nome_completo, telefone, nivel_acesso, ativo
             FROM admins
-            WHERE ativo = TRUE AND telefone IS NOT NULL AND telefone <> ''
+            WHERE ativo = TRUE AND telefone IS NOT NULL AND telefone <> '' AND nivel_acesso = 'gestor'
             ORDER BY nome_completo
         `);
 
