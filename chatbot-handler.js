@@ -237,8 +237,50 @@ function attachChatbot(client, options = {}) {
                     dadosChamado.atribuidoEm
                 ]
             );
+
+            // Disparar notificação para todos os usuários ativos
+            await notificarUsuariosNovoChamado(dadosChamado);
         } catch (erro) {
             registrarErro(erro, `Falha ao salvar chamado ${dadosChamado.protocolo}`);
+        }
+    }
+
+    async function notificarUsuariosNovoChamado(dadosChamado) {
+        try {
+            // Verificar se a funcionalidade está ativa
+            const [configRows] = await db.query(
+                "SELECT setting_value FROM system_settings WHERE setting_key = 'notificar_usuarios_novo_chamado'"
+            );
+            const ativo = configRows.length > 0 && configRows[0].setting_value === 'true';
+            if (!ativo) return;
+
+            // Buscar todos os usuários ativos com telefone
+            const [usuarios] = await db.query(`
+                SELECT id, nome_completo, telefone FROM admins
+                WHERE ativo = TRUE AND telefone IS NOT NULL AND telefone <> ''
+            `);
+
+            if (usuarios.length === 0) return;
+
+            const mensagem = `🚨 *NOVO CHAMADO*\n\n` +
+                `📌 *Protocolo:* ${dadosChamado.protocolo}\n` +
+                `👤 *Solicitante:* ${dadosChamado.solicitanteNome}\n` +
+                `🏢 *Setor:* ${dadosChamado.setor}\n` +
+                `📂 *Categoria:* ${dadosChamado.categoria}\n\n` +
+                `🔗 Acesse: https://hgpto.shop/chamados`;
+
+            for (const usuario of usuarios) {
+                try {
+                    await enviarMensagemDireta(usuario.telefone, mensagem);
+                    await delay(300);
+                } catch (erro) {
+                    console.error(`Erro ao notificar ${usuario.nome_completo}:`, erro.message);
+                }
+            }
+
+            console.log(`📢 Notificação de novo chamado ${dadosChamado.protocolo} enviada para ${usuarios.length} usuário(s)`);
+        } catch (erro) {
+            registrarErro(erro, `Erro ao notificar usuários sobre chamado ${dadosChamado.protocolo}`);
         }
     }
 

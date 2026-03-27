@@ -951,19 +951,50 @@ app.get('/api/relatorios/chamados', isAuthenticated, isAdmin, async (req, res) =
 app.get('/settings', isAuthenticated, isAdmin, async (req, res) => {
     try {
         const chatbotCode = await readChatbotFile();
+        const [settings] = await db.query('SELECT setting_key, setting_value FROM system_settings');
+        const settingsMap = {};
+        settings.forEach(s => { settingsMap[s.setting_key] = s.setting_value; });
 
         res.render('settings', {
             username: req.session.username,
             chatbotCode,
-            chatbotFileName: 'chatbot.js'
+            chatbotFileName: 'chatbot.js',
+            systemSettings: settingsMap
         });
     } catch (error) {
         console.error('Erro ao carregar configurações:', error);
         res.status(500).render('settings', {
             username: req.session.username,
             chatbotCode: '',
-            chatbotFileName: 'chatbot.js'
+            chatbotFileName: 'chatbot.js',
+            systemSettings: {}
         });
+    }
+});
+
+app.get('/api/settings/system', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const [settings] = await db.query('SELECT setting_key, setting_value FROM system_settings');
+        const settingsMap = {};
+        settings.forEach(s => { settingsMap[s.setting_key] = s.setting_value; });
+        res.json({ success: true, settings: settingsMap });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Erro ao carregar configurações' });
+    }
+});
+
+app.post('/api/settings/system', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const { key, value } = req.body;
+        if (!key) return res.status(400).json({ success: false, message: 'Chave obrigatória' });
+
+        await db.query(
+            'INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?',
+            [key, String(value), String(value)]
+        );
+        res.json({ success: true, message: 'Configuração salva' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Erro ao salvar configuração' });
     }
 });
 

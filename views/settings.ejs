@@ -43,6 +43,30 @@
                     <div class="card settings-card">
                         <div class="settings-toolbar">
                             <div>
+                                <h2>Notificações</h2>
+                                <p class="settings-helper">Controle os disparos automáticos do sistema via WhatsApp.</p>
+                            </div>
+                        </div>
+
+                        <div class="settings-toggle-list">
+                            <div class="settings-toggle-item">
+                                <div class="settings-toggle-info">
+                                    <strong>Notificar usuários sobre novos chamados</strong>
+                                    <p>Quando um novo chamado é aberto pelo WhatsApp, envia uma mensagem para todos os usuários ativos com telefone cadastrado.</p>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="toggleNotificarChamados"
+                                        <%= (systemSettings.notificar_usuarios_novo_chamado === 'true') ? 'checked' : '' %>
+                                        onchange="salvarToggle('notificar_usuarios_novo_chamado', this.checked)">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card settings-card">
+                        <div class="settings-toolbar">
+                            <div>
                                 <h2>Editor do Bot</h2>
                                 <p class="settings-helper">Use este card para ajustar a lógica do atendimento. Se houver erro de sintaxe, o arquivo não será salvo.</p>
                             </div>
@@ -171,6 +195,20 @@
 
         reloadChatbotBtn.addEventListener('click', () => reloadFile('/api/settings/chatbot-file', reloadChatbotBtn, chatbotCode, chatbotStatusMessage));
         saveChatbotBtn.addEventListener('click', () => saveFile('/api/settings/chatbot-file', saveChatbotBtn, chatbotCode, chatbotStatusMessage, 'Salvar no projeto'));
+
+        async function salvarToggle(key, value) {
+            try {
+                const response = await fetch('/api/settings/system', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key, value: value ? 'true' : 'false' })
+                });
+                const data = await response.json();
+                if (!data.success) throw new Error(data.message);
+            } catch (error) {
+                alert('Erro ao salvar: ' + error.message);
+            }
+        }
     </script>
 </body>
 </html>
