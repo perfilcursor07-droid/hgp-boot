@@ -2,16 +2,49 @@
     const isSidebarAdmin = typeof isAdmin === 'boolean' ? isAdmin : true;
     const sidebarRole = typeof role !== 'undefined' ? role : 'Administrador';
     const userInitial = typeof username === 'string' && username.length ? username.charAt(0).toUpperCase() : 'U';
-    const menuItems = [
-        { key: 'dashboard', href: '/dashboard', label: 'Dashboard', icon: '📊', visible: isSidebarAdmin },
-        { key: 'chamados', href: '/chamados', label: 'Chamados', icon: '🧾', visible: true },
-        { key: 'messages', href: '/messages', label: 'Mensagens', icon: '💬', visible: isSidebarAdmin },
-        { key: 'contacts', href: '/contacts', label: 'Contatos', icon: '👥', visible: isSidebarAdmin },
-        { key: 'usuarios', href: '/usuarios', label: 'Usuários', icon: '👤', visible: isSidebarAdmin },
-        { key: 'escala', href: '/escala', label: 'Escala', icon: '📅', visible: isSidebarAdmin },
-        { key: 'fluxo', href: '/fluxo', label: 'Fluxo', icon: '🧭', visible: isSidebarAdmin },
-        { key: 'relatorios', href: '/relatorios', label: 'Relatórios', icon: '📈', visible: isSidebarAdmin },
-        { key: 'settings', href: '/settings', label: 'Configurações', icon: '⚙️', visible: isSidebarAdmin }
+
+    const svgIcons = {
+        dashboard: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
+        chamados: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>',
+        messages: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+        contacts: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+        usuarios: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+        escala: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/></svg>',
+        fluxo: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="12"/><path d="M8 16l4-4 4 4"/><circle cx="8" cy="19" r="2"/><circle cx="16" cy="19" r="2"/><line x1="8" y1="17" x2="8" y2="16"/><line x1="16" y1="17" x2="16" y2="16"/></svg>',
+        relatorios: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>',
+        settings: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'
+    };
+
+    const menuSections = [
+        {
+            label: 'Principal',
+            items: [
+                { key: 'dashboard', href: '/dashboard', label: 'Dashboard', visible: isSidebarAdmin },
+                { key: 'chamados', href: '/chamados', label: 'Chamados', visible: true }
+            ]
+        },
+        {
+            label: 'Comunicação',
+            items: [
+                { key: 'messages', href: '/messages', label: 'Mensagens', visible: isSidebarAdmin },
+                { key: 'contacts', href: '/contacts', label: 'Contatos', visible: isSidebarAdmin }
+            ]
+        },
+        {
+            label: 'Gestão',
+            items: [
+                { key: 'usuarios', href: '/usuarios', label: 'Usuários', visible: isSidebarAdmin },
+                { key: 'escala', href: '/escala', label: 'Escala', visible: isSidebarAdmin },
+                { key: 'fluxo', href: '/fluxo', label: 'Fluxo Bot', visible: isSidebarAdmin },
+                { key: 'relatorios', href: '/relatorios', label: 'Relatórios', visible: isSidebarAdmin }
+            ]
+        },
+        {
+            label: 'Sistema',
+            items: [
+                { key: 'settings', href: '/settings', label: 'Configurações', visible: isSidebarAdmin }
+            ]
+        }
     ];
 %>
 
@@ -19,7 +52,9 @@
     <div class="sidebar-shell">
         <div class="sidebar-header">
             <div class="sidebar-brand">
-                <div class="sidebar-brand-mark">WA</div>
+                <div class="sidebar-brand-mark">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                </div>
                 <div class="sidebar-brand-copy">
                     <span class="sidebar-kicker">Node Control</span>
                     <h1>WhatsApp HGP</h1>
@@ -28,19 +63,25 @@
         </div>
 
         <nav class="sidebar-menu">
-            <% menuItems.forEach((item) => { %>
-                <% if (item.visible) { %>
-                    <a href="<%= item.href %>" class="menu-item <%= activePage === item.key ? 'active' : '' %>">
-                        <span class="menu-item-icon"><%= item.icon %></span>
-                        <span class="menu-item-content">
-                            <span class="menu-item-title"><%= item.label %></span>
-                        </span>
-                        <% if (item.key === 'chamados') { %>
-                            <span class="menu-live-badge" id="pendingChamadosBadge" style="display: <%= pendingChamadosCount > 0 ? 'inline-flex' : 'none' %>;"><%= pendingChamadosCount > 99 ? '99+' : pendingChamadosCount %></span>
-                        <% } %>
-                    </a>
+            <% menuSections.forEach((section) => { %>
+                <% const visibleItems = section.items.filter(i => i.visible); %>
+                <% if (visibleItems.length > 0) { %>
+                    <div class="menu-section">
+                        <span class="menu-section-label"><%= section.label %></span>
+                        <% visibleItems.forEach((item) => { %>
+                            <a href="<%= item.href %>" class="menu-item <%= activePage === item.key ? 'active' : '' %>">
+                                <span class="menu-item-icon"><%- svgIcons[item.key] || '' %></span>
+                                <span class="menu-item-content">
+                                    <span class="menu-item-title"><%= item.label %></span>
+                                </span>
+                                <% if (item.key === 'chamados') { %>
+                                    <span class="menu-live-badge" id="pendingChamadosBadge" style="display: <%= pendingChamadosCount > 0 ? 'inline-flex' : 'none' %>;"><%= pendingChamadosCount > 99 ? '99+' : pendingChamadosCount %></span>
+                                <% } %>
+                            </a>
+                        <% }); %>
+                    </div>
                 <% } %>
-            <% }) %>
+            <% }); %>
         </nav>
 
         <div class="sidebar-footer">
@@ -50,11 +91,15 @@
                     <div class="user-name"><%= username %></div>
                     <div class="user-role"><%= sidebarRole %></div>
                 </div>
+                <a href="/logout" class="sidebar-logout-icon" title="Sair">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                </a>
             </div>
-
-            <a href="/logout" class="btn-logout">
-                <span>🚪 Encerrar sessão</span>
-            </a>
+            <div class="sidebar-version">
+                <span>v1.0</span>
+                <span>·</span>
+                <span>Erick Vinicius</span>
+            </div>
         </div>
     </div>
 </aside>
@@ -91,32 +136,22 @@
 
         async function iniciarBadgeChamados() {
             const pendingBadge = document.getElementById('pendingChamadosBadge');
-            if (!pendingBadge) {
-                return;
-            }
+            if (!pendingBadge) return;
 
             async function atualizarBadgeChamados() {
                 try {
                     const response = await fetch(`/api/chamados/pending-count?t=${Date.now()}`, { cache: 'no-store' });
-                    if (!response.ok) {
-                        return;
-                    }
-
+                    if (!response.ok) return;
                     const result = await response.json();
-                    if (!result.success) {
-                        return;
-                    }
-
-                    const totalPendentes = Number(result.total || 0);
-                    if (totalPendentes > 0) {
-                        pendingBadge.textContent = totalPendentes > 99 ? '99+' : String(totalPendentes);
+                    if (!result.success) return;
+                    const total = Number(result.total || 0);
+                    if (total > 0) {
+                        pendingBadge.textContent = total > 99 ? '99+' : String(total);
                         pendingBadge.style.display = 'inline-flex';
                     } else {
                         pendingBadge.style.display = 'none';
                     }
-                } catch (error) {
-                    console.error('Erro ao atualizar badge de chamados:', error);
-                }
+                } catch (e) {}
             }
 
             await atualizarBadgeChamados();
