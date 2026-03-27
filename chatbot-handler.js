@@ -292,34 +292,64 @@ function attachChatbot(client, options = {}) {
             const ativo = configRows.length > 0 && configRows[0].setting_value === 'true';
             if (!ativo) return;
 
-            // Buscar todos os usuários ativos com telefone
+            const agora = dayjs();
+            const diaSemana = agora.day(); // 0=Dom, 1=Seg...6=Sab
+            const horaAtual = agora.format('HH:mm:ss');
+
+            // Buscar usuários que estão em turno agora
             const [usuarios] = await db.query(`
-                SELECT id, nome_completo, telefone FROM admins
-                WHERE ativo = TRUE AND telefone IS NOT NULL AND telefone <> ''
-            `);
+                SELECT DISTINCT a.id, a.nome_completo, a.telefone
+                FROM admins a
+                INNER JOIN user_turnos t ON t.admin_id = a.id
+                WHERE a.ativo = TRUE
+                  AND a.telefone IS NOT NULL AND a.telefone <> ''
+                  AND t.ativo = TRUE
+                  AND t.dia_semana = ?
+                  AND ? BETWEEN t.hora_inicio AND t.hora_fim
+            `, [diaSemana, horaAtual]);
 
-            if (usuarios.length === 0) return;
-
-            const mensagem = `🚨 *NOVO CHAMADO*\n\n` +
-                `📌 *Protocolo:* ${dadosChamado.protocolo}\n` +
-                `👤 *Solicitante:* ${dadosChamado.solicitanteNome}\n` +
-                `🏢 *Setor:* ${dadosChamado.setor}\n` +
-                `📂 *Categoria:* ${dadosChamado.categoria}\n\n` +
-                `🔗 Acesse: https://hgpto.shop/chamados`;
-
-            for (const usuario of usuarios) {
-                try {
-                    await enviarMensagemDireta(usuario.telefone, mensagem);
-                    await delay(300);
-                } catch (erro) {
-                    console.error(`Erro ao notificar ${usuario.nome_completo}:`, erro.message);
+            // Se ninguém tem turno configurado, verificar se existem turnos no sistema
+            if (usuarios.length === 0) {
+                const [totalTurnos] = await db.query('SELECT COUNT(*) as total FROM user_turnos WHERE ativo = TRUE');
+                if (totalTurnos[0].total === 0) {
+                    // Nenhum turno configurado, enviar para todos com telefone (comportamento antigo)
+                    const [todosUsuarios] = await db.query(`
+                        SELECT id, nome_completo, telefone FROM admins
+                        WHERE ativo = TRUE AND telefone IS NOT NULL AND telefone <> ''
+                    `);
+                    if (todosUsuarios.length === 0) return;
+                    await _dispararNotificacoes(todosUsuarios, dadosChamado);
+                    return;
                 }
+                // Turnos existem mas ninguém está trabalhando agora
+                console.log(`📢 Nenhum usuário em turno agora (dia ${diaSemana}, ${horaAtual}) - notificação não enviada`);
+                return;
             }
 
-            console.log(`📢 Notificação de novo chamado ${dadosChamado.protocolo} enviada para ${usuarios.length} usuário(s)`);
+            await _dispararNotificacoes(usuarios, dadosChamado);
         } catch (erro) {
             registrarErro(erro, `Erro ao notificar usuários sobre chamado ${dadosChamado.protocolo}`);
         }
+    }
+
+    async function _dispararNotificacoes(usuarios, dadosChamado) {
+        const mensagem = `🚨 *NOVO CHAMADO*\n\n` +
+            `📌 *Protocolo:* ${dadosChamado.protocolo}\n` +
+            `👤 *Solicitante:* ${dadosChamado.solicitanteNome}\n` +
+            `🏢 *Setor:* ${dadosChamado.setor}\n` +
+            `📂 *Categoria:* ${dadosChamado.categoria}\n\n` +
+            `🔗 Acesse: https://hgpto.shop/chamados`;
+
+        for (const usuario of usuarios) {
+            try {
+                await enviarMensagemDireta(usuario.telefone, mensagem);
+                await delay(300);
+            } catch (erro) {
+                console.error(`Erro ao notificar ${usuario.nome_completo}:`, erro.message);
+            }
+        }
+
+        console.log(`📢 Notificação do chamado ${dadosChamado.protocolo} enviada para ${usuarios.length} usuário(s)`);
     }
 
     async function buscarChamadoAtivo(sessionId) {

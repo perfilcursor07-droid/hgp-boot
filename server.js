@@ -1611,6 +1611,83 @@ app.patch('/api/usuarios/:id/toggle', isAuthenticated, isAdmin, async (req, res)
     }
 });
 
+// API - Turnos de trabalho
+app.get('/api/usuarios/:id/turnos', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const [turnos] = await db.query(
+            'SELECT * FROM user_turnos WHERE admin_id = ? ORDER BY dia_semana',
+            [req.params.id]
+        );
+        res.json({ success: true, turnos });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Erro ao buscar turnos' });
+    }
+});
+
+app.post('/api/usuarios/:id/turnos', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const adminId = req.params.id;
+        const { turnos } = req.body; // array de { dia_semana, hora_inicio, hora_fim, ativo }
+
+        if (!Array.isArray(turnos)) {
+            return res.status(400).json({ success: false, message: 'Formato inválido' });
+        }
+
+        // Remover turnos antigos e inserir novos
+        await db.query('DELETE FROM user_turnos WHERE admin_id = ?', [adminId]);
+
+        for (const turno of turnos) {
+            if (turno.ativo) {
+                await db.query(
+                    'INSERT INTO user_turnos (admin_id, dia_semana, hora_inicio, hora_fim, ativo) VALUES (?, ?, ?, ?, TRUE)',
+                    [adminId, turno.dia_semana, turno.hora_inicio || '07:00', turno.hora_fim || '19:00']
+                );
+            }
+        }
+
+        res.json({ success: true, message: 'Turnos salvos com sucesso' });
+    } catch (error) {
+        console.error('Erro ao salvar turnos:', error);
+        res.status(500).json({ success: false, message: 'Erro ao salvar turnos' });
+    }
+});
+
+// Página de turnos
+app.get('/turnos', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const [usuarios] = await db.query(`
+            SELECT id, username, nome_completo, telefone, nivel_acesso, ativo
+            FROM admins
+            WHERE ativo = TRUE AND telefone IS NOT NULL AND telefone <> ''
+            ORDER BY nome_completo
+        `);
+
+        const [todosTurnos] = await db.query(`
+            SELECT t.*, COALESCE(NULLIF(a.nome_completo,''), a.username) as nome_usuario
+            FROM user_turnos t
+            JOIN admins a ON a.id = t.admin_id
+            WHERE t.ativo = TRUE
+            ORDER BY t.admin_id, t.dia_semana
+        `);
+
+        // Agrupar turnos por usuário
+        const turnosPorUsuario = {};
+        todosTurnos.forEach(t => {
+            if (!turnosPorUsuario[t.admin_id]) turnosPorUsuario[t.admin_id] = [];
+            turnosPorUsuario[t.admin_id].push(t);
+        });
+
+        res.render('turnos', {
+            username: req.session.username,
+            usuarios,
+            turnosPorUsuario
+        });
+    } catch (error) {
+        console.error('Erro ao carregar turnos:', error);
+        res.render('turnos', { username: req.session.username, usuarios: [], turnosPorUsuario: {} });
+    }
+});
+
 // API - Excluir usuário
 app.delete('/api/usuarios/:id', isAuthenticated, isAdmin, async (req, res) => {
     try {

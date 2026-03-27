@@ -503,6 +503,20 @@ async function ensureSchema(connection) {
         VALUES ('notificar_usuarios_novo_chamado', 'true')
     `);
 
+    await connection.query(`
+        CREATE TABLE IF NOT EXISTS user_turnos (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            admin_id INT NOT NULL,
+            dia_semana TINYINT NOT NULL COMMENT '0=Dom, 1=Seg, 2=Ter, 3=Qua, 4=Qui, 5=Sex, 6=Sab',
+            hora_inicio TIME NOT NULL DEFAULT '07:00:00',
+            hora_fim TIME NOT NULL DEFAULT '19:00:00',
+            ativo BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_admin_dia (admin_id, dia_semana),
+            FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+    `);
+
     return changes;
 }
 

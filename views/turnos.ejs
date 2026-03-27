@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Turnos - WhatsApp HGP</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .turnos-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 16px;
+        }
+        .turno-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .turno-card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .turno-avatar {
+            width: 38px; height: 38px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #25D366, #128C7E);
+            color: white;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 15px; flex-shrink: 0;
+        }
+        .turno-user-info h3 { font-size: 14px; color: #1e293b; margin-bottom: 2px; }
+        .turno-user-info p { font-size: 11px; color: #94a3b8; }
+        .turno-dias {
+            padding: 14px 16px;
+        }
+        .turno-dia-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .turno-dia-row:last-child { border-bottom: none; }
+        .turno-dia-check {
+            width: 18px; height: 18px;
+            accent-color: #25D366;
+            cursor: pointer;
+        }
+        .turno-dia-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #334155;
+            min-width: 40px;
+        }
+        .turno-hora {
+            padding: 5px 8px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #334155;
+            width: 80px;
+            text-align: center;
+        }
+        .turno-hora:focus {
+            outline: none;
+            border-color: #25D366;
+        }
+        .turno-hora-sep {
+            font-size: 12px;
+            color: #94a3b8;
+        }
+        .turno-card-footer {
+            padding: 12px 16px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: flex-end;
+        }
+        .btn-salvar-turno {
+            padding: 8px 20px;
+            background: #25D366;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-salvar-turno:hover { background: #128C7E; }
+        .btn-salvar-turno:disabled { background: #cbd5e1; }
+        .turno-status {
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            margin-left: auto;
+        }
+        .turno-status.configurado { background: #dcfce7; color: #16a34a; }
+        .turno-status.pendente { background: #fef3c7; color: #b45309; }
+        .turno-info-box {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 10px;
+            padding: 14px 18px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #166534;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <%- include('partials/sidebar', { activePage: 'turnos', username, role: 'Administrador', isAdmin: true }) %>
+
+        <main class="main-content">
+            <div class="topbar">
+                <div class="topbar-title-group">
+                    <button class="menu-toggle" onclick="document.body.classList.toggle('sidebar-open')">
+                        <span></span><span></span><span></span>
+                    </button>
+                    <h2>🕐 Turnos de Trabalho</h2>
+                </div>
+            </div>
+
+            <div class="content">
+                <div class="turno-info-box">
+                    Configure os dias e horários de trabalho de cada usuário. Quando um novo chamado é aberto, 
+                    apenas os usuários que estão em turno naquele momento recebem a notificação pelo WhatsApp.
+                    Se nenhum turno estiver configurado, todos os usuários com telefone serão notificados.
+                </div>
+
+                <div class="turnos-grid">
+                    <% usuarios.forEach(user => { %>
+                        <% const turnos = turnosPorUsuario[user.id] || []; %>
+                        <% const diasConfigurados = turnos.map(t => t.dia_semana); %>
+                        <div class="turno-card" id="card-<%= user.id %>">
+                            <div class="turno-card-header">
+                                <div class="turno-avatar"><%= (user.nome_completo || user.username).charAt(0).toUpperCase() %></div>
+                                <div class="turno-user-info">
+                                    <h3><%= user.nome_completo || user.username %></h3>
+                                    <p><%= user.telefone %> · <%= user.nivel_acesso %></p>
+                                </div>
+                                <span class="turno-status <%= turnos.length > 0 ? 'configurado' : 'pendente' %>">
+                                    <%= turnos.length > 0 ? turnos.length + ' dia(s)' : 'Sem turno' %>
+                                </span>
+                            </div>
+                            <div class="turno-dias">
+                                <% const dias = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']; %>
+                                <% dias.forEach((dia, idx) => { %>
+                                    <% const turnoExistente = turnos.find(t => t.dia_semana === idx); %>
+                                    <div class="turno-dia-row">
+                                        <input type="checkbox" class="turno-dia-check"
+                                            data-user="<%= user.id %>" data-dia="<%= idx %>"
+                                            <%= turnoExistente ? 'checked' : '' %>>
+                                        <span class="turno-dia-label"><%= dia %></span>
+                                        <input type="time" class="turno-hora turno-inicio"
+                                            data-user="<%= user.id %>" data-dia="<%= idx %>"
+                                            value="<%= turnoExistente ? turnoExistente.hora_inicio.slice(0,5) : '07:00' %>">
+                                        <span class="turno-hora-sep">às</span>
+                                        <input type="time" class="turno-hora turno-fim"
+                                            data-user="<%= user.id %>" data-dia="<%= idx %>"
+                                            value="<%= turnoExistente ? turnoExistente.hora_fim.slice(0,5) : '19:00' %>">
+                                    </div>
+                                <% }); %>
+                            </div>
+                            <div class="turno-card-footer">
+                                <button class="btn-salvar-turno" onclick="salvarTurnos(<%= user.id %>)">Salvar</button>
+                            </div>
+                        </div>
+                    <% }); %>
+                </div>
+
+                <% if (usuarios.length === 0) { %>
+                    <div style="text-align:center; padding:60px; color:#94a3b8;">
+                        <p style="font-size:40px; margin-bottom:10px;">👥</p>
+                        <p>Nenhum usuário ativo com telefone cadastrado</p>
+                    </div>
+                <% } %>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function mostrarToast(msg, tipo) {
+            const t = document.createElement('div');
+            t.textContent = msg;
+            t.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:9999;padding:12px 20px;border-radius:8px;font-size:14px;font-weight:500;color:white;box-shadow:0 4px 12px rgba(0,0,0,0.2);background:${tipo==='success'?'#10b981':'#ef4444'};transition:opacity 0.3s;`;
+            document.body.appendChild(t);
+            setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 3000);
+        }
+
+        async function salvarTurnos(userId) {
+            const card = document.getElementById(`card-${userId}`);
+            const btn = card.querySelector('.btn-salvar-turno');
+            btn.disabled = true;
+            btn.textContent = 'Salvando...';
+
+            const turnos = [];
+            for (let dia = 0; dia < 7; dia++) {
+                const check = card.querySelector(`.turno-dia-check[data-dia="${dia}"]`);
+                const inicio = card.querySelector(`.turno-inicio[data-dia="${dia}"]`);
+                const fim = card.querySelector(`.turno-fim[data-dia="${dia}"]`);
+
+                turnos.push({
+                    dia_semana: dia,
+                    hora_inicio: inicio.value || '07:00',
+                    hora_fim: fim.value || '19:00',
+                    ativo: check.checked
+                });
+            }
+
+            try {
+                const res = await fetch(`/api/usuarios/${userId}/turnos`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ turnos })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    mostrarToast('Turnos salvos com sucesso', 'success');
+                    const diasAtivos = turnos.filter(t => t.ativo).length;
+                    const badge = card.querySelector('.turno-status');
+                    badge.className = `turno-status ${diasAtivos > 0 ? 'configurado' : 'pendente'}`;
+                    badge.textContent = diasAtivos > 0 ? `${diasAtivos} dia(s)` : 'Sem turno';
+                } else {
+                    mostrarToast(data.message || 'Erro ao salvar', 'error');
+                }
+            } catch (e) {
+                mostrarToast('Erro ao salvar turnos', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Salvar';
+            }
+        }
+    </script>
+</body>
+</html>
