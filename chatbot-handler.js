@@ -191,16 +191,6 @@ function attachChatbot(client, options = {}) {
                 chatId,
                 `✅ Chamado${protocolo} encerrado com sucesso. Obrigado pelo contato!`
             );
-            await delay(600);
-            await client.sendMessage(chatId, `*🛠️ TI - HGP*\nOlá, *${nomeExibicao}*.`);
-            await delay(400);
-            await client.sendMessage(chatId, menuPrincipal);
-
-            estados.set(sessionId, {
-                step: 0.5,
-                nomeWhats: nomeExibicao,
-                isTeste: false
-            });
 
             return true;
         } catch (erro) {
