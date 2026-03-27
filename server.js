@@ -785,6 +785,7 @@ app.post('/api/contacts/sync', isAuthenticated, async (req, res) => {
             }
 
             // Inserir ou atualizar contato
+            const cleanNumber = msg.phone_number.replace(/@.*$/, '');
             await db.query(`
                 INSERT INTO contacts (phone_number, contact_name, first_message_at, last_message_at, message_count)
                 VALUES (?, ?, ?, ?, ?)
@@ -793,7 +794,7 @@ app.post('/api/contacts/sync', isAuthenticated, async (req, res) => {
                     first_message_at = LEAST(first_message_at, VALUES(first_message_at)),
                     last_message_at = GREATEST(last_message_at, VALUES(last_message_at)),
                     message_count = VALUES(message_count)
-            `, [msg.phone_number, contactName, msg.first_message, msg.last_message, msg.msg_count]);
+            `, [cleanNumber, contactName, msg.first_message, msg.last_message, msg.msg_count]);
 
             synced++;
         }
@@ -858,6 +859,92 @@ app.get('/fluxo', isAuthenticated, isAdmin, async (req, res) => {
             selectedFlowData: null,
             stats: { totalFlows: 0, ativos: 0, padroes: 0, etapas: 0 }
         });
+    }
+});
+
+app.get('/relatorios', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        res.render('relatorios', { username: req.session.username });
+    } catch (error) {
+        console.error('Erro ao carregar relatórios:', error);
+        res.render('relatorios', { username: req.session.username });
+    }
+});
+
+app.get('/api/relatorios/chamados', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const { dataInicio, dataFim } = req.query;
+
+        if (!dataInicio || !dataFim) {
+            return res.status(400).json({ success: false, message: 'Informe dataInicio e dataFim' });
+        }
+
+        // Total por período
+        const [totalPeriodo] = await db.query(`
+            SELECT COUNT(*) as total,
+                   SUM(CASE WHEN status = 'aberto' THEN 1 ELSE 0 END) as abertos,
+                   SUM(CASE WHEN status = 'pendente' THEN 1 ELSE 0 END) as pendentes,
+                   SUM(CASE WHEN status = 'em_atendimento' THEN 1 ELSE 0 END) as em_atendimento,
+                   SUM(CASE WHEN status = 'finalizado' THEN 1 ELSE 0 END) as finalizados
+            FROM chamados
+            WHERE DATE(criado_em) BETWEEN ? AND ?
+        `, [dataInicio, dataFim]);
+
+        // Por setor
+        const [porSetor] = await db.query(`
+            SELECT setor, COUNT(*) as total,
+                   SUM(CASE WHEN status = 'finalizado' THEN 1 ELSE 0 END) as finalizados,
+                   SUM(CASE WHEN status != 'finalizado' THEN 1 ELSE 0 END) as abertos
+            FROM chamados
+            WHERE DATE(criado_em) BETWEEN ? AND ?
+            GROUP BY setor
+            ORDER BY total DESC
+        `, [dataInicio, dataFim]);
+
+        // Por categoria
+        const [porCategoria] = await db.query(`
+            SELECT categoria, COUNT(*) as total,
+                   SUM(CASE WHEN status = 'finalizado' THEN 1 ELSE 0 END) as finalizados,
+                   SUM(CASE WHEN status != 'finalizado' THEN 1 ELSE 0 END) as abertos
+            FROM chamados
+            WHERE DATE(criado_em) BETWEEN ? AND ?
+            GROUP BY categoria
+            ORDER BY total DESC
+        `, [dataInicio, dataFim]);
+
+        // Por atendente
+        const [porAtendente] = await db.query(`
+            SELECT COALESCE(atendente_nome, tecnico_nome, 'Sem atendente') as atendente,
+                   COUNT(*) as total,
+                   SUM(CASE WHEN status = 'finalizado' THEN 1 ELSE 0 END) as finalizados,
+                   SUM(CASE WHEN status = 'em_atendimento' THEN 1 ELSE 0 END) as em_atendimento,
+                   SUM(CASE WHEN status NOT IN ('finalizado','em_atendimento') THEN 1 ELSE 0 END) as pendentes
+            FROM chamados
+            WHERE DATE(criado_em) BETWEEN ? AND ?
+            GROUP BY atendente
+            ORDER BY total DESC
+        `, [dataInicio, dataFim]);
+
+        // Por dia (para gráfico)
+        const [porDia] = await db.query(`
+            SELECT DATE_FORMAT(criado_em, '%Y-%m-%d') as dia, COUNT(*) as total
+            FROM chamados
+            WHERE DATE(criado_em) BETWEEN ? AND ?
+            GROUP BY dia
+            ORDER BY dia ASC
+        `, [dataInicio, dataFim]);
+
+        res.json({
+            success: true,
+            resumo: totalPeriodo[0],
+            porSetor,
+            porCategoria,
+            porAtendente,
+            porDia
+        });
+    } catch (error) {
+        console.error('Erro ao gerar relatório:', error);
+        res.status(500).json({ success: false, message: 'Erro ao gerar relatório' });
     }
 });
 

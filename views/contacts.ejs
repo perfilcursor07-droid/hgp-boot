@@ -79,7 +79,7 @@
                                 <% } else { %>
                                     <% contacts.forEach(contact => { %>
                                         <tr>
-                                            <td><%= contact.phone_number %></td>
+                                            <td><%= (contact.phone_number || '').replace(/@.*$/, '').replace(/^(\d{2})(\d{2})(\d{4,5})(\d{4})$/, '+$1 ($2) $3-$4') %></td>
                                             <td><strong><%= contact.contact_name || 'Sem nome' %></strong></td>
                                             <td><%= contact.first_message_at ? new Date(contact.first_message_at).toLocaleString('pt-BR') : '-' %></td>
                                             <td><%= contact.last_message_at ? new Date(contact.last_message_at).toLocaleString('pt-BR') : '-' %></td>

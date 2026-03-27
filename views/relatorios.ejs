@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatórios - WhatsApp HGP</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .rel-filtros {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            padding: 14px 18px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .rel-filtros label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin-bottom: 4px;
+        }
+        .rel-filtros input[type="date"] {
+            padding: 8px 10px;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #334155;
+            background: white;
+        }
+        .rel-filtros input[type="date"]:focus {
+            outline: none;
+            border-color: #25D366;
+            box-shadow: 0 0 0 2px rgba(37,211,102,0.12);
+        }
+        .btn-gerar {
+            padding: 8px 20px;
+            background: linear-gradient(135deg, #25D366, #128C7E);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-gerar:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn-gerar:disabled { background: #cbd5e1; cursor: not-allowed; transform: none; }
+
+        /* Resumo cards compactos */
+        .rel-resumo {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        @media (max-width: 900px) { .rel-resumo { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 500px) { .rel-resumo { grid-template-columns: repeat(2, 1fr); } }
+
+        .rel-resumo-card {
+            background: white;
+            border-radius: 10px;
+            padding: 14px 16px;
+            border: 1px solid #e2e8f0;
+            position: relative;
+            overflow: hidden;
+        }
+        .rel-resumo-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+        }
+        .rel-resumo-card .num {
+            font-size: 26px;
+            font-weight: 700;
+            color: #1e293b;
+            line-height: 1;
+            margin-bottom: 2px;
+        }
+        .rel-resumo-card .lbl {
+            font-size: 11px;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+        .rc-total::before { background: #334155; }
+        .rc-abertos::before { background: #22c55e; }
+        .rc-pendentes::before { background: #f97316; }
+        .rc-atendimento::before { background: #3b82f6; }
+        .rc-finalizados::before { background: #8b5cf6; }
+        .rc-total .num { color: #334155; }
+        .rc-abertos .num { color: #16a34a; }
+        .rc-pendentes .num { color: #ea580c; }
+        .rc-atendimento .num { color: #2563eb; }
+        .rc-finalizados .num { color: #7c3aed; }
+
+        /* Layout 2 colunas */
+        .rel-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        @media (max-width: 900px) { .rel-grid { grid-template-columns: 1fr; } }
+
+        .rel-panel {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .rel-panel-full {
+            grid-column: 1 / -1;
+        }
+        .rel-panel-head {
+            padding: 12px 16px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 13px;
+            font-weight: 600;
+            color: #334155;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Gráfico de barras por dia */
+        .chart-wrap {
+            padding: 16px;
+            overflow-x: auto;
+        }
+        .chart-bars {
+            display: flex;
+            align-items: flex-end;
+            gap: 3px;
+            height: 120px;
+        }
+        .chart-col {
+            flex: 1;
+            min-width: 22px;
+            max-width: 48px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+        }
+        .chart-val {
+            font-size: 10px;
+            font-weight: 700;
+            color: #475569;
+        }
+        .chart-bar {
+            width: 100%;
+            border-radius: 3px 3px 0 0;
+            min-height: 3px;
+            transition: height 0.5s cubic-bezier(.4,0,.2,1);
+            cursor: pointer;
+            position: relative;
+        }
+        .chart-bar:hover { opacity: 0.85; }
+        .chart-bar:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: calc(100% + 6px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e293b;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            white-space: nowrap;
+            z-index: 10;
+        }
+        .chart-day {
+            font-size: 9px;
+            color: #94a3b8;
+            transform: rotate(-45deg);
+            white-space: nowrap;
+            margin-top: 2px;
+        }
+
+        /* Tabelas compactas */
+        .rel-tbl {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .rel-tbl th {
+            padding: 8px 12px;
+            text-align: left;
+            font-size: 10px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .rel-tbl td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #f1f5f9;
+            color: #334155;
+        }
+        .rel-tbl tr:last-child td { border-bottom: none; }
+        .rel-tbl tr:hover td { background: #f8fafc; }
+        .rel-tbl .c { text-align: center; }
+        .rel-tbl .b { font-weight: 600; }
+
+        /* Barra horizontal inline */
+        .hbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .hbar-track {
+            flex: 1;
+            height: 6px;
+            background: #f1f5f9;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .hbar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s cubic-bezier(.4,0,.2,1);
+        }
+        .hbar-num {
+            font-size: 12px;
+            font-weight: 600;
+            color: #475569;
+            min-width: 28px;
+            text-align: right;
+        }
+
+        /* Donut mini */
+        .donut-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            padding: 20px 16px;
+        }
+        .donut-svg { width: 110px; height: 110px; }
+        .donut-legend {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .donut-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #475569;
+        }
+        .donut-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .donut-legend-item strong {
+            margin-left: auto;
+            color: #1e293b;
+        }
+
+        .rel-empty {
+            text-align: center;
+            padding: 50px 20px;
+            color: #94a3b8;
+        }
+        .rel-empty span { font-size: 40px; display: block; margin-bottom: 8px; }
+
+        .rel-periodo {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-bottom: 14px;
+        }
+
+        .btn-print {
+            padding: 6px 14px;
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .btn-print:hover { background: #e2e8f0; }
+
+        @media print {
+            .sidebar, .sidebar-overlay, .sidebar-toggle-btn,
+            .topbar, .rel-filtros, .btn-print { display: none !important; }
+            .main-content { margin-left: 0 !important; }
+            .content { padding: 10px !important; }
+            .card { box-shadow: none !important; border: 1px solid #ddd; }
+            .rel-panel { break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <%- include('partials/sidebar', { activePage: 'relatorios', username, role: 'Administrador', isAdmin: true }) %>
+
+        <main class="main-content">
+            <div class="topbar">
+                <div class="topbar-title-group">
+                    <button class="menu-toggle" onclick="document.body.classList.toggle('sidebar-open')">
+                        <span></span><span></span><span></span>
+                    </button>
+                    <h2>📈 Relatórios</h2>
+                </div>
+                <div class="topbar-actions">
+                    <button onclick="window.print()" class="btn-print">🖨️ Imprimir</button>
+                </div>
+            </div>
+
+            <div class="content">
+                <div class="card" style="padding: 20px;">
+                    <div class="rel-filtros">
+                        <div>
+                            <label>Início</label>
+                            <input type="date" id="dataInicio">
+                        </div>
+                        <div>
+                            <label>Fim</label>
+                            <input type="date" id="dataFim">
+                        </div>
+                        <button id="btnGerar" class="btn-gerar" onclick="gerarRelatorio()">Gerar Relatório</button>
+                    </div>
+
+                    <div id="relatorioContent">
+                        <div class="rel-empty">
+                            <span>📊</span>
+                            <p>Selecione o período e gere o relatório</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        (function() {
+            const h = new Date();
+            const p = new Date(h.getFullYear(), h.getMonth(), 1);
+            document.getElementById('dataInicio').value = p.toISOString().split('T')[0];
+            document.getElementById('dataFim').value = h.toISOString().split('T')[0];
+        })();
+
+        const COLORS = {
+            abertos: '#22c55e', pendentes: '#f97316',
+            atendimento: '#3b82f6', finalizados: '#8b5cf6',
+            bars: ['#25D366','#34B7F1','#f97316','#8b5cf6','#ec4899','#eab308','#06b6d4','#ef4444']
+        };
+
+        async function gerarRelatorio() {
+            const di = document.getElementById('dataInicio').value;
+            const df = document.getElementById('dataFim').value;
+            const btn = document.getElementById('btnGerar');
+            const box = document.getElementById('relatorioContent');
+
+            if (!di || !df) { alert('Selecione as datas'); return; }
+
+            btn.disabled = true;
+            btn.textContent = '⏳ Gerando...';
+            box.innerHTML = '<div class="rel-empty"><span>⏳</span><p>Carregando...</p></div>';
+
+            try {
+                const res = await fetch(`/api/relatorios/chamados?dataInicio=${di}&dataFim=${df}`);
+                const data = await res.json();
+                if (!data.success) throw new Error();
+                render(data, di, df);
+            } catch (e) {
+                box.innerHTML = '<div class="rel-empty"><span>❌</span><p>Erro ao gerar relatório</p></div>';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Gerar Relatório';
+            }
+        }
+
+        function fmtDate(s) { const [y,m,d]=s.split('-'); return `${d}/${m}/${y}`; }
+
+        function donutSVG(values, colors, size) {
+            const total = values.reduce((a,b) => a+b, 0);
+            if (total === 0) return '';
+            const r = 40, cx = 55, cy = 55, circ = 2 * Math.PI * r;
+            let offset = 0;
+            let paths = '';
+            values.forEach((v, i) => {
+                if (v === 0) return;
+                const pct = v / total;
+                const dash = pct * circ;
+                paths += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${colors[i]}" stroke-width="14" stroke-dasharray="${dash} ${circ - dash}" stroke-dashoffset="${-offset}" stroke-linecap="round" style="transition: stroke-dasharray 0.6s ease"/>`;
+                offset += dash;
+            });
+            return `<svg class="donut-svg" viewBox="0 0 110 110">
+                <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#f1f5f9" stroke-width="14"/>
+                ${paths}
+                <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="18" font-weight="700" fill="#1e293b">${total}</text>
+            </svg>`;
+        }
+
+        function render(data, di, df) {
+            const box = document.getElementById('relatorioContent');
+            const r = data.resumo;
+
+            if (Number(r.total) === 0) {
+                box.innerHTML = '<div class="rel-empty"><span>📭</span><p>Nenhum chamado neste período</p></div>';
+                return;
+            }
+
+            const maxDia = Math.max(...data.porDia.map(d => d.total), 1);
+            const maxSetor = Math.max(...data.porSetor.map(s => s.total), 1);
+            const maxCat = Math.max(...data.porCategoria.map(c => c.total), 1);
+
+            let h = `<p class="rel-periodo">Período: ${fmtDate(di)} — ${fmtDate(df)}</p>`;
+
+            // Resumo compacto
+            h += `<div class="rel-resumo">
+                <div class="rel-resumo-card rc-total"><div class="num">${r.total}</div><div class="lbl">Total</div></div>
+                <div class="rel-resumo-card rc-abertos"><div class="num">${r.abertos}</div><div class="lbl">Abertos</div></div>
+                <div class="rel-resumo-card rc-pendentes"><div class="num">${r.pendentes}</div><div class="lbl">Pendentes</div></div>
+                <div class="rel-resumo-card rc-atendimento"><div class="num">${r.em_atendimento}</div><div class="lbl">Em Atendimento</div></div>
+                <div class="rel-resumo-card rc-finalizados"><div class="num">${r.finalizados}</div><div class="lbl">Finalizados</div></div>
+            </div>`;
+
+            // Grid 2 colunas: gráfico por dia + donut
+            h += `<div class="rel-grid">`;
+
+            // Gráfico por dia
+            if (data.porDia.length > 0) {
+                h += `<div class="rel-panel">
+                    <div class="rel-panel-head">📅 Chamados por Dia</div>
+                    <div class="chart-wrap"><div class="chart-bars">`;
+                data.porDia.forEach((d, i) => {
+                    const pct = (d.total / maxDia) * 100;
+                    const [,m,dia] = d.dia.split('-');
+                    const color = COLORS.bars[i % COLORS.bars.length];
+                    h += `<div class="chart-col">
+                        <span class="chart-val">${d.total}</span>
+                        <div class="chart-bar" style="height:${Math.max(pct,4)}%; background:${color};" data-tooltip="${dia}/${m}: ${d.total} chamados"></div>
+                        <span class="chart-day">${dia}/${m}</span>
+                    </div>`;
+                });
+                h += `</div></div></div>`;
+            }
+
+            // Donut status
+            h += `<div class="rel-panel">
+                <div class="rel-panel-head">📊 Distribuição por Status</div>
+                <div class="donut-wrap">
+                    ${donutSVG(
+                        [Number(r.abertos), Number(r.pendentes), Number(r.em_atendimento), Number(r.finalizados)],
+                        [COLORS.abertos, COLORS.pendentes, COLORS.atendimento, COLORS.finalizados]
+                    )}
+                    <div class="donut-legend">
+                        <div class="donut-legend-item"><span class="donut-dot" style="background:${COLORS.abertos}"></span>Abertos<strong>${r.abertos}</strong></div>
+                        <div class="donut-legend-item"><span class="donut-dot" style="background:${COLORS.pendentes}"></span>Pendentes<strong>${r.pendentes}</strong></div>
+                        <div class="donut-legend-item"><span class="donut-dot" style="background:${COLORS.atendimento}"></span>Em Atendimento<strong>${r.em_atendimento}</strong></div>
+                        <div class="donut-legend-item"><span class="donut-dot" style="background:${COLORS.finalizados}"></span>Finalizados<strong>${r.finalizados}</strong></div>
+                    </div>
+                </div>
+            </div>`;
+
+            h += `</div>`; // fecha rel-grid
+
+            // Grid 2 colunas: setor + categoria
+            h += `<div class="rel-grid">`;
+
+            // Por setor
+            if (data.porSetor.length > 0) {
+                h += `<div class="rel-panel">
+                    <div class="rel-panel-head">🏢 Por Setor</div>
+                    <table class="rel-tbl"><thead><tr><th>Setor</th><th class="c">Total</th><th style="width:35%"></th></tr></thead><tbody>`;
+                data.porSetor.forEach((s, i) => {
+                    const pct = (s.total / maxSetor) * 100;
+                    const color = COLORS.bars[i % COLORS.bars.length];
+                    h += `<tr><td>${s.setor}</td><td class="c b">${s.total}</td>
+                        <td><div class="hbar"><div class="hbar-track"><div class="hbar-fill" style="width:${pct}%; background:${color};"></div></div></div></td></tr>`;
+                });
+                h += `</tbody></table></div>`;
+            }
+
+            // Por categoria
+            if (data.porCategoria.length > 0) {
+                h += `<div class="rel-panel">
+                    <div class="rel-panel-head">🏷️ Por Categoria</div>
+                    <table class="rel-tbl"><thead><tr><th>Categoria</th><th class="c">Total</th><th style="width:35%"></th></tr></thead><tbody>`;
+                data.porCategoria.forEach((c, i) => {
+                    const pct = (c.total / maxCat) * 100;
+                    const color = COLORS.bars[(i + 3) % COLORS.bars.length];
+                    h += `<tr><td>${c.categoria}</td><td class="c b">${c.total}</td>
+                        <td><div class="hbar"><div class="hbar-track"><div class="hbar-fill" style="width:${pct}%; background:${color};"></div></div></div></td></tr>`;
+                });
+                h += `</tbody></table></div>`;
+            }
+
+            h += `</div>`; // fecha rel-grid
+
+            // Por atendente (full width)
+            if (data.porAtendente.length > 0) {
+                h += `<div class="rel-grid"><div class="rel-panel rel-panel-full">
+                    <div class="rel-panel-head">👤 Por Atendente</div>
+                    <table class="rel-tbl"><thead><tr>
+                        <th>Atendente</th><th class="c">Total</th><th class="c">Finalizados</th><th class="c">Em Atend.</th><th class="c">Pendentes</th>
+                    </tr></thead><tbody>`;
+                data.porAtendente.forEach(a => {
+                    const pctFin = Number(a.total) > 0 ? Math.round((Number(a.finalizados) / Number(a.total)) * 100) : 0;
+                    h += `<tr>
+                        <td class="b">${a.atendente}</td>
+                        <td class="c b">${a.total}</td>
+                        <td class="c" style="color:#16a34a">${a.finalizados} <small style="color:#94a3b8">(${pctFin}%)</small></td>
+                        <td class="c" style="color:#2563eb">${a.em_atendimento}</td>
+                        <td class="c" style="color:#ea580c">${a.pendentes}</td>
+                    </tr>`;
+                });
+                h += `</tbody></table></div></div>`;
+            }
+
+            box.innerHTML = h;
+        }
+    </script>
+</body>
+</html>
