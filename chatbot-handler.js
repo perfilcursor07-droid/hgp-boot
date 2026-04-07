@@ -58,6 +58,8 @@ function attachChatbot(client, options = {}) {
     const bloqueados = new Map();
     const mensagensProcessadas = new Map();
     const lidSessionMap = new Map(); // mapeia @lid -> sessionId estável
+    const inactivityTimers = new Map(); // timers de inatividade por sessionId
+    const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutos
     const categoriasMap = {
         '1': 'Soul MV',
         '2': 'Impressora',
@@ -156,6 +158,43 @@ function attachChatbot(client, options = {}) {
 
         estados.delete(sessionId);
         bloqueados.delete(sessionId);
+        clearInactivityTimer(sessionId);
+    }
+
+    function clearInactivityTimer(sessionId) {
+        const timer = inactivityTimers.get(sessionId);
+        if (timer) {
+            clearTimeout(timer);
+            inactivityTimers.delete(sessionId);
+        }
+    }
+
+    function resetInactivityTimer(sessionId, chatId) {
+        clearInactivityTimer(sessionId);
+
+        const est = estados.get(sessionId);
+        // Só ativar timer se o usuário está no meio do fluxo de criação (steps 0.5 a 5)
+        if (!est || est.step === undefined) return;
+
+        const timer = setTimeout(async () => {
+            const estAtual = estados.get(sessionId);
+            if (!estAtual) return; // já foi limpo
+
+            try {
+                await client.sendMessage(
+                    chatId,
+                    '⏰ Sua sessão foi encerrada por inatividade (30 minutos sem resposta). Se precisar, envie uma nova mensagem para iniciar o atendimento.'
+                );
+            } catch (erro) {
+                console.error(`Erro ao enviar mensagem de inatividade para ${sessionId}:`, erro.message);
+            }
+
+            estados.delete(sessionId);
+            inactivityTimers.delete(sessionId);
+            console.log(`⏰ Sessão ${sessionId} encerrada por inatividade`);
+        }, INACTIVITY_TIMEOUT);
+
+        inactivityTimers.set(sessionId, timer);
     }
 
     async function reiniciarFluxoPorEncerramento(sessionId, options = {}) {
@@ -565,6 +604,7 @@ function attachChatbot(client, options = {}) {
             }
 
             if (texto === 'CANCELAR') {
+                clearInactivityTimer(sessionId);
                 estados.delete(sessionId);
                 await client.sendMessage(chatId, '❌ Atendimento encerrado.');
                 return;
@@ -603,6 +643,7 @@ function attachChatbot(client, options = {}) {
                     await client.sendMessage(chatId, mensagemEscolhaOpcao());
                 }
                 estados.set(sessionId, { step: 0.5, nomeWhats: contato.pushname || 'Prezado', isTeste: texto === GATILHO_TESTE });
+                resetInactivityTimer(sessionId, chatId);
                 return;
             }
 
@@ -623,6 +664,7 @@ function attachChatbot(client, options = {}) {
                 est.opcao = texto;
                 est.step = 1;
                 await client.sendMessage(chatId, '👤 Seu *Nome Completo*:');
+                resetInactivityTimer(sessionId, chatId);
                 return;
             }
 
@@ -630,6 +672,7 @@ function attachChatbot(client, options = {}) {
                 est.nome = msg.body;
                 est.step = 2;
                 await client.sendMessage(chatId, '🏢 Seu *Setor e Ala*:');
+                resetInactivityTimer(sessionId, chatId);
                 return;
             }
 
@@ -637,6 +680,7 @@ function attachChatbot(client, options = {}) {
                 est.setor = msg.body;
                 est.step = 3;
                 await client.sendMessage(chatId, '💻 *IP da Máquina*:');
+                resetInactivityTimer(sessionId, chatId);
                 return;
             }
 
@@ -644,6 +688,7 @@ function attachChatbot(client, options = {}) {
                 est.ip = msg.body;
                 est.step = 4;
                 await client.sendMessage(chatId, '📱 *Telefone* de contato:');
+                resetInactivityTimer(sessionId, chatId);
                 return;
             }
 
@@ -651,10 +696,12 @@ function attachChatbot(client, options = {}) {
                 est.tel = msg.body;
                 est.step = 5;
                 await client.sendMessage(chatId, '📝 Descreva o *Problema*:');
+                resetInactivityTimer(sessionId, chatId);
                 return;
             }
 
             if (est.step === 5) {
+                clearInactivityTimer(sessionId);
                 est.desc = msg.body;
                 const protocolo = `HGP-${dayjs().format('DDMM')}-${Math.random().toString(36).substring(2, 5).toUpperCase()}`;
                 
