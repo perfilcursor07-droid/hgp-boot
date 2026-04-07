@@ -663,6 +663,8 @@ function attachChatbot(client, options = {}) {
                 }
                 est.opcao = texto;
                 est.step = 1;
+                await client.sendMessage(chatId, 'Para garantir a precisão e agilidade no seu atendimento, solicitamos o preenchimento detalhado dos campos abaixo de acordo com a sua necessidade.');
+                await delay(500);
                 await client.sendMessage(chatId, '👤 Seu *Nome Completo*:');
                 resetInactivityTimer(sessionId, chatId);
                 return;
