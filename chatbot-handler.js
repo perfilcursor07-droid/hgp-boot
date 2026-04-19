@@ -59,7 +59,7 @@ function attachChatbot(client, options = {}) {
     const mensagensProcessadas = new Map();
     const lidSessionMap = new Map(); // mapeia @lid -> sessionId estável
     const inactivityTimers = new Map(); // timers de inatividade por sessionId
-    const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutos
+    const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutos
     const categoriasMap = {
         '1': 'Soul MV',
         '2': 'Impressora',
@@ -515,6 +515,7 @@ function attachChatbot(client, options = {}) {
         try {
             if (msg.fromMe || msg.from.endsWith('@g.us') || msg.from === 'status@broadcast') return;
             if (String(msg.type || '').includes('notification')) return;
+            if (String(msg.type || '').includes('call_log')) return;
             if (mensagemJaProcessada(msg)) return;
 
             const { contato, chatId, sessionId } = await resolverDestinoMensagem(msg);
@@ -645,6 +646,16 @@ function attachChatbot(client, options = {}) {
                 estados.set(sessionId, { step: 0.5, nomeWhats: contato.pushname || 'Prezado', isTeste: texto === GATILHO_TESTE });
                 resetInactivityTimer(sessionId, chatId);
                 return;
+            }
+
+            // Bloquear áudio, vídeo e chamadas durante o fluxo de preenchimento
+            if (est && est.step !== undefined) {
+                const tipoMsg = String(msg.type || '').toLowerCase();
+                if (['audio', 'ptt', 'video', 'call_log'].includes(tipoMsg)) {
+                    await client.sendMessage(chatId, '⚠️ Durante o preenchimento do chamado, não é possível enviar áudios, vídeos ou realizar chamadas. Por favor, digite sua resposta.');
+                    resetInactivityTimer(sessionId, chatId);
+                    return;
+                }
             }
 
             if (est.step === 0.5) {

@@ -2158,7 +2158,7 @@ async function startServer() {
             console.log(`Servidor rodando em http://localhost:${PORT}`);
         });
 
-        // Auto-encerramento de chamados abertos às 23:59
+        // Auto-encerramento de chamados pendentes às 23:59
         setInterval(async () => {
             const agora = new Date();
             if (agora.getHours() === 23 && agora.getMinutes() === 59) {
@@ -2168,12 +2168,12 @@ async function startServer() {
                         SET status = 'finalizado',
                             encerrado_em = NOW(),
                             observacoes = CONCAT(COALESCE(observacoes, ''), '\n[Encerrado automaticamente às 23:59]')
-                        WHERE status IN ('pendente', 'aberto', 'em_atendimento')
+                        WHERE status = 'pendente'
                           AND DATE(criado_em) <= CURDATE()
                     `);
 
                     if (result.affectedRows > 0) {
-                        console.log(`🔒 Auto-encerramento: ${result.affectedRows} chamado(s) encerrado(s) às 23:59`);
+                        console.log(`🔒 Auto-encerramento: ${result.affectedRows} chamado(s) pendente(s) encerrado(s) às 23:59`);
                     }
                 } catch (error) {
                     console.error('Erro no auto-encerramento de chamados:', error);

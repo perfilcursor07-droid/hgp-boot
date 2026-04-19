@@ -266,7 +266,7 @@
             const set = escapeHtml(chamado.setor);
             const ip  = escapeHtml(chamado.ip_maquina || '');
             const tel = escapeHtml(chamado.telefone_contato || '');
-            const des = escapeHtml(chamado.descricao || '');
+            const des = escapeHtml((chamado.descricao || '').replace(/\n/g, ' '));
             const finalizado = chamado.status === 'finalizado';
             const emAtendimento = chamado.status === 'em_atendimento';
 
@@ -283,7 +283,7 @@
                     html += `<button onclick="atenderChamado(${chamado.id},'${p}')" class="ca-btn ca-atender" title="Atender chamado">${icAtender}<span class="ca-label">Atender</span></button>`;
                 }
                 html += `<button onclick="abrirChat(${chamado.id},'${p}')" class="ca-btn ca-chat" title="Abrir chat" style="position:relative">${icChat}<span class="ca-label">Chat</span><span id="badge-${chamado.id}" class="chat-badge" style="display:none;"></span></button>`;
-                html += `<button onclick="verDetalhes('${p}','${cat}','${sol}','${set}','${ip}','${tel}','${des}')" class="ca-btn ca-info" title="Ver detalhes">${icInfo}<span class="ca-label">Detalhes</span></button>`;
+                html += `<button class="ca-btn ca-info btn-detalhes" title="Ver detalhes" data-id="${chamado.id}">${icInfo}<span class="ca-label">Detalhes</span></button>`;
                 if (isAdmin) {
                     const lblEnc = emAtendimento ? 'Reencaminhar' : 'Encaminhar';
                     html += `<button onclick="abrirModalEncaminhar(${chamado.id},'${p}')" class="ca-btn ca-forward" title="${lblEnc}">${icForward}<span class="ca-label">${emAtendimento ? 'Reenc.' : 'Encam.'}</span></button>`;
@@ -291,7 +291,7 @@
                 html += `<button onclick="abrirModalEncerrar(${chamado.id},'${p}')" class="ca-btn ca-close" title="Encerrar chamado">${icEncerrar}<span class="ca-label">Encerrar</span></button>`;
             } else {
                 html += `<button onclick="abrirChat(${chamado.id},'${p}')" class="ca-btn ca-chat" title="Ver chat" style="position:relative">${icChat}<span class="ca-label">Chat</span><span id="badge-${chamado.id}" class="chat-badge" style="display:none;"></span></button>`;
-                html += `<button onclick="verDetalhes('${p}','${cat}','${sol}','${set}','${ip}','${tel}','${des}')" class="ca-btn ca-info" title="Ver detalhes">${icInfo}<span class="ca-label">Detalhes</span></button>`;
+                html += `<button class="ca-btn ca-info btn-detalhes" title="Ver detalhes" data-id="${chamado.id}">${icInfo}<span class="ca-label">Detalhes</span></button>`;
             }
 
             html += '</div>';
@@ -1013,6 +1013,35 @@
 
         // Fechar modais ao clicar fora (exceto chat que tem controle próprio)
         window.addEventListener('click', function(event) {
+            if (event.target.classList.contains('modal') && event.target.id !== 'modalChat') {
+                event.target.style.display = 'none';
+            }
+        });
+
+        function verDetalhesPorId(chamadoId) {
+            const chamado = chamadosState.find(c => c.id === chamadoId);
+            if (!chamado) return;
+            document.getElementById('modalDetalhes').style.display = 'flex';
+            document.getElementById('detProtocolo').textContent = chamado.protocolo || '';
+            document.getElementById('detCategoria').textContent = chamado.categoria || '';
+            document.getElementById('detSolicitante').textContent = chamado.solicitante_nome || '';
+            document.getElementById('detSetor').textContent = chamado.setor || '';
+            document.getElementById('detIP').textContent = chamado.ip_maquina || 'Não informado';
+            document.getElementById('detTelefone').textContent = chamado.telefone_contato || 'Não informado';
+            document.getElementById('detDescricao').textContent = chamado.descricao || 'Sem descrição';
+        }
+
+        function fecharModalDetalhes() {
+            document.getElementById('modalDetalhes').style.display = 'none';
+        }
+
+        // Event delegation para botões de detalhes
+        document.addEventListener('click', function(event) {
+            const btnDetalhes = event.target.closest('.btn-detalhes');
+            if (btnDetalhes) {
+                verDetalhesPorId(Number(btnDetalhes.dataset.id));
+                return;
+            }
             if (event.target.classList.contains('modal') && event.target.id !== 'modalChat') {
                 event.target.style.display = 'none';
             }
