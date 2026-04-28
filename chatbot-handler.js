@@ -270,6 +270,7 @@ function attachChatbot(client, options = {}) {
 
     async function salvarChamado(dadosChamado) {
         try {
+            console.log(`💾 Salvando chamado ${dadosChamado.protocolo} no banco...`);
             await db.query(
                 `INSERT INTO chamados (
                     protocolo,
@@ -304,11 +305,17 @@ function attachChatbot(client, options = {}) {
                     dadosChamado.atribuidoEm
                 ]
             );
-
-            // Disparar notificação para todos os usuários ativos
-            await notificarUsuariosNovoChamado(dadosChamado);
+            console.log(`✅ Chamado ${dadosChamado.protocolo} salvo com sucesso no banco`);
         } catch (erro) {
             registrarErro(erro, `Falha ao salvar chamado ${dadosChamado.protocolo}`);
+            console.error(`❌ FALHA AO SALVAR CHAMADO ${dadosChamado.protocolo}:`, erro.message);
+        }
+
+        // Notificação separada para não afetar o salvamento
+        try {
+            await notificarUsuariosNovoChamado(dadosChamado);
+        } catch (erro) {
+            registrarErro(erro, `Falha ao notificar sobre chamado ${dadosChamado.protocolo}`);
         }
     }
 
