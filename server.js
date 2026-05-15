@@ -630,6 +630,55 @@ app.get('/messages', isAuthenticated, isAdmin, async (req, res) => {
     }
 });
 
+app.get('/conversas', isAuthenticated, async (req, res) => {
+    res.render('conversas', { username: req.session.username });
+});
+
+app.get('/api/conversas', isAuthenticated, async (req, res) => {
+    try {
+        // Buscar conversas agrupadas por número (últimas mensagens de cada contato)
+        const [conversas] = await db.query(`
+            SELECT 
+                m.from_number as numero,
+                m.message_body as ultima_mensagem,
+                m.message_type as tipo,
+                m.is_from_me,
+                m.timestamp as ultima_data,
+                c.contact_name as nome,
+                (SELECT COUNT(*) FROM messages m2 WHERE m2.from_number = m.from_number AND m2.is_from_me = FALSE) as total_msgs
+            FROM messages m
+            LEFT JOIN contacts c ON c.phone_number = REPLACE(REPLACE(m.from_number, '@c.us', ''), '@lid', '')
+            WHERE m.id IN (
+                SELECT MAX(id) FROM messages 
+                WHERE is_from_me = FALSE
+                GROUP BY from_number
+            )
+            ORDER BY m.timestamp DESC
+            LIMIT 50
+        `);
+        res.json({ success: true, conversas });
+    } catch (error) {
+        console.error('Erro ao buscar conversas:', error);
+        res.json({ success: false, conversas: [] });
+    }
+});
+
+app.get('/api/conversas/:numero/mensagens', isAuthenticated, async (req, res) => {
+    try {
+        const numero = req.params.numero;
+        const [mensagens] = await db.query(`
+            SELECT from_number, to_number, message_body, message_type, is_from_me, timestamp
+            FROM messages
+            WHERE from_number = ? OR to_number = ?
+            ORDER BY timestamp ASC
+            LIMIT 200
+        `, [numero, numero]);
+        res.json({ success: true, mensagens });
+    } catch (error) {
+        res.json({ success: false, mensagens: [] });
+    }
+});
+
 app.get('/chamados', isAuthenticated, async (req, res) => {
     try {
         // Garantir que nivelAcesso existe na sessão
