@@ -47,62 +47,46 @@
             </div>
 
             <div class="content">
-                <section class="dashboard-hero">
+                <section class="dashboard-hero" style="margin-bottom: 16px;">
                     <div>
                         <p class="eyebrow">Central de atendimento</p>
-                        <h1>Gestão de Chamados</h1>
-                        <p class="hero-text">Acompanhe, atenda e gerencie os chamados de suporte técnico em tempo real.</p>
+                        <h1>Chamados</h1>
                     </div>
                     <div class="hero-highlight">
-                        <span class="hero-highlight-label">Hoje</span>
+                        <span class="hero-highlight-label">Resumo</span>
                         <strong><%= (contagem.total || 0) %> chamados</strong>
-                        <small><%= (contagem.pendente || 0) %> aguardando atendimento</small>
+                        <small><%= (contagem.pendente || 0) %> pendente(s)</small>
                     </div>
                 </section>
 
-                <div class="stats-grid">
-                    <div class="stat-card stat-card-clickable" data-filter="aberto" onclick="aplicarFiltro('aberto')">
-                        <div class="stat-icon green">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                        </div>
+                <div class="stats-grid" style="margin-bottom: 16px;">
+                    <div class="stat-card stat-card-clickable" data-filter="aberto" onclick="aplicarFiltro('aberto')" style="border-left: 3px solid #22c55e;">
                         <div class="stat-info">
-                            <h3 id="statsAberto"><%= contagem.aberto || 0 %></h3>
+                            <h3 id="statsAberto" style="color:#16a34a;"><%= contagem.aberto || 0 %></h3>
                             <p>Abertos</p>
                         </div>
                     </div>
-                    <div class="stat-card stat-card-clickable" data-filter="pendente" onclick="aplicarFiltro('pendente')">
-                        <div class="stat-icon orange">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                        </div>
+                    <div class="stat-card stat-card-clickable" data-filter="pendente" onclick="aplicarFiltro('pendente')" style="border-left: 3px solid #f97316;">
                         <div class="stat-info">
-                            <h3 id="statsPendente"><%= contagem.pendente || 0 %></h3>
+                            <h3 id="statsPendente" style="color:#ea580c;"><%= contagem.pendente || 0 %></h3>
                             <p>Pendentes</p>
                         </div>
                     </div>
-                    <div class="stat-card stat-card-clickable" data-filter="em_atendimento" onclick="aplicarFiltro('em_atendimento')">
-                        <div class="stat-icon blue">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                        </div>
+                    <div class="stat-card stat-card-clickable" data-filter="em_atendimento" onclick="aplicarFiltro('em_atendimento')" style="border-left: 3px solid #3b82f6;">
                         <div class="stat-info">
-                            <h3 id="statsAtendimento"><%= contagem.em_atendimento || 0 %></h3>
+                            <h3 id="statsAtendimento" style="color:#2563eb;"><%= contagem.em_atendimento || 0 %></h3>
                             <p>Em Atendimento</p>
                         </div>
                     </div>
-                    <div class="stat-card stat-card-clickable" data-filter="finalizado" onclick="aplicarFiltro('finalizado')">
-                        <div class="stat-icon purple">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                        </div>
+                    <div class="stat-card stat-card-clickable" data-filter="finalizado" onclick="aplicarFiltro('finalizado')" style="border-left: 3px solid #8b5cf6;">
                         <div class="stat-info">
-                            <h3 id="statsFinalizado"><%= contagem.finalizado || 0 %></h3>
+                            <h3 id="statsFinalizado" style="color:#7c3aed;"><%= contagem.finalizado || 0 %></h3>
                             <p>Finalizados</p>
                         </div>
                     </div>
-                    <div class="stat-card stat-card-clickable stat-card-meus" onclick="carregarMeusAtendimentos()">
-                        <div class="stat-icon" style="background: rgba(14, 165, 233, 0.1);">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 14l2 2 4-4"/></svg>
-                        </div>
+                    <div class="stat-card stat-card-clickable stat-card-meus" onclick="carregarMeusAtendimentos()" style="border-left: 3px solid #0ea5e9;">
                         <div class="stat-info">
-                            <h3 style="font-size: 16px;">Meus</h3>
+                            <h3 style="font-size: 15px; color:#0ea5e9;">Meus</h3>
                             <p>Atendimentos</p>
                         </div>
                     </div>
