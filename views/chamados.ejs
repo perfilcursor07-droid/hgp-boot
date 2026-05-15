@@ -324,7 +324,9 @@
                 if (!emAtendimento) {
                     html += `<button onclick="atenderChamado(${chamado.id},'${p}')" class="ca-btn ca-atender" title="Atender chamado">${icAtender}<span class="ca-label">Atender</span></button>`;
                 }
-                html += `<button onclick="abrirChat(${chamado.id},'${p}')" class="ca-btn ca-chat" title="Abrir chat" style="position:relative">${icChat}<span class="ca-label">Chat</span><span id="badge-${chamado.id}" class="chat-badge" style="display:none;"></span></button>`;
+                if (emAtendimento) {
+                    html += `<button onclick="abrirChat(${chamado.id},'${p}')" class="ca-btn ca-chat" title="Abrir chat" style="position:relative">${icChat}<span class="ca-label">Chat</span><span id="badge-${chamado.id}" class="chat-badge" style="display:none;"></span></button>`;
+                }
                 html += `<button class="ca-btn ca-info btn-detalhes" title="Ver detalhes" data-id="${chamado.id}">${icInfo}<span class="ca-label">Detalhes</span></button>`;
                 const lblEnc = emAtendimento ? 'Reencaminhar' : 'Encaminhar';
                 html += `<button onclick="abrirModalEncaminhar(${chamado.id},'${p}')" class="ca-btn ca-forward" title="${lblEnc} (mesmo turno)">${icForward}<span class="ca-label">${emAtendimento ? 'Reenc.' : 'Encam.'}</span></button>`;
