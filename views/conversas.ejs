@@ -216,6 +216,7 @@
     <script>
         let conversas = [];
         let ativa = null;
+        let lidas = JSON.parse(localStorage.getItem('wa_lidas') || '{}'); // {numero: timestamp_ultima_lida}
 
         function fmtNum(n) {
             const d = (n||'').replace(/@.*$/,'').replace(/\D/g,'');
@@ -241,7 +242,16 @@
             document.getElementById('waCount').textContent = lista.length;
             if (!lista.length) { el.innerHTML='<p style="text-align:center;color:#8696a0;padding:30px;font-size:12px;">Nenhuma conversa</p>'; return; }
 
-            el.innerHTML = lista.map(c => {
+            // Ordenar: não lidas primeiro, depois por data
+            const sorted = [...lista].sort((a, b) => {
+                const aLida = lidas[a.numero] && new Date(lidas[a.numero]) >= new Date(a.ultima_data);
+                const bLida = lidas[b.numero] && new Date(lidas[b.numero]) >= new Date(b.ultima_data);
+                if (!aLida && bLida) return -1;
+                if (aLida && !bLida) return 1;
+                return new Date(b.ultima_data) - new Date(a.ultima_data);
+            });
+
+            el.innerHTML = sorted.map(c => {
                 const num = fmtNum(c.numero);
                 const nome = c.nome || num;
                 const ini = (c.nome||'?').charAt(0).toUpperCase();
@@ -249,13 +259,22 @@
                 if (!prev) { const ic={image:'📷',video:'🎥',audio:'🎧',ptt:'🎤',document:'📄'}; prev=ic[c.tipo]||'📎'; }
                 prev = prev.slice(0,40);
                 const act = ativa===c.numero?'active':'';
+                const naoLida = !lidas[c.numero] || new Date(lidas[c.numero]) < new Date(c.ultima_data);
+                const badgeHtml = (naoLida && ativa !== c.numero) ? '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#25D366;flex-shrink:0;"></span>' : '';
+                const nomeStyle = naoLida && ativa !== c.numero ? 'font-weight:700;' : '';
+                const prevStyle = naoLida && ativa !== c.numero ? 'color:#111b21;font-weight:500;' : '';
+                const timeStyle = naoLida && ativa !== c.numero ? 'color:#25D366;font-weight:600;' : '';
+
                 return `<div class="wa-contact ${act}" onclick="abrirChat('${c.numero}','${nome.replace(/'/g,"\\'")}')">
                     <div class="wa-contact-avatar">${ini}</div>
                     <div class="wa-contact-info">
-                        <div class="wa-contact-name">${nome}</div>
-                        <div class="wa-contact-last">${prev}</div>
+                        <div class="wa-contact-name" style="${nomeStyle}">${nome}</div>
+                        <div class="wa-contact-last" style="${prevStyle}">${prev}</div>
                     </div>
-                    <div class="wa-contact-time">${fmtDia(c.ultima_data)} ${fmtHora(c.ultima_data)}</div>
+                    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+                        <div class="wa-contact-time" style="${timeStyle}">${fmtHora(c.ultima_data)}</div>
+                        ${badgeHtml}
+                    </div>
                 </div>`;
             }).join('');
         }
@@ -268,6 +287,9 @@
 
         async function abrirChat(numero, nome) {
             ativa = numero;
+            // Marcar como lida
+            lidas[numero] = new Date().toISOString();
+            localStorage.setItem('wa_lidas', JSON.stringify(lidas));
             renderLista(conversas);
             document.getElementById('waEmpty').style.display='none';
             document.getElementById('waChatContent').style.display='flex';
