@@ -1085,13 +1085,23 @@ app.get('/api/relatorios/chamados', isAuthenticated, isAdmin, async (req, res) =
             ORDER BY dia ASC
         `, [dataInicio, dataFim]);
 
+        // Por setor + categoria (breakdown)
+        const [porSetorCategoria] = await db.query(`
+            SELECT setor, categoria, COUNT(*) as total
+            FROM chamados
+            WHERE DATE(criado_em) BETWEEN ? AND ?
+            GROUP BY setor, categoria
+            ORDER BY setor, total DESC
+        `, [dataInicio, dataFim]);
+
         res.json({
             success: true,
             resumo: totalPeriodo[0],
             porSetor,
             porCategoria,
             porAtendente,
-            porDia
+            porDia,
+            porSetorCategoria
         });
     } catch (error) {
         console.error('Erro ao gerar relatório:', error);

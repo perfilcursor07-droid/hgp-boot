@@ -477,35 +477,53 @@
             // Grid 2 colunas: setor + categoria
             h += `<div class="rel-grid">`;
 
-            // Por setor
-            if (data.porSetor.length > 0) {
-                h += `<div class="rel-panel">
-                    <div class="rel-panel-head">🏢 Por Setor</div>
-                    <table class="rel-tbl"><thead><tr><th>Setor</th><th class="c">Total</th><th style="width:35%"></th></tr></thead><tbody>`;
+            // Por categoria (full width, com visual melhorado)
+            if (data.porCategoria.length > 0) {
+                h += `<div class="rel-panel rel-panel-full">
+                    <div class="rel-panel-head">🏷️ Chamados por Categoria</div>
+                    <div style="display:flex;gap:12px;flex-wrap:wrap;padding:16px;">`;
+                data.porCategoria.forEach((c, i) => {
+                    const color = COLORS.bars[i % COLORS.bars.length];
+                    const pct = Number(r.total) > 0 ? Math.round((c.total / Number(r.total)) * 100) : 0;
+                    h += `<div style="flex:1;min-width:140px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;border-left:4px solid ${color};">
+                        <div style="font-size:24px;font-weight:700;color:#1e293b;">${c.total}</div>
+                        <div style="font-size:12px;color:#64748b;margin-top:2px;">${c.categoria}</div>
+                        <div style="font-size:11px;color:#94a3b8;margin-top:4px;">${pct}% do total</div>
+                    </div>`;
+                });
+                h += `</div></div>`;
+            }
+
+            h += `</div>`;
+
+            // Por setor COM breakdown de categorias (full width)
+            if (data.porSetor.length > 0 && data.porSetorCategoria) {
+                // Agrupar categorias por setor
+                const catPorSetor = {};
+                (data.porSetorCategoria || []).forEach(sc => {
+                    if (!catPorSetor[sc.setor]) catPorSetor[sc.setor] = [];
+                    catPorSetor[sc.setor].push(sc);
+                });
+
+                h += `<div class="rel-grid"><div class="rel-panel rel-panel-full">
+                    <div class="rel-panel-head">🏢 Chamados por Setor (com detalhamento por categoria)</div>
+                    <table class="rel-tbl"><thead><tr>
+                        <th>Setor</th><th class="c">Total</th><th>Categorias</th><th style="width:25%"></th>
+                    </tr></thead><tbody>`;
                 data.porSetor.forEach((s, i) => {
                     const pct = (s.total / maxSetor) * 100;
                     const color = COLORS.bars[i % COLORS.bars.length];
-                    h += `<tr><td>${s.setor}</td><td class="c b">${s.total}</td>
-                        <td><div class="hbar"><div class="hbar-track"><div class="hbar-fill" style="width:${pct}%; background:${color};"></div></div></div></td></tr>`;
+                    const cats = catPorSetor[s.setor] || [];
+                    const catsHtml = cats.map(c => `<span style="display:inline-block;padding:2px 8px;margin:2px;border-radius:12px;font-size:10px;font-weight:600;background:rgba(37,211,102,0.1);color:#16a34a;">${c.categoria} (${c.total})</span>`).join('');
+                    h += `<tr>
+                        <td class="b">${s.setor}</td>
+                        <td class="c b">${s.total}</td>
+                        <td>${catsHtml}</td>
+                        <td><div class="hbar"><div class="hbar-track"><div class="hbar-fill" style="width:${pct}%; background:${color};"></div></div></div></td>
+                    </tr>`;
                 });
-                h += `</tbody></table></div>`;
+                h += `</tbody></table></div></div>`;
             }
-
-            // Por categoria
-            if (data.porCategoria.length > 0) {
-                h += `<div class="rel-panel">
-                    <div class="rel-panel-head">🏷️ Por Categoria</div>
-                    <table class="rel-tbl"><thead><tr><th>Categoria</th><th class="c">Total</th><th style="width:35%"></th></tr></thead><tbody>`;
-                data.porCategoria.forEach((c, i) => {
-                    const pct = (c.total / maxCat) * 100;
-                    const color = COLORS.bars[(i + 3) % COLORS.bars.length];
-                    h += `<tr><td>${c.categoria}</td><td class="c b">${c.total}</td>
-                        <td><div class="hbar"><div class="hbar-track"><div class="hbar-fill" style="width:${pct}%; background:${color};"></div></div></div></td></tr>`;
-                });
-                h += `</tbody></table></div>`;
-            }
-
-            h += `</div>`; // fecha rel-grid
 
             // Por atendente (full width)
             if (data.porAtendente.length > 0) {
