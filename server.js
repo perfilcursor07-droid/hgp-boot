@@ -654,9 +654,10 @@ app.get('/api/conversas', isAuthenticated, async (req, res) => {
                 WHERE is_from_me = FALSE
                   AND from_number NOT LIKE '%@g.us'
                   AND from_number != 'status@broadcast'
+                  AND timestamp >= DATE_SUB(NOW(), INTERVAL 2 DAY)
                 GROUP BY from_number
                 ORDER BY ultima_data DESC
-                LIMIT 50
+                LIMIT 30
             ) t
             LEFT JOIN messages m2 ON m2.from_number = t.numero AND m2.timestamp = t.ultima_data
             LEFT JOIN contacts c ON c.phone_number = REPLACE(REPLACE(t.numero, '@c.us', ''), '@lid', '')
