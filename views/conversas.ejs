@@ -233,7 +233,16 @@
             try {
                 const r = await fetch('/api/conversas');
                 const d = await r.json();
-                if (d.success) { conversas = d.conversas; renderLista(conversas); }
+                if (d.success) {
+                    conversas = d.conversas;
+                    renderLista(conversas);
+                    // Atualizar mensagens do chat aberto
+                    if (ativa) {
+                        const r2 = await fetch(`/api/conversas/${encodeURIComponent(ativa)}/mensagens`);
+                        const d2 = await r2.json();
+                        if (d2.success) renderMsgs(d2.mensagens);
+                    }
+                }
             } catch(e) {}
         }
 
@@ -242,8 +251,10 @@
             document.getElementById('waCount').textContent = lista.length;
             if (!lista.length) { el.innerHTML='<p style="text-align:center;color:#8696a0;padding:30px;font-size:12px;">Nenhuma conversa</p>'; return; }
 
-            // Ordenar: não lidas primeiro, depois por data
+            // Ordenar: conversa ativa primeiro, depois não lidas, depois por data
             const sorted = [...lista].sort((a, b) => {
+                if (a.numero === ativa) return -1;
+                if (b.numero === ativa) return 1;
                 const aLida = lidas[a.numero] && new Date(lidas[a.numero]) >= new Date(a.ultima_data);
                 const bLida = lidas[b.numero] && new Date(lidas[b.numero]) >= new Date(b.ultima_data);
                 if (!aLida && bLida) return -1;
@@ -290,6 +301,11 @@
             // Marcar como lida
             lidas[numero] = new Date().toISOString();
             localStorage.setItem('wa_lidas', JSON.stringify(lidas));
+            // Garantir que a conversa ativa está na lista antes de re-renderizar
+            const existeNaLista = conversas.some(c => c.numero === numero);
+            if (!existeNaLista) {
+                conversas.push({ numero, nome, ultima_data: new Date().toISOString(), ultima_mensagem: '', total_msgs: 0 });
+            }
             renderLista(conversas);
             document.getElementById('waEmpty').style.display='none';
             document.getElementById('waChatContent').style.display='flex';

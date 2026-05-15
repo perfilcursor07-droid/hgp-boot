@@ -919,8 +919,14 @@
         }
 
         async function abrirChat(chamadoId, protocolo) {
+            // Limpar intervalo anterior para evitar carregar mensagens de outro chamado
+            if (chatInterval) { clearInterval(chatInterval); chatInterval = null; }
+
             const chamadoAtual = chamadosState.find((item) => Number(item.id) === Number(chamadoId));
             const nome = chamadoAtual?.solicitante_nome || 'Solicitante';
+
+            // Limpar mensagens anteriores imediatamente para não mostrar conversa de outro chamado
+            document.getElementById('chatMessages').innerHTML = '<p class="chat-empty">Carregando mensagens...</p>';
 
             document.getElementById('modalChat').style.display = 'flex';
             document.getElementById('chatProtocolo').textContent = protocolo;
@@ -959,9 +965,17 @@
 
         async function carregarMensagensChat(chamadoId) {
             try {
+                // Verificar se o chat aberto ainda é o mesmo chamado (evita race condition)
+                const chamadoAberto = document.getElementById('chatChamadoId').value;
+                if (String(chamadoAberto) !== String(chamadoId)) return;
+
                 const response = await fetch(`/api/chamados/${chamadoId}/chat`);
                 const result = await response.json();
                 if (!result.success) return;
+
+                // Verificar novamente após o fetch (pode ter mudado durante a requisição)
+                const chamadoAbertoAgora = document.getElementById('chatChamadoId').value;
+                if (String(chamadoAbertoAgora) !== String(chamadoId)) return;
 
                 const chatMessages = document.getElementById('chatMessages');
                 const threshold = 80;

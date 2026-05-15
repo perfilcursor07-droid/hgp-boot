@@ -429,7 +429,7 @@ app.post('/login', async (req, res) => {
         req.session.nomeCompleto = user.nome_completo;
         
         // Redirecionar baseado no nível de acesso
-        if (user.nivel_acesso === 'gestor') {
+        if (user.nivel_acesso === 'gestor' || user.nivel_acesso === 'visualizador') {
             res.redirect('/chamados');
         } else {
             res.redirect('/dashboard');

@@ -699,13 +699,28 @@ function attachChatbot(client, options = {}) {
             if (est.step === 2) {
                 est.setor = msg.body;
                 est.step = 3;
-                await client.sendMessage(chatId, '💻 *IP da Máquina*:');
+                await client.sendMessage(chatId, '🌐 *IP do computador:*\nFica no canto superior direito do seu papel de parede (Ex: 10.75.16.1).');
                 resetInactivityTimer(sessionId, chatId);
                 return;
             }
 
             if (est.step === 3) {
                 est.ip = msg.body;
+                // Se categoria for Impressora, pedir código
+                if (est.opcao === '2') {
+                    est.step = 3.5;
+                    await client.sendMessage(chatId, '🖨️ *Código da impressora:*\nFica colado no próprio equipamento (Ex: TC1020).');
+                    resetInactivityTimer(sessionId, chatId);
+                    return;
+                }
+                est.step = 4;
+                await client.sendMessage(chatId, '📱 *Telefone* de contato:');
+                resetInactivityTimer(sessionId, chatId);
+                return;
+            }
+
+            if (est.step === 3.5) {
+                est.codImpressora = msg.body;
                 est.step = 4;
                 await client.sendMessage(chatId, '📱 *Telefone* de contato:');
                 resetInactivityTimer(sessionId, chatId);
@@ -737,7 +752,8 @@ function attachChatbot(client, options = {}) {
                     `📲 *Nome no WhatsApp:* ${nomeWhatsApp}\n` +
                     `📞 *Telefone WhatsApp:* ${telefoneWhatsApp}\n\n` +
                     `🏢 *Setor:* ${est.setor}\n` +
-                    `💻 *IP:* ${est.ip}\n` +
+                    `🌐 *IP:* ${est.ip}\n` +
+                    (est.codImpressora ? `🖨️ *Cód. Impressora:* ${est.codImpressora}\n` : '') +
                     `📝 *Problema:* ${est.desc}`;
 
                 let tecnicoResponsavel = null;
