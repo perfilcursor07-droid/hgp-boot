@@ -631,7 +631,7 @@ app.get('/messages', isAuthenticated, isAdmin, async (req, res) => {
 });
 
 app.get('/conversas', isAuthenticated, async (req, res) => {
-    res.render('conversas', { username: req.session.username });
+    res.render('conversas', { username: req.session.username, nivelAcesso: req.session.nivelAcesso || 'administrador' });
 });
 
 app.get('/api/conversas', isAuthenticated, async (req, res) => {

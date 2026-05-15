@@ -161,7 +161,8 @@
 </head>
 <body>
     <div class="dashboard">
-        <%- include('partials/sidebar', { activePage: 'conversas', username, role: 'Administrador', isAdmin: true }) %>
+        <% const isAdmin = typeof nivelAcesso !== 'undefined' && nivelAcesso === 'administrador'; %>
+        <%- include('partials/sidebar', { activePage: 'conversas', username, role: isAdmin ? 'Administrador' : (nivelAcesso === 'visualizador' ? 'Visualizador' : 'Gestor'), isAdmin }) %>
 
         <main class="main-content">
             <div class="topbar">
