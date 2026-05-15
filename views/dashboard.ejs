@@ -153,6 +153,17 @@
                         </div>
                     </aside>
                 </div>
+
+                <!-- Mini WhatsApp - Últimas mensagens -->
+                <div class="card" style="margin-top: 20px;">
+                    <h2>📱 WhatsApp em Tempo Real</h2>
+                    <div id="miniWhatsapp" style="max-height: 350px; overflow-y: auto; background: #e5ddd5; border-radius: 12px; padding: 16px;">
+                        <p style="text-align: center; color: #64748b; padding: 30px;">Carregando mensagens...</p>
+                    </div>
+                    <div style="margin-top: 10px; text-align: right;">
+                        <a href="/messages" style="font-size: 13px; color: #25D366; text-decoration: none; font-weight: 600;">Ver todas as mensagens →</a>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
@@ -344,6 +355,38 @@
 
         loadStats();
         renderBotStatus(initialBotConnected);
+
+        // Mini WhatsApp - carregar últimas mensagens
+        async function loadMiniWhatsapp() {
+            try {
+                const response = await fetch('/api/messages/recent');
+                const data = await response.json();
+                const container = document.getElementById('miniWhatsapp');
+                
+                if (!data.success || data.messages.length === 0) {
+                    container.innerHTML = '<p style="text-align:center;color:#64748b;padding:30px;">Nenhuma mensagem recente</p>';
+                    return;
+                }
+
+                container.innerHTML = data.messages.map(msg => {
+                    const hora = new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                    const isMe = msg.is_from_me;
+                    const numero = (msg.from_number || '').replace(/@.*$/, '').slice(-8);
+                    return `<div style="display:flex;justify-content:${isMe ? 'flex-end' : 'flex-start'};margin-bottom:6px;">
+                        <div style="max-width:75%;padding:8px 12px;border-radius:8px;background:${isMe ? '#dcf8c6' : 'white'};box-shadow:0 1px 2px rgba(0,0,0,0.1);font-size:13px;">
+                            ${!isMe ? `<div style="font-size:11px;font-weight:600;color:#25D366;margin-bottom:2px;">...${numero}</div>` : ''}
+                            <div style="color:#1e293b;word-break:break-word;">${msg.message_body ? msg.message_body.slice(0, 200) : '<em style="color:#94a3b8;">(mídia)</em>'}</div>
+                            <div style="font-size:10px;color:#94a3b8;text-align:right;margin-top:3px;">${hora}</div>
+                        </div>
+                    </div>`;
+                }).join('');
+            } catch (e) {
+                console.error('Erro ao carregar mini WhatsApp:', e);
+            }
+        }
+
+        loadMiniWhatsapp();
+        setInterval(loadMiniWhatsapp, 10000); // Atualiza a cada 10s
     </script>
 </body>
 </html>

@@ -201,8 +201,41 @@
         </div>
     </div>
 
+    <!-- Modal Transferir Chamado -->
+    <div id="modalTransferir" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📤 Transferir Chamado</h2>
+                <span class="modal-close" onclick="fecharModalTransferir()">&times;</span>
+            </div>
+            <form id="formTransferir" onsubmit="transferirChamado(event)">
+                <input type="hidden" id="transferirChamadoId" name="chamadoId">
+                <p>Protocolo: <strong id="transferirProtocolo"></strong></p>
+                
+                <div class="form-group">
+                    <label for="novoAtendenteId">Transferir para *</label>
+                    <select id="novoAtendenteId" name="novoAtendenteId" required style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
+                        <option value="">Carregando atendentes...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="obsTransferencia">Observação (obrigatória) *</label>
+                    <textarea id="obsTransferencia" name="obsTransferencia" rows="4" required minlength="5" placeholder="Informe o status atual do caso e o motivo da transferência..." style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;"></textarea>
+                    <small style="color: #64748b;">Mínimo 5 caracteres. Descreva o que já foi feito e por que está transferindo.</small>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" onclick="fecharModalTransferir()" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Transferir</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         const isAdmin = <%= isAdmin ? 'true' : 'false' %>;
+        const isVisualizador = '<%= nivelAcesso %>' === 'visualizador';
         const initialChamados = <%- JSON.stringify(chamados || []) %>;
         let gestoresCache = [];
         let chamadosAutoRefresh = null;
@@ -278,6 +311,14 @@
 
             let html = '<div class="chamado-actions">';
 
+            // Visualizador só pode ver detalhes e chat
+            if (isVisualizador) {
+                html += `<button onclick="abrirChat(${chamado.id},'${p}')" class="ca-btn ca-chat" title="Ver chat" style="position:relative">${icChat}<span class="ca-label">Chat</span></button>`;
+                html += `<button class="ca-btn ca-info btn-detalhes" title="Ver detalhes" data-id="${chamado.id}">${icInfo}<span class="ca-label">Detalhes</span></button>`;
+                html += '</div>';
+                return html;
+            }
+
             if (!finalizado) {
                 if (!emAtendimento) {
                     html += `<button onclick="atenderChamado(${chamado.id},'${p}')" class="ca-btn ca-atender" title="Atender chamado">${icAtender}<span class="ca-label">Atender</span></button>`;
@@ -287,6 +328,9 @@
                 if (isAdmin) {
                     const lblEnc = emAtendimento ? 'Reencaminhar' : 'Encaminhar';
                     html += `<button onclick="abrirModalEncaminhar(${chamado.id},'${p}')" class="ca-btn ca-forward" title="${lblEnc}">${icForward}<span class="ca-label">${emAtendimento ? 'Reenc.' : 'Encam.'}</span></button>`;
+                }
+                if (emAtendimento) {
+                    html += `<button onclick="abrirModalTransferir(${chamado.id},'${p}')" class="ca-btn ca-forward" title="Transferir turno" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;">${icForward}<span class="ca-label">Transferir</span></button>`;
                 }
                 html += `<button onclick="abrirModalEncerrar(${chamado.id},'${p}')" class="ca-btn ca-close" title="Encerrar chamado">${icEncerrar}<span class="ca-label">Encerrar</span></button>`;
             } else {
@@ -556,6 +600,74 @@
 
         function fecharModalEncerrar() {
             document.getElementById('modalEncerrar').style.display = 'none';
+        }
+
+        // Transferir chamado
+        let atendentesCache = [];
+
+        async function abrirModalTransferir(id, protocolo) {
+            document.getElementById('transferirChamadoId').value = id;
+            document.getElementById('transferirProtocolo').textContent = protocolo;
+            document.getElementById('obsTransferencia').value = '';
+            document.getElementById('modalTransferir').style.display = 'flex';
+
+            const select = document.getElementById('novoAtendenteId');
+            select.innerHTML = '<option value="" disabled selected>Carregando...</option>';
+
+            try {
+                const response = await fetch('/api/usuarios/atendentes');
+                const result = await response.json();
+                if (result.success) {
+                    atendentesCache = result.atendentes || [];
+                    select.innerHTML = '<option value="" disabled selected>Selecione o atendente...</option>';
+                    atendentesCache.forEach(a => {
+                        const opt = document.createElement('option');
+                        opt.value = a.id;
+                        opt.textContent = `${a.nome_completo || a.username} (${a.nivel_acesso})`;
+                        select.appendChild(opt);
+                    });
+                }
+            } catch (e) {
+                select.innerHTML = '<option value="" disabled>Erro ao carregar</option>';
+            }
+        }
+
+        function fecharModalTransferir() {
+            document.getElementById('modalTransferir').style.display = 'none';
+        }
+
+        async function transferirChamado(event) {
+            event.preventDefault();
+            const chamadoId = document.getElementById('transferirChamadoId').value;
+            const novoAtendenteId = document.getElementById('novoAtendenteId').value;
+            const observacao = document.getElementById('obsTransferencia').value;
+
+            if (!novoAtendenteId) {
+                mostrarToast('Selecione o atendente destino', 'error');
+                return;
+            }
+            if (!observacao || observacao.trim().length < 5) {
+                mostrarToast('A observação é obrigatória (mínimo 5 caracteres)', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/chamados/${chamadoId}/transferir`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ novoAtendenteId, observacao })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    fecharModalTransferir();
+                    mostrarToast('✓ ' + result.message, 'success');
+                    await atualizarOverviewChamados();
+                } else {
+                    mostrarToast('✗ ' + result.message, 'error');
+                }
+            } catch (error) {
+                mostrarToast('✗ Erro ao transferir chamado', 'error');
+            }
         }
 
         async function encerrarChamado(event) {

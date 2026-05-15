@@ -711,6 +711,20 @@ app.get('/api/stats', isAuthenticated, async (req, res) => {
     }
 });
 
+app.get('/api/messages/recent', isAuthenticated, async (req, res) => {
+    try {
+        const [messages] = await db.query(`
+            SELECT from_number, to_number, message_body, message_type, is_from_me, timestamp
+            FROM messages
+            ORDER BY timestamp DESC
+            LIMIT 30
+        `);
+        res.json({ success: true, messages: messages.reverse() });
+    } catch (error) {
+        res.json({ success: false, messages: [] });
+    }
+});
+
 app.get('/contacts', isAuthenticated, isAdmin, async (req, res) => {
     try {
         const [contacts] = await db.query(`
@@ -1823,9 +1837,108 @@ app.post('/api/chamados/:id/encaminhar', isAuthenticated, isAdmin, async (req, r
     }
 });
 
+// API - Transferir chamado para outro atendente (com observação obrigatória)
+app.post('/api/chamados/:id/transferir', isAuthenticated, async (req, res) => {
+    try {
+        if (req.session.nivelAcesso === 'visualizador') {
+            return res.status(403).json({ success: false, message: 'Sem permissão para transferir chamados.' });
+        }
+
+        const chamadoId = req.params.id;
+        const { novoAtendenteId, observacao } = req.body;
+
+        if (!novoAtendenteId) {
+            return res.status(400).json({ success: false, message: 'Selecione o atendente destino' });
+        }
+
+        if (!observacao || observacao.trim().length < 5) {
+            return res.status(400).json({ success: false, message: 'A observação é obrigatória (mínimo 5 caracteres). Informe o status do caso e motivo da transferência.' });
+        }
+
+        const [chamado] = await db.query('SELECT * FROM chamados WHERE id = ?', [chamadoId]);
+        if (chamado.length === 0) {
+            return res.status(404).json({ success: false, message: 'Chamado não encontrado' });
+        }
+
+        const [novoAtendente] = await db.query(
+            'SELECT id, nome_completo, username, telefone FROM admins WHERE id = ? AND ativo = TRUE',
+            [novoAtendenteId]
+        );
+        if (novoAtendente.length === 0) {
+            return res.status(404).json({ success: false, message: 'Atendente destino não encontrado' });
+        }
+
+        const nomeAnterior = req.session.nomeCompleto || req.session.username;
+        const nomeNovo = novoAtendente[0].nome_completo || novoAtendente[0].username;
+
+        // Atualizar chamado
+        await db.query(
+            `UPDATE chamados 
+             SET atendente_id = ?,
+                 atendente_nome = ?,
+                 observacoes = CONCAT(COALESCE(observacoes, ''), ?)
+             WHERE id = ?`,
+            [novoAtendente[0].id, nomeNovo, `\n[Transferido de ${nomeAnterior} para ${nomeNovo} em ${new Date().toLocaleString('pt-BR')}]\nMotivo: ${observacao.trim()}\n`, chamadoId]
+        );
+
+        // Registrar no chat do chamado
+        await db.query(
+            `INSERT INTO chat_messages (chamado_id, remetente_tipo, remetente_nome, mensagem)
+             VALUES (?, 'sistema', 'Sistema', ?)`,
+            [chamadoId, `📤 Chamado transferido de ${nomeAnterior} para ${nomeNovo}.\nMotivo: ${observacao.trim()}`]
+        );
+
+        // Notificar novo atendente via WhatsApp
+        if (whatsappClient && whatsappState === 'connected' && novoAtendente[0].telefone) {
+            try {
+                const destino = await resolveWhatsAppDestination(novoAtendente[0].telefone);
+                if (destino) {
+                    await whatsappClient.sendMessage(destino,
+                        `📤 *CHAMADO TRANSFERIDO PARA VOCÊ*\n\n` +
+                        `📌 *Protocolo:* ${chamado[0].protocolo}\n` +
+                        `👤 *Solicitante:* ${chamado[0].solicitante_nome}\n` +
+                        `🏢 *Setor:* ${chamado[0].setor}\n` +
+                        `📂 *Categoria:* ${chamado[0].categoria}\n` +
+                        `📝 *Obs:* ${observacao.trim()}\n\n` +
+                        `Transferido por: ${nomeAnterior}\n` +
+                        `🔗 https://hgpto.shop/chamados`
+                    );
+                }
+            } catch (error) {
+                console.error('Erro ao notificar novo atendente:', error.message);
+            }
+        }
+
+        res.json({ success: true, message: `Chamado transferido para ${nomeNovo}` });
+    } catch (error) {
+        console.error('Erro ao transferir chamado:', error);
+        res.status(500).json({ success: false, message: 'Erro ao transferir chamado' });
+    }
+});
+
+// API - Listar atendentes disponíveis para transferência
+app.get('/api/usuarios/atendentes', isAuthenticated, async (req, res) => {
+    try {
+        const [atendentes] = await db.query(`
+            SELECT id, username, nome_completo, telefone, nivel_acesso
+            FROM admins
+            WHERE ativo = TRUE AND nivel_acesso IN ('administrador', 'gestor') AND id != ?
+            ORDER BY nome_completo
+        `, [req.session.userId]);
+        res.json({ success: true, atendentes });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Erro ao buscar atendentes' });
+    }
+});
+
 // API - Iniciar atendimento de chamado
 app.post('/api/chamados/:id/atender', isAuthenticated, async (req, res) => {
     try {
+        // Bloquear usuários com nível "visualizador"
+        if (req.session.nivelAcesso === 'visualizador') {
+            return res.status(403).json({ success: false, message: 'Seu perfil não tem permissão para atender chamados. Apenas visualização.' });
+        }
+
         const chamadoId = req.params.id;
         const atendenteId = req.session.userId;
         const atendenteNome = req.session.nomeCompleto || req.session.username;
@@ -1883,6 +1996,10 @@ app.post('/api/chamados/:id/atender', isAuthenticated, async (req, res) => {
 // API - Encerrar chamado
 app.post('/api/chamados/:id/encerrar', isAuthenticated, async (req, res) => {
     try {
+        if (req.session.nivelAcesso === 'visualizador') {
+            return res.status(403).json({ success: false, message: 'Seu perfil não tem permissão para encerrar chamados.' });
+        }
+
         const chamadoId = req.params.id;
         const { observacoes } = req.body;
 

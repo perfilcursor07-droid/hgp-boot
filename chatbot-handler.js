@@ -655,11 +655,11 @@ function attachChatbot(client, options = {}) {
                 return;
             }
 
-            // Bloquear áudio, vídeo e chamadas durante o fluxo de preenchimento
+            // Bloquear qualquer mídia durante o fluxo de preenchimento
             if (est && est.step !== undefined) {
                 const tipoMsg = String(msg.type || '').toLowerCase();
-                if (['audio', 'ptt', 'video', 'call_log'].includes(tipoMsg)) {
-                    await client.sendMessage(chatId, '⚠️ Durante o preenchimento do chamado, não é possível enviar áudios, vídeos ou realizar chamadas. Por favor, digite sua resposta.');
+                if (msg.hasMedia || ['audio', 'ptt', 'video', 'image', 'document', 'sticker', 'call_log'].includes(tipoMsg)) {
+                    await client.sendMessage(chatId, '⚠️ Durante o preenchimento do chamado, não é possível enviar imagens, áudios, vídeos ou arquivos. Por favor, *digite* sua resposta.');
                     resetInactivityTimer(sessionId, chatId);
                     return;
                 }
