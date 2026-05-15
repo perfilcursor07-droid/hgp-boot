@@ -261,7 +261,7 @@
 
             container.innerHTML = lista.map(c => {
                 const numero = (c.numero || '').replace(/@.*$/, '');
-                const nome = c.nome || numero.slice(-8);
+                const nome = c.nome || formatarNumero(numero);
                 const inicial = nome.charAt(0).toUpperCase();
                 const hora = new Date(c.ultima_data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
                 const dia = new Date(c.ultima_data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
@@ -270,6 +270,7 @@
                     const icones = { image: '📷 Foto', video: '🎥 Vídeo', audio: '🎧 Áudio', ptt: '🎤 Áudio', document: '📄 Doc' };
                     preview = icones[c.tipo] || '📎 Mídia';
                 }
+                if (c.is_from_me) preview = '✓ ' + preview;
                 preview = preview.slice(0, 50);
                 const isActive = conversaAtiva === c.numero ? 'active' : '';
 
@@ -281,9 +282,17 @@
                     </div>
                     <div class="wa-contact-meta">
                         <div class="wa-contact-time">${dia} ${hora}</div>
+                        ${c.total_msgs > 0 ? `<div class="wa-contact-badge">${c.total_msgs > 99 ? '99+' : c.total_msgs}</div>` : ''}
                     </div>
                 </div>`;
             }).join('');
+        }
+
+        function formatarNumero(num) {
+            const limpo = num.replace(/\D/g, '');
+            if (limpo.length === 13) return `+${limpo.slice(0,2)} (${limpo.slice(2,4)}) ${limpo.slice(4,9)}-${limpo.slice(9)}`;
+            if (limpo.length === 12) return `+${limpo.slice(0,2)} (${limpo.slice(2,4)}) ${limpo.slice(4,8)}-${limpo.slice(8)}`;
+            return num;
         }
 
         function filtrarConversas(termo) {
@@ -301,10 +310,13 @@
             conversaAtiva = numero;
             renderConversas(conversasData);
 
+            const numLimpo = numero.replace(/@.*$/, '');
+            const numFormatado = formatarNumero(numLimpo);
+
             document.getElementById('waEmptyState').style.display = 'none';
             document.getElementById('waChatContent').style.display = 'flex';
             document.getElementById('waChatNome').textContent = nome;
-            document.getElementById('waChatNumero').textContent = numero.replace(/@.*$/, '');
+            document.getElementById('waChatNumero').textContent = numFormatado;
             document.getElementById('waChatAvatar').textContent = nome.charAt(0).toUpperCase();
             document.getElementById('waChatMessages').innerHTML = '<p style="text-align:center;color:#8696a0;padding:20px;font-size:12px;">Carregando...</p>';
 
@@ -318,7 +330,7 @@
                 const res = await fetch(`/api/conversas/${encodeURIComponent(numero)}/mensagens`);
                 const data = await res.json();
                 if (data.success) {
-                    renderMensagens(data.mensagens);
+                    renderMensagens(data.mensagens, numero);
                 }
             } catch (e) { console.error(e); }
         }
@@ -328,7 +340,7 @@
             document.getElementById('waChatPanel').classList.remove('active');
         }
 
-        function renderMensagens(mensagens) {
+        function renderMensagens(mensagens, numeroContato) {
             const container = document.getElementById('waChatMessages');
             if (mensagens.length === 0) {
                 container.innerHTML = '<p style="text-align:center;color:#8696a0;padding:20px;font-size:12px;">Sem mensagens</p>';
@@ -349,13 +361,19 @@
                     texto = icones[tipo] || '📎 Mídia';
                 }
 
+                // Ignorar notificações do sistema
+                if (tipo === 'e2e_notification' || tipo === 'notification') return '';
+
                 let dateSep = '';
                 if (diaStr !== lastDate) {
                     lastDate = diaStr;
                     dateSep = `<div class="wa-msg-system">${diaStr}</div>`;
                 }
 
+                const label = isMe ? '<span style="font-size:10px;color:#06cf9c;font-weight:600;">Bot / Atendente</span>' : '';
+
                 return `${dateSep}<div class="wa-msg ${isMe ? 'wa-msg-out' : 'wa-msg-in'}">
+                    ${label}
                     <div class="wa-msg-text">${texto.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</div>
                     <div class="wa-msg-time">${hora}${isMe ? ' ✓✓' : ''}</div>
                 </div>`;

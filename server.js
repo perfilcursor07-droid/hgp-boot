@@ -636,25 +636,42 @@ app.get('/conversas', isAuthenticated, async (req, res) => {
 
 app.get('/api/conversas', isAuthenticated, async (req, res) => {
     try {
-        // Buscar conversas agrupadas por número (últimas mensagens de cada contato)
+        // Buscar todas as conversas (agrupadas por número do contato externo)
         const [conversas] = await db.query(`
             SELECT 
-                m.from_number as numero,
-                m.message_body as ultima_mensagem,
-                m.message_type as tipo,
-                m.is_from_me,
-                m.timestamp as ultima_data,
+                sub.numero,
+                sub.ultima_mensagem,
+                sub.tipo,
+                sub.is_from_me,
+                sub.ultima_data,
                 c.contact_name as nome,
-                (SELECT COUNT(*) FROM messages m2 WHERE m2.from_number = m.from_number AND m2.is_from_me = FALSE) as total_msgs
-            FROM messages m
-            LEFT JOIN contacts c ON c.phone_number = REPLACE(REPLACE(m.from_number, '@c.us', ''), '@lid', '')
-            WHERE m.id IN (
-                SELECT MAX(id) FROM messages 
-                WHERE is_from_me = FALSE
-                GROUP BY from_number
-            )
-            ORDER BY m.timestamp DESC
-            LIMIT 50
+                sub.total_msgs
+            FROM (
+                SELECT 
+                    CASE WHEN m.is_from_me = TRUE THEN m.to_number ELSE m.from_number END as numero,
+                    (SELECT m2.message_body FROM messages m2 
+                     WHERE (m2.from_number = CASE WHEN m.is_from_me = TRUE THEN m.to_number ELSE m.from_number END 
+                            OR m2.to_number = CASE WHEN m.is_from_me = TRUE THEN m.to_number ELSE m.from_number END)
+                     ORDER BY m2.timestamp DESC LIMIT 1) as ultima_mensagem,
+                    (SELECT m2.message_type FROM messages m2 
+                     WHERE (m2.from_number = CASE WHEN m.is_from_me = TRUE THEN m.to_number ELSE m.from_number END 
+                            OR m2.to_number = CASE WHEN m.is_from_me = TRUE THEN m.to_number ELSE m.from_number END)
+                     ORDER BY m2.timestamp DESC LIMIT 1) as tipo,
+                    (SELECT m2.is_from_me FROM messages m2 
+                     WHERE (m2.from_number = CASE WHEN m.is_from_me = TRUE THEN m.to_number ELSE m.from_number END 
+                            OR m2.to_number = CASE WHEN m.is_from_me = TRUE THEN m.to_number ELSE m.from_number END)
+                     ORDER BY m2.timestamp DESC LIMIT 1) as is_from_me,
+                    MAX(m.timestamp) as ultima_data,
+                    COUNT(*) as total_msgs
+                FROM messages m
+                WHERE CASE WHEN m.is_from_me = TRUE THEN m.to_number ELSE m.from_number END NOT LIKE '%@g.us'
+                  AND CASE WHEN m.is_from_me = TRUE THEN m.to_number ELSE m.from_number END != 'status@broadcast'
+                GROUP BY numero
+                ORDER BY ultima_data DESC
+                LIMIT 50
+            ) sub
+            LEFT JOIN contacts c ON c.phone_number = REPLACE(REPLACE(sub.numero, '@c.us', ''), '@lid', '')
+            ORDER BY sub.ultima_data DESC
         `);
         res.json({ success: true, conversas });
     } catch (error) {
@@ -665,13 +682,14 @@ app.get('/api/conversas', isAuthenticated, async (req, res) => {
 
 app.get('/api/conversas/:numero/mensagens', isAuthenticated, async (req, res) => {
     try {
-        const numero = req.params.numero;
+        const numero = decodeURIComponent(req.params.numero);
+        // Buscar TODAS as mensagens dessa conversa (bot + usuário + atendente)
         const [mensagens] = await db.query(`
             SELECT from_number, to_number, message_body, message_type, is_from_me, timestamp
             FROM messages
             WHERE from_number = ? OR to_number = ?
             ORDER BY timestamp ASC
-            LIMIT 200
+            LIMIT 300
         `, [numero, numero]);
         res.json({ success: true, mensagens });
     } catch (error) {
