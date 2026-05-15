@@ -170,6 +170,7 @@
                 </div>
 
                 <div class="turnos-legenda">
+                    <div class="turnos-legenda-item"><span class="turnos-legenda-dot" style="background:#f59e0b"></span> Dia (07:00 às 19:00)</div>
                     <div class="turnos-legenda-item"><span class="turnos-legenda-dot" style="background:#22c55e"></span> Manhã: 07:00 às 11:59</div>
                     <div class="turnos-legenda-item"><span class="turnos-legenda-dot" style="background:#3b82f6"></span> Tarde: 12:00 às 18:00</div>
                     <div class="turnos-legenda-item"><span class="turnos-legenda-dot" style="background:#8b5cf6"></span> Noite: 18:01 às 23:00</div>
@@ -198,7 +199,9 @@
                                         let turnoSelecionado = 'manha';
                                         if (turnoExistente) {
                                             const hi = turnoExistente.hora_inicio.slice(0,5);
-                                            if (hi === '12:00') turnoSelecionado = 'tarde';
+                                            const hf = turnoExistente.hora_fim.slice(0,5);
+                                            if (hi === '07:00' && hf === '19:00') turnoSelecionado = 'dia';
+                                            else if (hi === '12:00') turnoSelecionado = 'tarde';
                                             else if (hi === '18:01') turnoSelecionado = 'noite';
                                             else turnoSelecionado = 'manha';
                                         }
@@ -209,6 +212,7 @@
                                             <%= turnoExistente ? 'checked' : '' %>>
                                         <span class="turno-dia-label"><%= dia %></span>
                                         <select class="turno-select turno-periodo" data-user="<%= user.id %>" data-dia="<%= idx %>">
+                                            <option value="dia" <%= turnoSelecionado === 'dia' ? 'selected' : '' %>>🌅 Dia (07:00-19:00)</option>
                                             <option value="manha" <%= turnoSelecionado === 'manha' ? 'selected' : '' %>>☀️ Manhã (07:00-11:59)</option>
                                             <option value="tarde" <%= turnoSelecionado === 'tarde' ? 'selected' : '' %>>🌤️ Tarde (12:00-18:00)</option>
                                             <option value="noite" <%= turnoSelecionado === 'noite' ? 'selected' : '' %>>🌙 Noite (18:01-23:00)</option>
@@ -243,6 +247,7 @@
         }
 
         const TURNOS_HORARIOS = {
+            dia:   { inicio: '07:00', fim: '19:00' },
             manha: { inicio: '07:00', fim: '11:59' },
             tarde: { inicio: '12:00', fim: '18:00' },
             noite: { inicio: '18:01', fim: '23:00' }

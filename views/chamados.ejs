@@ -148,10 +148,11 @@
                 <p>Protocolo: <strong id="encaminharProtocolo"></strong></p>
                 
                 <div class="form-group">
-                    <label for="gestorId">Selecione o Gestor *</label>
+                    <label for="gestorId">Encaminhar para (técnicos no turno atual) *</label>
                     <select id="gestorId" name="gestorId" required style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
-                        <option value="">Carregando gestores...</option>
+                        <option value="">Carregando técnicos...</option>
                     </select>
+                    <small style="color: #64748b;">Apenas técnicos que estão no turno agora.</small>
                 </div>
 
                 <div class="modal-actions">
@@ -205,7 +206,7 @@
     <div id="modalTransferir" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>📤 Transferir Chamado</h2>
+                <h2>� Transferir Chamado</h2>
                 <span class="modal-close" onclick="fecharModalTransferir()">&times;</span>
             </div>
             <form id="formTransferir" onsubmit="transferirChamado(event)">
@@ -213,10 +214,11 @@
                 <p>Protocolo: <strong id="transferirProtocolo"></strong></p>
                 
                 <div class="form-group">
-                    <label for="novoAtendenteId">Transferir para *</label>
+                    <label for="novoAtendenteId">Transferir para (técnicos de outro turno) *</label>
                     <select id="novoAtendenteId" name="novoAtendenteId" required style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
                         <option value="">Carregando atendentes...</option>
                     </select>
+                    <small style="color: #64748b;">Técnicos que não estão no turno atual.</small>
                 </div>
 
                 <div class="form-group">
@@ -325,12 +327,10 @@
                 }
                 html += `<button onclick="abrirChat(${chamado.id},'${p}')" class="ca-btn ca-chat" title="Abrir chat" style="position:relative">${icChat}<span class="ca-label">Chat</span><span id="badge-${chamado.id}" class="chat-badge" style="display:none;"></span></button>`;
                 html += `<button class="ca-btn ca-info btn-detalhes" title="Ver detalhes" data-id="${chamado.id}">${icInfo}<span class="ca-label">Detalhes</span></button>`;
-                if (isAdmin) {
-                    const lblEnc = emAtendimento ? 'Reencaminhar' : 'Encaminhar';
-                    html += `<button onclick="abrirModalEncaminhar(${chamado.id},'${p}')" class="ca-btn ca-forward" title="${lblEnc}">${icForward}<span class="ca-label">${emAtendimento ? 'Reenc.' : 'Encam.'}</span></button>`;
-                }
+                const lblEnc = emAtendimento ? 'Reencaminhar' : 'Encaminhar';
+                html += `<button onclick="abrirModalEncaminhar(${chamado.id},'${p}')" class="ca-btn ca-forward" title="${lblEnc} (mesmo turno)">${icForward}<span class="ca-label">${emAtendimento ? 'Reenc.' : 'Encam.'}</span></button>`;
                 if (emAtendimento) {
-                    html += `<button onclick="abrirModalTransferir(${chamado.id},'${p}')" class="ca-btn ca-forward" title="Transferir turno" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;">${icForward}<span class="ca-label">Transferir</span></button>`;
+                    html += `<button onclick="abrirModalTransferir(${chamado.id},'${p}')" class="ca-btn ca-forward" title="Transferir (outro turno)" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;">${icForward}<span class="ca-label">Transferir</span></button>`;
                 }
                 html += `<button onclick="abrirModalEncerrar(${chamado.id},'${p}')" class="ca-btn ca-close" title="Encerrar chamado">${icEncerrar}<span class="ca-label">Encerrar</span></button>`;
             } else {
@@ -489,14 +489,14 @@
 
         function popularSelectGestores(select, gestores) {
             if (gestores.length === 0) {
-                select.innerHTML = '<option value="" disabled>Nenhum gestor disponível</option>';
+                select.innerHTML = '<option value="" disabled>Nenhum técnico no turno agora</option>';
                 return;
             }
-            select.innerHTML = '<option value="" disabled selected>Selecione um gestor...</option>';
+            select.innerHTML = '<option value="" disabled selected>Selecione o técnico...</option>';
             gestores.forEach(gestor => {
                 const option = document.createElement('option');
                 option.value = gestor.id;
-                option.textContent = `${gestor.nome_completo} (${gestor.telefone || 'Sem telefone'})`;
+                option.textContent = `${gestor.nome_completo || gestor.username}`;
                 select.appendChild(option);
             });
         }
@@ -507,18 +507,13 @@
             document.getElementById('modalEncaminhar').style.display = 'flex';
 
             const select = document.getElementById('gestorId');
+            select.innerHTML = '<option value="" disabled selected>Carregando técnicos...</option>';
 
-            if (gestoresCache.length > 0) {
-                popularSelectGestores(select, gestoresCache);
-                return;
-            }
-
-            select.innerHTML = '<option value="" disabled selected>Carregando gestores...</option>';
             try {
                 const response = await fetch('/api/usuarios/gestores');
                 if (!response.ok) {
-                    select.innerHTML = '<option value="" disabled>Erro ao carregar gestores</option>';
-                    mostrarToast('✗ Erro ao carregar gestores. Verifique se você está logado como administrador.', 'error');
+                    select.innerHTML = '<option value="" disabled>Erro ao carregar</option>';
+                    mostrarToast('✗ Erro ao carregar técnicos do turno.', 'error');
                     return;
                 }
                 const result = await response.json();
@@ -527,9 +522,9 @@
                 }
                 popularSelectGestores(select, gestoresCache);
             } catch (error) {
-                console.error('Erro ao buscar gestores:', error);
-                select.innerHTML = '<option value="" disabled>Erro ao carregar gestores</option>';
-                mostrarToast('✗ Erro ao carregar gestores', 'error');
+                console.error('Erro ao buscar técnicos:', error);
+                select.innerHTML = '<option value="" disabled>Erro ao carregar</option>';
+                mostrarToast('✗ Erro ao carregar técnicos', 'error');
             }
         }
 
