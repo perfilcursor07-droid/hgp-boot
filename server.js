@@ -758,13 +758,67 @@ app.get('/api/stats', isAuthenticated, async (req, res) => {
         const [activeContacts] = await db.query(
             'SELECT COUNT(DISTINCT from_number) as count FROM messages WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 7 DAY)'
         );
-        
+
+        // Dados das últimas 24h para o dashboard
+        const [chamados24h] = await db.query(`
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'pendente' THEN 1 ELSE 0 END) as pendentes,
+                SUM(CASE WHEN status = 'em_atendimento' THEN 1 ELSE 0 END) as em_atendimento,
+                SUM(CASE WHEN status = 'finalizado' THEN 1 ELSE 0 END) as finalizados
+            FROM chamados
+            WHERE criado_em >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        `);
+
+        const [chamadosHoje] = await db.query(`
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'finalizado' THEN 1 ELSE 0 END) as finalizados
+            FROM chamados
+            WHERE criado_em >= ?
+        `, [today]);
+
+        // Mensagens por hora (últimas 12h) para gráfico
+        const [msgsPorHora] = await db.query(`
+            SELECT HOUR(timestamp) as hora, COUNT(*) as total
+            FROM messages
+            WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 12 HOUR)
+            GROUP BY HOUR(timestamp)
+            ORDER BY hora
+        `);
+
+        // Chamados por categoria (últimas 24h)
+        const [chamadosPorCategoria] = await db.query(`
+            SELECT categoria, COUNT(*) as total
+            FROM chamados
+            WHERE criado_em >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+            GROUP BY categoria
+            ORDER BY total DESC
+            LIMIT 5
+        `);
+
+        // Atendentes mais ativos (últimas 24h)
+        const [atendentesAtivos] = await db.query(`
+            SELECT atendente_nome, COUNT(*) as total
+            FROM chamados
+            WHERE atendente_nome IS NOT NULL
+              AND criado_em >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+            GROUP BY atendente_nome
+            ORDER BY total DESC
+            LIMIT 5
+        `);
+
         res.json({
             messagesToday: messagesToday[0].count,
-            activeContacts: activeContacts[0].count
+            activeContacts: activeContacts[0].count,
+            chamados24h: chamados24h[0],
+            chamadosHoje: chamadosHoje[0],
+            msgsPorHora,
+            chamadosPorCategoria,
+            atendentesAtivos
         });
     } catch (error) {
-        res.json({ messagesToday: 0, activeContacts: 0 });
+        res.json({ messagesToday: 0, activeContacts: 0, chamados24h: {}, chamadosHoje: {}, msgsPorHora: [], chamadosPorCategoria: [], atendentesAtivos: [] });
     }
 });
 
