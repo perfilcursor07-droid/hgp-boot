@@ -37,18 +37,29 @@
                         <span></span>
                         <span></span>
                     </button>
-                    <h2 style="display: flex; align-items: center; gap: 10px;">
-                        <span>🧾 Chamados</span>
-                        <span id="topbarPendingBadge" class="menu-live-badge" style="display: <%= (contagem.pendente || 0) > 0 ? 'inline-flex' : 'none' %>;">
-                            <%= contagem.pendente || 0 %>
-                        </span>
-                    </h2>
+                    <h2>Chamados</h2>
                 </div>
                 <div class="topbar-actions">
+                    <% if ((contagem.pendente || 0) > 0) { %>
+                        <span class="badge warning" id="topbarPendingBadge"><%= contagem.pendente %> pendente(s)</span>
+                    <% } %>
                 </div>
             </div>
 
             <div class="content">
+                <section class="dashboard-hero">
+                    <div>
+                        <p class="eyebrow">Central de atendimento</p>
+                        <h1>Gestão de Chamados</h1>
+                        <p class="hero-text">Acompanhe, atenda e gerencie os chamados de suporte técnico em tempo real.</p>
+                    </div>
+                    <div class="hero-highlight">
+                        <span class="hero-highlight-label">Hoje</span>
+                        <strong><%= (contagem.total || 0) %> chamados</strong>
+                        <small><%= (contagem.pendente || 0) %> aguardando atendimento</small>
+                    </div>
+                </section>
+
                 <div class="stats-grid">
                     <div class="stat-card stat-card-clickable" data-filter="aberto" onclick="aplicarFiltro('aberto')">
                         <div class="stat-icon green">
@@ -419,8 +430,8 @@
             if (topbarPendingBadge) {
                 const totalPendentes = Number(contagem.pendente || 0);
                 if (totalPendentes > 0) {
-                    topbarPendingBadge.textContent = totalPendentes > 99 ? '99+' : String(totalPendentes);
-                    topbarPendingBadge.style.display = 'inline-flex';
+                    topbarPendingBadge.textContent = `${totalPendentes} pendente(s)`;
+                    topbarPendingBadge.style.display = 'inline-block';
                 } else {
                     topbarPendingBadge.style.display = 'none';
                 }
