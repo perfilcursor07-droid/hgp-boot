@@ -1648,6 +1648,37 @@ app.get('/api/usuarios/gestores', isAuthenticated, async (req, res) => {
     }
 });
 
+// API - Listar atendentes disponíveis para transferência (quem NÃO está no turno atual, mas tem turno configurado)
+app.get('/api/usuarios/atendentes', isAuthenticated, async (req, res) => {
+    try {
+        const agora = new Date();
+        const diaSemana = agora.getDay();
+        const horaAtual = agora.toTimeString().slice(0, 5);
+
+        const [atendentes] = await db.query(`
+            SELECT DISTINCT a.id, a.username, a.nome_completo, a.telefone, a.nivel_acesso
+            FROM admins a
+            INNER JOIN user_turnos t ON t.admin_id = a.id AND t.ativo = TRUE
+            WHERE a.ativo = TRUE
+              AND a.nivel_acesso IN ('administrador', 'gestor')
+              AND a.id != ?
+              AND a.id NOT IN (
+                  SELECT t2.admin_id FROM user_turnos t2
+                  WHERE t2.ativo = TRUE
+                    AND t2.dia_semana = ?
+                    AND t2.hora_inicio <= ?
+                    AND t2.hora_fim >= ?
+              )
+            ORDER BY a.nome_completo
+        `, [req.session.userId, diaSemana, horaAtual, horaAtual]);
+
+        res.json({ success: true, atendentes });
+    } catch (error) {
+        console.error('Erro ao buscar atendentes:', error);
+        res.status(500).json({ success: false, message: 'Erro ao buscar atendentes' });
+    }
+});
+
 // API - Listar usuário específico
 app.get('/api/usuarios/:id', isAuthenticated, isAdmin, async (req, res) => {
     try {
@@ -2076,36 +2107,6 @@ app.post('/api/chamados/:id/transferir', isAuthenticated, async (req, res) => {
     } catch (error) {
         console.error('Erro ao transferir chamado:', error);
         res.status(500).json({ success: false, message: 'Erro ao transferir chamado' });
-    }
-});
-
-// API - Listar atendentes disponíveis para transferência (quem NÃO está no turno atual, mas tem turno configurado)
-app.get('/api/usuarios/atendentes', isAuthenticated, async (req, res) => {
-    try {
-        const agora = new Date();
-        const diaSemana = agora.getDay();
-        const horaAtual = agora.toTimeString().slice(0, 5);
-
-        const [atendentes] = await db.query(`
-            SELECT DISTINCT a.id, a.username, a.nome_completo, a.telefone, a.nivel_acesso
-            FROM admins a
-            INNER JOIN user_turnos t ON t.admin_id = a.id AND t.ativo = TRUE
-            WHERE a.ativo = TRUE
-              AND a.nivel_acesso IN ('administrador', 'gestor')
-              AND a.id != ?
-              AND a.id NOT IN (
-                  SELECT t2.admin_id FROM user_turnos t2
-                  WHERE t2.ativo = TRUE
-                    AND t2.dia_semana = ?
-                    AND t2.hora_inicio <= ?
-                    AND t2.hora_fim >= ?
-              )
-            ORDER BY a.nome_completo
-        `, [req.session.userId, diaSemana, horaAtual, horaAtual]);
-
-        res.json({ success: true, atendentes });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Erro ao buscar atendentes' });
     }
 });
 
