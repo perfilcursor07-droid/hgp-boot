@@ -517,6 +517,22 @@ async function ensureSchema(connection) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     `);
 
+    await connection.query(`
+        CREATE TABLE IF NOT EXISTS avaliacoes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            chamado_id INT NOT NULL,
+            protocolo VARCHAR(50) NOT NULL,
+            nota TINYINT NOT NULL COMMENT '1 a 5',
+            atendente_nome VARCHAR(255) NULL,
+            solicitante_nome VARCHAR(150) NULL,
+            chat_origem VARCHAR(100) NULL,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_avaliacoes_chamado (chamado_id),
+            INDEX idx_avaliacoes_nota (nota),
+            FOREIGN KEY (chamado_id) REFERENCES chamados(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+    `);
+
     return changes;
 }
 

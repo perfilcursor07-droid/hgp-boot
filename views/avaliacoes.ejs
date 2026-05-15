@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avaliações - WhatsApp HGP</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .av-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .av-stat { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; text-align: center; }
+        .av-stat h3 { font-size: 28px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+        .av-stat p { font-size: 12px; color: #64748b; }
+        .av-stat.media h3 { color: #f59e0b; }
+        .av-stat.positivas h3 { color: #16a34a; }
+        .av-stat.negativas h3 { color: #dc2626; }
+        .av-stars { color: #f59e0b; font-size: 14px; letter-spacing: 2px; }
+        .av-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .av-table th { background: #f8fafc; padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; }
+        .av-table td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+        .av-table tr:hover td { background: #f8fafc; }
+        .av-nota { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-weight: 600; font-size: 12px; }
+        .av-nota-5 { background: #dcfce7; color: #16a34a; }
+        .av-nota-4 { background: #d1fae5; color: #059669; }
+        .av-nota-3 { background: #fef3c7; color: #b45309; }
+        .av-nota-2 { background: #fee2e2; color: #dc2626; }
+        .av-nota-1 { background: #fecaca; color: #991b1b; }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <%- include('partials/sidebar', { activePage: 'avaliacoes', username, role: 'Administrador', isAdmin: true }) %>
+
+        <main class="main-content">
+            <div class="topbar">
+                <div class="topbar-title-group">
+                    <button class="menu-toggle" onclick="document.body.classList.toggle('sidebar-open')">
+                        <span></span><span></span><span></span>
+                    </button>
+                    <h2>⭐ Avaliações</h2>
+                </div>
+            </div>
+
+            <div class="content">
+                <section class="dashboard-hero">
+                    <div>
+                        <p class="eyebrow">Satisfação do atendimento</p>
+                        <h1>Avaliações dos Chamados</h1>
+                        <p class="hero-text">Acompanhe as notas dadas pelos solicitantes após o encerramento dos chamados.</p>
+                    </div>
+                    <div class="hero-highlight">
+                        <span class="hero-highlight-label">Média geral</span>
+                        <strong><%= stats.media || '0.0' %> / 5</strong>
+                        <small><%= stats.total || 0 %> avaliações recebidas</small>
+                    </div>
+                </section>
+
+                <div class="av-stats">
+                    <div class="av-stat">
+                        <h3><%= stats.total || 0 %></h3>
+                        <p>Total de Avaliações</p>
+                    </div>
+                    <div class="av-stat media">
+                        <h3><%= stats.media || '0.0' %></h3>
+                        <p>Média Geral</p>
+                    </div>
+                    <div class="av-stat positivas">
+                        <h3><%= stats.positivas || 0 %></h3>
+                        <p>Positivas (4-5)</p>
+                    </div>
+                    <div class="av-stat negativas">
+                        <h3><%= stats.negativas || 0 %></h3>
+                        <p>Negativas (1-2)</p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Histórico de Avaliações</h2>
+                    <% if (avaliacoes.length === 0) { %>
+                        <p style="text-align:center;color:#94a3b8;padding:40px;">Nenhuma avaliação recebida ainda</p>
+                    <% } else { %>
+                        <div style="overflow-x:auto;">
+                            <table class="av-table">
+                                <thead>
+                                    <tr>
+                                        <th>Protocolo</th>
+                                        <th>Solicitante</th>
+                                        <th>Atendente</th>
+                                        <th>Categoria</th>
+                                        <th>Nota</th>
+                                        <th>Data</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <% avaliacoes.forEach(av => { %>
+                                        <tr>
+                                            <td><strong><%= av.protocolo %></strong></td>
+                                            <td><%= av.solicitante_nome || '-' %></td>
+                                            <td><%= av.atendente_nome || '-' %></td>
+                                            <td><%= av.categoria || '-' %></td>
+                                            <td>
+                                                <span class="av-nota av-nota-<%= av.nota %>">
+                                                    <%= '⭐'.repeat(av.nota) %> <%= av.nota %>/5
+                                                </span>
+                                            </td>
+                                            <td><%= new Date(av.criado_em).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) %></td>
+                                        </tr>
+                                    <% }); %>
+                                </tbody>
+                            </table>
+                        </div>
+                    <% } %>
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

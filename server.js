@@ -987,6 +987,32 @@ app.get('/fluxo', isAuthenticated, isAdmin, async (req, res) => {
     }
 });
 
+app.get('/avaliacoes', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const [avaliacoes] = await db.query(`
+            SELECT a.*, c.categoria, c.setor
+            FROM avaliacoes a
+            LEFT JOIN chamados c ON c.id = a.chamado_id
+            ORDER BY a.criado_em DESC
+            LIMIT 100
+        `);
+
+        const [stats] = await db.query(`
+            SELECT 
+                COUNT(*) as total,
+                ROUND(AVG(nota), 1) as media,
+                SUM(CASE WHEN nota >= 4 THEN 1 ELSE 0 END) as positivas,
+                SUM(CASE WHEN nota <= 2 THEN 1 ELSE 0 END) as negativas
+            FROM avaliacoes
+        `);
+
+        res.render('avaliacoes', { username: req.session.username, avaliacoes, stats: stats[0] });
+    } catch (error) {
+        console.error('Erro ao carregar avaliações:', error);
+        res.render('avaliacoes', { username: req.session.username, avaliacoes: [], stats: { total: 0, media: 0, positivas: 0, negativas: 0 } });
+    }
+});
+
 app.get('/relatorios', isAuthenticated, isAdmin, async (req, res) => {
     try {
         res.render('relatorios', { username: req.session.username });
@@ -2175,6 +2201,7 @@ app.post('/api/chamados/:id/encerrar', isAuthenticated, async (req, res) => {
                 if (whatsappChatbotController?.reiniciarFluxoPorEncerramento) {
                     notificacaoEnviada = await whatsappChatbotController.reiniciarFluxoPorEncerramento(chamado[0].chat_origem, {
                         protocolo: chamado[0].protocolo,
+                        chamadoId: chamado[0].id,
                         atendenteNome: chamado[0].atendente_nome || 'Equipe TI',
                         nomeExibicao: chamado[0].solicitante_nome || 'Prezado'
                     });

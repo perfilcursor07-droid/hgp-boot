@@ -223,13 +223,28 @@ function attachChatbot(client, options = {}) {
         liberarSessao(sessionId);
 
         const nomeExibicao = options.nomeExibicao || 'Prezado';
-        const protocolo = options.protocolo ? ` (${options.protocolo})` : '';
+        const protocolo = options.protocolo || '';
+        const protocoloTxt = protocolo ? ` (${protocolo})` : '';
 
         try {
             await client.sendMessage(
                 chatId,
-                `✅ Chamado${protocolo} encerrado com sucesso. Obrigado pelo contato!`
+                `✅ Chamado${protocoloTxt} encerrado com sucesso. Obrigado pelo contato!`
             );
+            await delay(500);
+            await client.sendMessage(
+                chatId,
+                `⭐ *Avalie nosso atendimento*\n\nDe 1 a 5, como foi o atendimento?\n\n1️⃣ Péssimo\n2️⃣ Ruim\n3️⃣ Regular\n4️⃣ Bom\n5️⃣ Excelente\n\n_Digite o número da sua avaliação._`
+            );
+
+            // Setar estado de avaliação pendente
+            estados.set(sessionId, {
+                step: 'avaliacao',
+                protocolo: protocolo,
+                chamadoId: options.chamadoId || null,
+                atendenteNome: options.atendenteNome || null,
+                solicitanteNome: nomeExibicao
+            });
 
             return true;
         } catch (erro) {
@@ -661,6 +676,30 @@ function attachChatbot(client, options = {}) {
                 if (msg.hasMedia || ['audio', 'ptt', 'video', 'image', 'document', 'sticker', 'call_log'].includes(tipoMsg)) {
                     await client.sendMessage(chatId, '⚠️ Durante o preenchimento do chamado, não é possível enviar imagens, áudios, vídeos ou arquivos. Por favor, *digite* sua resposta.');
                     resetInactivityTimer(sessionId, chatId);
+                    return;
+                }
+            }
+
+            // Processar avaliação
+            if (est.step === 'avaliacao') {
+                const nota = parseInt(texto);
+                if (nota >= 1 && nota <= 5) {
+                    try {
+                        await db.query(
+                            `INSERT INTO avaliacoes (chamado_id, protocolo, nota, atendente_nome, solicitante_nome, chat_origem)
+                             VALUES (?, ?, ?, ?, ?, ?)`,
+                            [est.chamadoId, est.protocolo, nota, est.atendenteNome, est.solicitanteNome, sessionId]
+                        );
+                        const emojis = ['', '😞', '😕', '😐', '😊', '🤩'];
+                        await client.sendMessage(chatId, `${emojis[nota]} Obrigado pela avaliação! Sua nota: *${nota}/5*`);
+                    } catch (erro) {
+                        registrarErro(erro, 'Erro ao salvar avaliação');
+                        await client.sendMessage(chatId, '✓ Obrigado pelo feedback!');
+                    }
+                    estados.delete(sessionId);
+                    return;
+                } else {
+                    await client.sendMessage(chatId, '⚠️ Por favor, digite um número de *1 a 5* para avaliar.');
                     return;
                 }
             }
