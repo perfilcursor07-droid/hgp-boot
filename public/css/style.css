@@ -368,6 +368,9 @@ body {
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.06);
     border-radius: 10px;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.2s;
 }
 
 .user-avatar {
@@ -423,6 +426,141 @@ body {
     background: rgba(239, 68, 68, 0.15);
     border-color: rgba(239, 68, 68, 0.25);
     color: #fca5a5;
+}
+
+/* User Dropdown */
+.user-info:hover {
+    background: rgba(255,255,255,0.08);
+}
+
+.user-dropdown-chevron {
+    color: rgba(255,255,255,0.4);
+    flex-shrink: 0;
+    transition: transform 0.2s;
+}
+
+.user-dropdown.open ~ .user-info .user-dropdown-chevron,
+.user-dropdown.open + .sidebar-version {
+    /* visual cue */
+}
+
+.sidebar-footer {
+    position: relative;
+}
+
+.user-dropdown {
+    display: none;
+    position: absolute;
+    bottom: calc(100% - 28px);
+    left: 10px;
+    right: 10px;
+    background: #0f2132;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px;
+    padding: 6px;
+    z-index: 1000;
+    box-shadow: 0 -8px 24px rgba(0,0,0,0.3);
+    animation: dropdownFadeIn 0.15s ease;
+}
+
+.user-dropdown.open {
+    display: block;
+}
+
+@keyframes dropdownFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.user-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.75);
+    text-decoration: none;
+    border: none;
+    background: none;
+    width: 100%;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+}
+
+.user-dropdown-item:hover {
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+}
+
+.user-dropdown-logout:hover {
+    background: rgba(239, 68, 68, 0.12);
+    color: #fca5a5;
+}
+
+/* Modal Perfil */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    backdrop-filter: blur(3px);
+}
+
+.modal-box {
+    background: #fff;
+    border-radius: 14px;
+    padding: 28px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.modal-header h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #162033;
+}
+
+.modal-close {
+    font-size: 24px;
+    cursor: pointer;
+    color: #94a3b8;
+    line-height: 1;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: all 0.15s;
+}
+
+.modal-close:hover {
+    background: #f1f5f9;
+    color: #334155;
+}
+
+.form-group {
+    margin-bottom: 14px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 5px;
 }
 
 .sidebar-version {

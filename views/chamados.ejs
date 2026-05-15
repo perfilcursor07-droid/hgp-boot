@@ -659,10 +659,27 @@
                 if (result.success) {
                     atendentesCache = result.atendentes || [];
                     select.innerHTML = '<option value="" disabled selected>Selecione o atendente...</option>';
+
+                    const diasNomes = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
                     atendentesCache.forEach(a => {
                         const opt = document.createElement('option');
                         opt.value = a.id;
-                        opt.textContent = `${a.nome_completo || a.username} (${a.nivel_acesso})`;
+
+                        // Montar info dos turnos
+                        let turnoInfo = '';
+                        if (a.turnos && a.turnos.length > 0) {
+                            const turnosPorDia = {};
+                            a.turnos.forEach(t => {
+                                const dia = diasNomes[t.dia_semana] || `Dia${t.dia_semana}`;
+                                if (!turnosPorDia[dia]) turnosPorDia[dia] = [];
+                                turnosPorDia[dia].push(`${t.hora_inicio}-${t.hora_fim}`);
+                            });
+                            const partes = Object.entries(turnosPorDia).map(([dia, hrs]) => `${dia}: ${hrs.join(', ')}`);
+                            turnoInfo = ` | ${partes.join(' · ')}`;
+                        }
+
+                        opt.textContent = `${a.nome_completo || a.username} (${a.nivel_acesso})${turnoInfo}`;
                         select.appendChild(opt);
                     });
                 }

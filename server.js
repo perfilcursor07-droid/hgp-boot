@@ -1672,6 +1672,17 @@ app.get('/api/usuarios/atendentes', isAuthenticated, async (req, res) => {
             ORDER BY a.nome_completo
         `, [req.session.userId, diaSemana, horaAtual, horaAtual]);
 
+        // Buscar os turnos de cada atendente para mostrar horários disponíveis
+        for (const atendente of atendentes) {
+            const [turnos] = await db.query(`
+                SELECT dia_semana, hora_inicio, hora_fim
+                FROM user_turnos
+                WHERE admin_id = ? AND ativo = TRUE
+                ORDER BY dia_semana, hora_inicio
+            `, [atendente.id]);
+            atendente.turnos = turnos;
+        }
+
         res.json({ success: true, atendentes });
     } catch (error) {
         console.error('Erro ao buscar atendentes:', error);
@@ -2412,6 +2423,71 @@ app.get('/api/chamados/meus-atendimentos', isAuthenticated, async (req, res) => 
     } catch (error) {
         console.error('Erro ao buscar atendimentos:', error);
         res.status(500).json({ success: false, message: 'Erro ao buscar atendimentos' });
+    }
+});
+
+// API - Obter dados do perfil do usuário logado
+app.get('/api/perfil', isAuthenticated, async (req, res) => {
+    try {
+        const [users] = await db.query(
+            'SELECT id, username, nome_completo, telefone, nivel_acesso FROM admins WHERE id = ?',
+            [req.session.userId]
+        );
+        if (users.length === 0) {
+            return res.status(404).json({ success: false, message: 'Usuário não encontrado' });
+        }
+        res.json({ success: true, usuario: users[0] });
+    } catch (error) {
+        console.error('Erro ao buscar perfil:', error);
+        res.status(500).json({ success: false, message: 'Erro ao buscar perfil' });
+    }
+});
+
+// API - Atualizar perfil do usuário logado (nome, telefone, senha)
+app.put('/api/perfil', isAuthenticated, async (req, res) => {
+    try {
+        const { nome_completo, telefone, senha_atual, nova_senha } = req.body;
+        const userId = req.session.userId;
+
+        // Se está tentando alterar a senha, validar a senha atual
+        if (nova_senha) {
+            if (!senha_atual) {
+                return res.status(400).json({ success: false, message: 'Informe a senha atual para alterar a senha' });
+            }
+
+            const [users] = await db.query('SELECT password FROM admins WHERE id = ?', [userId]);
+            if (users.length === 0) {
+                return res.status(404).json({ success: false, message: 'Usuário não encontrado' });
+            }
+
+            const senhaValida = await bcrypt.compare(senha_atual, users[0].password);
+            if (!senhaValida) {
+                return res.status(400).json({ success: false, message: 'Senha atual incorreta' });
+            }
+
+            if (nova_senha.length < 4) {
+                return res.status(400).json({ success: false, message: 'A nova senha deve ter pelo menos 4 caracteres' });
+            }
+
+            const hashedPassword = await bcrypt.hash(nova_senha, 10);
+            await db.query('UPDATE admins SET password = ? WHERE id = ?', [hashedPassword, userId]);
+        }
+
+        // Atualizar nome e telefone
+        await db.query(
+            'UPDATE admins SET nome_completo = ?, telefone = ? WHERE id = ?',
+            [nome_completo || '', telefone || '', userId]
+        );
+
+        // Atualizar sessão
+        if (nome_completo) {
+            req.session.nomeCompleto = nome_completo;
+        }
+
+        res.json({ success: true, message: 'Perfil atualizado com sucesso' });
+    } catch (error) {
+        console.error('Erro ao atualizar perfil:', error);
+        res.status(500).json({ success: false, message: 'Erro ao atualizar perfil' });
     }
 });
 
