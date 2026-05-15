@@ -324,9 +324,8 @@
 
             let html = '<div class="chamado-actions">';
 
-            // Visualizador só pode ver detalhes e chat
+            // Visualizador só pode ver detalhes
             if (isVisualizador) {
-                html += `<button onclick="abrirChat(${chamado.id},'${p}')" class="ca-btn ca-chat" title="Ver chat" style="position:relative">${icChat}<span class="ca-label">Chat</span></button>`;
                 html += `<button class="ca-btn ca-info btn-detalhes" title="Ver detalhes" data-id="${chamado.id}">${icInfo}<span class="ca-label">Detalhes</span></button>`;
                 html += '</div>';
                 return html;
