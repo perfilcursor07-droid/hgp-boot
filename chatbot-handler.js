@@ -589,6 +589,21 @@ function attachChatbot(client, options = {}) {
                     chamadoAtivo = await buscarChamadoAtivo(sessionId);
 
                     if (chamadoAtivo && !texto.startsWith(GATILHO_TESTE) && texto !== 'CANCELAR') {
+                        // Se o chamado NÃO está em atendimento, deletar mídia e avisar
+                        const tipoMsg = String(msg.type || '').toLowerCase();
+                        const ehMidia = msg.hasMedia || ['audio', 'ptt', 'video', 'image', 'document', 'sticker'].includes(tipoMsg);
+
+                        if (ehMidia && chamadoAtivo.status !== 'em_atendimento') {
+                            try {
+                                await msg.delete(true);
+                                console.log(`🗑️ Mídia deletada - chamado ${chamadoAtivo.protocolo} aguardando atendimento (${sessionId})`);
+                            } catch (delErr) {
+                                console.log(`⚠️ Não foi possível deletar mídia: ${delErr.message}`);
+                            }
+                            await client.sendMessage(chatId, '🚫 *Mídia removida automaticamente.* Você só poderá enviar áudios, imagens e arquivos após um atendente iniciar o atendimento do seu chamado. Aguarde.');
+                            return;
+                        }
+
                         const contactName = contato.pushname || contato.name || 'Solicitante';
                         const resumoMensagem = resumirMensagemSolicitante(msg);
                         const midiaSalva = await salvarMidiaMensagem(msg, chamadoAtivo.id).catch((erro) => {
@@ -662,8 +677,15 @@ function attachChatbot(client, options = {}) {
                 await delay(500);
                 await client.sendMessage(chatId, menuPrincipal);
                 if (msg.hasMedia && texto !== GATILHO_TESTE) {
+                    // Deletar mídia enviada junto com a primeira mensagem
+                    try {
+                        await msg.delete(true);
+                        console.log(`🗑️ Mídia deletada na entrada do menu (${sessionId})`);
+                    } catch (delErr) {
+                        console.log(`⚠️ Não foi possível deletar mídia na entrada: ${delErr.message}`);
+                    }
                     await delay(400);
-                    await client.sendMessage(chatId, mensagemEscolhaOpcao());
+                    await client.sendMessage(chatId, '🚫 *Mídia removida.* Por favor, escolha uma das opções do menu digitando o número correspondente.');
                 }
                 estados.set(sessionId, { step: 0.5, nomeWhats: contato.pushname || 'Prezado', isTeste: texto === GATILHO_TESTE });
                 resetInactivityTimer(sessionId, chatId);
@@ -674,7 +696,14 @@ function attachChatbot(client, options = {}) {
             if (est && est.step !== undefined) {
                 const tipoMsg = String(msg.type || '').toLowerCase();
                 if (msg.hasMedia || ['audio', 'ptt', 'video', 'image', 'document', 'sticker', 'call_log'].includes(tipoMsg)) {
-                    await client.sendMessage(chatId, '⚠️ Durante o preenchimento do chamado, não é possível enviar imagens, áudios, vídeos ou arquivos. Por favor, *digite* sua resposta.');
+                    // Deletar a mensagem de mídia automaticamente
+                    try {
+                        await msg.delete(true);
+                        console.log(`🗑️ Mídia deletada durante fluxo do bot (${sessionId})`);
+                    } catch (delErr) {
+                        console.log(`⚠️ Não foi possível deletar mídia: ${delErr.message}`);
+                    }
+                    await client.sendMessage(chatId, '🚫 *Mídia removida automaticamente.* Durante o preenchimento do chamado, só é possível enviar mensagens de texto. Por favor, *digite* sua resposta.');
                     resetInactivityTimer(sessionId, chatId);
                     return;
                 }
