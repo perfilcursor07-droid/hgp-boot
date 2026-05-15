@@ -213,6 +213,15 @@
             </div>
 
             <div class="content" style="padding: 16px;">
+                <!-- Banner Meus Chamados -->
+                <div id="bannerMeusChamados" style="display:none; background:linear-gradient(135deg,#0ea5e9,#0284c7); border-radius:10px; padding:14px 20px; margin-bottom:14px; color:white; align-items:center; justify-content:space-between; gap:12px;">
+                    <div>
+                        <strong style="font-size:14px;">📋 Você tem <span id="bannerQtd">0</span> chamado(s) em andamento</strong>
+                        <p style="font-size:12px;opacity:0.85;margin:4px 0 0;">Clique para ver seus chamados e encerrar os que já foram atendidos.</p>
+                    </div>
+                    <a href="/meus-chamados" style="background:white;color:#0284c7;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;">Ver Meus Chamados →</a>
+                </div>
+
                 <!-- Mini Stats Cards -->
                 <div class="dash-grid">
                     <div class="mini-card">
@@ -476,6 +485,25 @@
 
         loadStats();
         setInterval(loadStats, 30000);
+
+        // --- Meus Chamados Banner ---
+        async function carregarBannerMeusChamados() {
+            try {
+                const response = await fetch('/api/chamados/meus-em-andamento');
+                const result = await response.json();
+                const banner = document.getElementById('bannerMeusChamados');
+                if (result.success && result.total > 0) {
+                    document.getElementById('bannerQtd').textContent = result.total;
+                    banner.style.display = 'flex';
+                } else {
+                    banner.style.display = 'none';
+                }
+            } catch (e) {
+                console.error('Erro ao verificar meus chamados:', e);
+            }
+        }
+        carregarBannerMeusChamados();
+        setInterval(carregarBannerMeusChamados, 15000);
 
         // --- Connection Logic ---
         function renderConnectingState() {

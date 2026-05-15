@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meus Chamados - WhatsApp HGP</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .meus-chamados-hero {
+            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin-bottom: 16px;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+        .meus-chamados-hero h1 {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 0 0 4px;
+        }
+        .meus-chamados-hero p {
+            font-size: 13px;
+            opacity: 0.85;
+            margin: 0;
+        }
+        .meus-chamados-stats {
+            display: flex;
+            gap: 16px;
+        }
+        .meus-chamados-stat {
+            text-align: center;
+        }
+        .meus-chamados-stat h3 {
+            font-size: 24px;
+            font-weight: 800;
+            margin: 0;
+        }
+        .meus-chamados-stat small {
+            font-size: 10px;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .chamado-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            transition: all 0.15s;
+        }
+        .chamado-card:hover {
+            border-color: #cbd5e1;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+        .chamado-card-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .chamado-card-status.em_atendimento { background: #3b82f6; }
+        .chamado-card-status.pendente { background: #f97316; }
+        .chamado-card-status.aberto { background: #22c55e; }
+        .chamado-card-status.finalizado { background: #8b5cf6; }
+
+        .chamado-card-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .chamado-card-info h4 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+            margin: 0 0 3px;
+        }
+        .chamado-card-info p {
+            font-size: 12px;
+            color: #64748b;
+            margin: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .chamado-card-meta {
+            text-align: right;
+            flex-shrink: 0;
+        }
+        .chamado-card-meta .data {
+            font-size: 11px;
+            color: #94a3b8;
+        }
+        .chamado-card-meta .status-label {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+        .status-label.em_atendimento { background: #dbeafe; color: #1d4ed8; }
+        .status-label.pendente { background: #ffedd5; color: #c2410c; }
+        .status-label.aberto { background: #dcfce7; color: #15803d; }
+        .status-label.finalizado { background: #ede9fe; color: #6d28d9; }
+
+        .chamado-card-actions {
+            display: flex;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        .chamado-card-actions button {
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid #e2e8f0;
+            background: white;
+            color: #334155;
+            transition: all 0.15s;
+        }
+        .chamado-card-actions button:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+        }
+        .chamado-card-actions .btn-encerrar {
+            background: #fee2e2;
+            color: #dc2626;
+            border-color: #fecaca;
+        }
+        .chamado-card-actions .btn-encerrar:hover {
+            background: #fecaca;
+        }
+        .chamado-card-actions .btn-chat {
+            background: #dbeafe;
+            color: #1d4ed8;
+            border-color: #bfdbfe;
+        }
+        .chamado-card-actions .btn-chat:hover {
+            background: #bfdbfe;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 48px 20px;
+            color: #94a3b8;
+        }
+        .empty-state h3 {
+            font-size: 16px;
+            color: #64748b;
+            margin: 12px 0 4px;
+        }
+        .empty-state p {
+            font-size: 13px;
+        }
+
+        .filter-tabs-meus {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 16px;
+        }
+        .filter-tabs-meus button {
+            padding: 7px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid #e2e8f0;
+            background: white;
+            color: #64748b;
+            transition: all 0.15s;
+        }
+        .filter-tabs-meus button.active {
+            background: #0ea5e9;
+            color: white;
+            border-color: #0ea5e9;
+        }
+    </style>
+</head>
+<body>
+    <% const isAdmin = typeof nivelAcesso !== 'undefined' && nivelAcesso === 'administrador'; %>
+    <div class="dashboard">
+        <%- include('partials/sidebar', { activePage: 'meus-chamados', username, role: isAdmin ? 'Administrador' : (nivelAcesso === 'gestor' ? 'Gestor' : 'Visualizador'), isAdmin }) %>
+
+        <main class="main-content">
+            <div class="topbar">
+                <div class="topbar-title-group">
+                    <button class="menu-toggle" onclick="document.body.classList.toggle('sidebar-open')">
+                        <span></span><span></span><span></span>
+                    </button>
+                    <h2>Meus Chamados</h2>
+                </div>
+            </div>
+
+            <div class="content" style="padding: 16px;">
+                <div class="meus-chamados-hero">
+                    <div>
+                        <h1>📋 Meus Chamados</h1>
+                        <p>Chamados atribuídos a você. Encerre os que já foram resolvidos.</p>
+                    </div>
+                    <div class="meus-chamados-stats">
+                        <div class="meus-chamados-stat">
+                            <h3 id="statEmAndamento">0</h3>
+                            <small>Em andamento</small>
+                        </div>
+                        <div class="meus-chamados-stat">
+                            <h3 id="statFinalizados">0</h3>
+                            <small>Finalizados</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="filter-tabs-meus">
+                    <button class="active" data-filter="em_atendimento" onclick="filtrarMeus('em_atendimento')">Em Andamento</button>
+                    <button data-filter="finalizado" onclick="filtrarMeus('finalizado')">Finalizados</button>
+                    <button data-filter="todos" onclick="filtrarMeus('todos')">Todos</button>
+                </div>
+
+                <div id="chamadosContainer">
+                    <div class="empty-state">
+                        <p>Carregando...</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Encerrar -->
+    <div id="modalEncerrar" class="modal" style="display:none;">
+        <div class="modal-content" style="max-width:480px;">
+            <div class="modal-header">
+                <h2>Encerrar Chamado</h2>
+                <span class="modal-close" onclick="fecharModal()">&times;</span>
+            </div>
+            <form onsubmit="encerrarChamado(event)">
+                <input type="hidden" id="encerrarId">
+                <p>Protocolo: <strong id="encerrarProtocolo"></strong></p>
+                <div class="form-group">
+                    <label for="encerrarObs">Observações (opcional)</label>
+                    <textarea id="encerrarObs" rows="3" placeholder="O que foi feito para resolver..." style="width:100%;padding:10px;border:2px solid #e2e8f0;border-radius:8px;"></textarea>
+                </div>
+                <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
+                    <button type="button" onclick="fecharModal()" style="padding:10px 18px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;cursor:pointer;">Cancelar</button>
+                    <button type="submit" style="padding:10px 18px;border-radius:8px;border:none;background:#dc2626;color:white;font-weight:600;cursor:pointer;">Encerrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let meusChamados = [];
+        let filtroAtual = 'em_atendimento';
+
+        async function carregarMeusChamados() {
+            try {
+                const response = await fetch('/api/chamados/meus-atendimentos');
+                const result = await response.json();
+                if (result.success) {
+                    meusChamados = result.chamados || [];
+                    atualizarStats();
+                    renderizar();
+                }
+            } catch (e) {
+                console.error('Erro ao carregar chamados:', e);
+            }
+        }
+
+        function atualizarStats() {
+            const emAndamento = meusChamados.filter(c => c.status === 'em_atendimento').length;
+            const finalizados = meusChamados.filter(c => c.status === 'finalizado').length;
+            document.getElementById('statEmAndamento').textContent = emAndamento;
+            document.getElementById('statFinalizados').textContent = finalizados;
+        }
+
+        function filtrarMeus(status) {
+            filtroAtual = status;
+            document.querySelectorAll('.filter-tabs-meus button').forEach(b => {
+                b.classList.toggle('active', b.dataset.filter === status);
+            });
+            renderizar();
+        }
+
+        function renderizar() {
+            const container = document.getElementById('chamadosContainer');
+            const filtrados = filtroAtual === 'todos'
+                ? meusChamados
+                : meusChamados.filter(c => c.status === filtroAtual);
+
+            if (filtrados.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h3>🎉 Nenhum chamado aqui</h3>
+                        <p>${filtroAtual === 'em_atendimento' ? 'Você não tem chamados em andamento.' : 'Nenhum chamado encontrado neste filtro.'}</p>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = filtrados.map(c => {
+                const data = new Date(c.criado_em);
+                const dataStr = data.toLocaleDateString('pt-BR') + ' ' + data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                const statusLabel = {
+                    'em_atendimento': 'Em Atendimento',
+                    'finalizado': 'Finalizado',
+                    'pendente': 'Pendente',
+                    'aberto': 'Aberto'
+                }[c.status] || c.status;
+
+                const acoes = c.status === 'em_atendimento'
+                    ? `<button class="btn-chat" onclick="window.location.href='/chamados'">💬 Chat</button>
+                       <button class="btn-encerrar" onclick="abrirEncerrar(${c.id}, '${escapeHtml(c.protocolo)}')">✕ Encerrar</button>`
+                    : `<span style="font-size:11px;color:#94a3b8;">Finalizado</span>`;
+
+                return `
+                    <div class="chamado-card">
+                        <div class="chamado-card-status ${c.status}"></div>
+                        <div class="chamado-card-info">
+                            <h4>${escapeHtml(c.protocolo)} — ${escapeHtml(c.solicitante_nome)}</h4>
+                            <p>${escapeHtml(c.setor || '')} · ${escapeHtml(c.categoria || '')} · ${escapeHtml(c.descricao || '').slice(0, 80)}</p>
+                        </div>
+                        <div class="chamado-card-meta">
+                            <div class="data">${dataStr}</div>
+                            <span class="status-label ${c.status}">${statusLabel}</span>
+                        </div>
+                        <div class="chamado-card-actions">
+                            ${acoes}
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        function escapeHtml(str) {
+            return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        function abrirEncerrar(id, protocolo) {
+            document.getElementById('encerrarId').value = id;
+            document.getElementById('encerrarProtocolo').textContent = protocolo;
+            document.getElementById('encerrarObs').value = '';
+            document.getElementById('modalEncerrar').style.display = 'flex';
+        }
+
+        function fecharModal() {
+            document.getElementById('modalEncerrar').style.display = 'none';
+        }
+
+        async function encerrarChamado(e) {
+            e.preventDefault();
+            const id = document.getElementById('encerrarId').value;
+            const observacoes = document.getElementById('encerrarObs').value;
+
+            try {
+                const response = await fetch(`/api/chamados/${id}/encerrar`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ observacoes })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    fecharModal();
+                    await carregarMeusChamados();
+                    mostrarToast('Chamado encerrado com sucesso!');
+                } else {
+                    mostrarToast(result.message || 'Erro ao encerrar', 'error');
+                }
+            } catch (e) {
+                mostrarToast('Erro ao encerrar chamado', 'error');
+            }
+        }
+
+        function mostrarToast(msg, tipo = 'success') {
+            const toast = document.createElement('div');
+            toast.textContent = msg;
+            toast.style.cssText = `
+                position:fixed;bottom:24px;right:24px;z-index:9999;
+                padding:12px 20px;border-radius:8px;font-size:14px;font-weight:500;
+                color:white;box-shadow:0 4px 12px rgba(0,0,0,0.2);
+                background:${tipo === 'success' ? '#10b981' : '#ef4444'};
+            `;
+            document.body.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3500);
+        }
+
+        // Iniciar
+        carregarMeusChamados();
+        setInterval(carregarMeusChamados, 10000);
+    </script>
+</body>
+</html>

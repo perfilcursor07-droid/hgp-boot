@@ -687,6 +687,21 @@ app.get('/api/conversas/:numero/mensagens', isAuthenticated, async (req, res) =>
     }
 });
 
+app.get('/meus-chamados', isAuthenticated, async (req, res) => {
+    try {
+        res.render('meus-chamados', {
+            username: req.session.username,
+            nivelAcesso: req.session.nivelAcesso || 'administrador'
+        });
+    } catch (error) {
+        console.error('Erro ao carregar meus chamados:', error);
+        res.render('meus-chamados', {
+            username: req.session.username,
+            nivelAcesso: req.session.nivelAcesso || 'administrador'
+        });
+    }
+});
+
 app.get('/chamados', isAuthenticated, async (req, res) => {
     try {
         // Garantir que nivelAcesso existe na sessão
@@ -2398,6 +2413,19 @@ app.post('/api/chamados/:id/chat/enviar-midia', isAuthenticated, uploadChatMedia
     } catch (error) {
         console.error('Erro ao enviar mídia:', error);
         res.status(500).json({ success: false, message: 'Erro ao enviar mídia' });
+    }
+});
+
+// API - Contar meus chamados em andamento
+app.get('/api/chamados/meus-em-andamento', isAuthenticated, async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            `SELECT COUNT(*) AS total FROM chamados WHERE atendente_id = ? AND status = 'em_atendimento'`,
+            [req.session.userId]
+        );
+        res.json({ success: true, total: Number(rows[0]?.total || 0) });
+    } catch (error) {
+        res.status(500).json({ success: false, total: 0 });
     }
 });
 
