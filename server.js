@@ -630,60 +630,77 @@ app.get('/messages', isAuthenticated, isAdmin, async (req, res) => {
     }
 });
 
-app.get('/conversas', isAuthenticated, async (req, res) => {
-    res.render('conversas', { username: req.session.username, nivelAcesso: req.session.nivelAcesso || 'administrador' });
+// ─── TV Dashboard (sem autenticação — para exibir na TV) ───────────────────
+app.get('/tv', (req, res) => {
+    res.render('tv');
 });
 
-app.get('/api/conversas', isAuthenticated, async (req, res) => {
+app.get('/api/tv/chamados', async (req, res) => {
     try {
-        const [conversas] = await db.query(`
-            SELECT 
-                t.numero,
-                t.ultima_data,
-                t.total_msgs,
-                m2.message_body as ultima_mensagem,
-                m2.message_type as tipo,
-                m2.is_from_me,
-                c.contact_name as nome
-            FROM (
-                SELECT 
-                    from_number as numero,
-                    MAX(timestamp) as ultima_data,
-                    COUNT(*) as total_msgs
-                FROM messages
-                WHERE is_from_me = FALSE
-                  AND from_number NOT LIKE '%@g.us'
-                  AND from_number != 'status@broadcast'
-                  AND timestamp >= DATE_SUB(NOW(), INTERVAL 2 DAY)
-                GROUP BY from_number
-                ORDER BY ultima_data DESC
-                LIMIT 30
-            ) t
-            LEFT JOIN messages m2 ON m2.from_number = t.numero AND m2.timestamp = t.ultima_data
-            LEFT JOIN contacts c ON c.phone_number = REPLACE(REPLACE(t.numero, '@c.us', ''), '@lid', '')
-            ORDER BY t.ultima_data DESC
+        const [abertos] = await db.query(`
+            SELECT
+                c.id,
+                c.protocolo,
+                c.categoria,
+                c.solicitante_nome,
+                c.setor,
+                c.status,
+                c.atendente_nome,
+                c.tecnico_nome,
+                DATE_FORMAT(c.criado_em,   '%d/%m/%Y %H:%i') AS criado_fmt,
+                DATE_FORMAT(c.iniciado_em, '%d/%m/%Y %H:%i') AS iniciado_fmt,
+                DATE_FORMAT(c.encerrado_em,'%d/%m/%Y %H:%i') AS encerrado_fmt,
+                TIMESTAMPDIFF(MINUTE, c.criado_em, NOW()) AS minutos_total
+            FROM chamados c
+            WHERE c.status IN ('pendente', 'aberto', 'em_atendimento')
+            ORDER BY c.criado_em DESC
+            LIMIT 50
         `);
-        res.json({ success: true, conversas });
-    } catch (error) {
-        console.error('Erro ao buscar conversas:', error);
-        res.json({ success: false, conversas: [] });
-    }
-});
 
-app.get('/api/conversas/:numero/mensagens', isAuthenticated, async (req, res) => {
-    try {
-        const numero = decodeURIComponent(req.params.numero);
-        // Buscar TODAS as mensagens dessa conversa (bot + usuário + atendente)
-        const [mensagens] = await db.query(`
-            SELECT from_number, to_number, message_body, message_type, is_from_me, timestamp
-            FROM messages
-            WHERE from_number = ? OR to_number = ?
-            ORDER BY timestamp ASC
-            LIMIT 300
-        `, [numero, numero]);
-        res.json({ success: true, mensagens });
+        const [finalizados] = await db.query(`
+            SELECT
+                c.id,
+                c.protocolo,
+                c.categoria,
+                c.solicitante_nome,
+                c.setor,
+                c.status,
+                c.atendente_nome,
+                c.tecnico_nome,
+                DATE_FORMAT(c.criado_em,   '%d/%m/%Y %H:%i') AS criado_fmt,
+                DATE_FORMAT(c.iniciado_em, '%d/%m/%Y %H:%i') AS iniciado_fmt,
+                DATE_FORMAT(c.encerrado_em,'%d/%m/%Y %H:%i') AS encerrado_fmt,
+                TIMESTAMPDIFF(MINUTE, c.criado_em, c.encerrado_em) AS minutos_total
+            FROM chamados c
+            WHERE c.status = 'finalizado'
+              AND c.encerrado_em >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+            ORDER BY c.encerrado_em DESC
+            LIMIT 50
+        `);
+
+        const [stats] = await db.query(`
+            SELECT
+                SUM(status IN ('pendente','aberto','em_atendimento'))                                                        AS em_aberto,
+                SUM(status = 'finalizado' AND encerrado_em >= DATE_SUB(NOW(), INTERVAL 24 HOUR))                             AS finalizados_24h,
+                SUM(status = 'em_atendimento')                                                                               AS em_atendimento,
+                SUM(status = 'pendente')                                                                                     AS pendentes,
+                ROUND(AVG(CASE WHEN status = 'finalizado' AND encerrado_em IS NOT NULL
+                    THEN TIMESTAMPDIFF(MINUTE, criado_em, encerrado_em) END), 0)                                             AS media_minutos_geral,
+                ROUND(AVG(CASE WHEN status = 'finalizado' AND encerrado_em >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+                    THEN TIMESTAMPDIFF(MINUTE, criado_em, encerrado_em) END), 0)                                             AS media_minutos_24h
+            FROM chamados
+        `);
+
+        res.json({
+            success: true,
+            abertos,
+            finalizados,
+            stats: stats[0],
+            timestamp: new Date()
+        });
     } catch (error) {
-        res.json({ success: false, mensagens: [] });
+        console.error('Erro TV API:', error);
+        res.json({ success: false, abertos: [], finalizados: [], stats: {}, timestamp: new Date() });
     }
 });
 

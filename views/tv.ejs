@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Central de Chamados — Tempo Real</title>
+    <style>
+        :root {
+            --bg:          #0a0e14;
+            --surface:     #13181f;
+            --surface2:    #1a2030;
+            --surface3:    #1f2937;
+            --border:      #2d3748;
+            --border2:     #374151;
+            --text:        #f0f4f8;
+            --text2:       #cbd5e0;
+            --muted:       #718096;
+            --green:       #48bb78;
+            --green-dim:   #1a2e22;
+            --yellow:      #ecc94b;
+            --yellow-dim:  #2d2510;
+            --blue:        #63b3ed;
+            --blue-dim:    #0d1f3c;
+            --red:         #fc8181;
+            --red-dim:     #2d1010;
+            --purple:      #b794f4;
+            --purple-dim:  #1e1040;
+            --orange:      #f6ad55;
+            --orange-dim:  #2d1a08;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html, body {
+            height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            overflow: hidden;
+        }
+
+        .tv-wrap {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* ══ HEADER ══════════════════════════════════════════════════════════ */
+        .tv-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 24px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .tv-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .tv-logo {
+            width: 38px; height: 38px;
+            background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 0 12px rgba(37,211,102,0.3);
+        }
+        .tv-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: -0.3px;
+        }
+        .tv-live {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin-top: 2px;
+        }
+        .tv-dot {
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: var(--green);
+            animation: blink 1.8s ease-in-out infinite;
+        }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+        .tv-live-text { font-size: 11px; color: var(--muted); }
+
+        .tv-clock-block { text-align: right; }
+        .tv-clock {
+            font-size: 30px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            color: var(--blue);
+            letter-spacing: 1px;
+            line-height: 1;
+        }
+        .tv-date { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+        /* ══ STATS ═══════════════════════════════════════════════════════════ */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            padding: 10px 24px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .stat-card {
+            border-radius: 10px;
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border: 1px solid var(--border);
+            background: var(--surface2);
+        }
+        .stat-icon {
+            font-size: 22px;
+            flex-shrink: 0;
+            line-height: 1;
+        }
+        .stat-info { min-width: 0; }
+        .stat-value {
+            font-size: 26px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+        }
+        .stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin-top: 2px; }
+
+        .stat-card.red    { border-color: var(--red);    background: var(--red-dim);    }
+        .stat-card.yellow { border-color: var(--yellow); background: var(--yellow-dim); }
+        .stat-card.purple { border-color: var(--purple); background: var(--purple-dim); }
+        .stat-card.green  { border-color: var(--green);  background: var(--green-dim);  }
+        .stat-card.blue   { border-color: var(--blue);   background: var(--blue-dim);   }
+        .stat-card.red    .stat-value { color: var(--red);    }
+        .stat-card.yellow .stat-value { color: var(--yellow); }
+        .stat-card.purple .stat-value { color: var(--purple); }
+        .stat-card.green  .stat-value { color: var(--green);  }
+        .stat-card.blue   .stat-value { color: var(--blue);   }
+
+        /* ══ BODY ════════════════════════════════════════════════════════════ */
+        .tv-body {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            flex: 1;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .tv-panel {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-right: 1px solid var(--border);
+        }
+        .tv-panel:last-child { border-right: none; }
+
+        .panel-header {
+            padding: 10px 16px;
+            background: var(--surface2);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .panel-header h3 {
+            font-size: 13px;
+            font-weight: 600;
+            flex: 1;
+            color: var(--text2);
+        }
+        .panel-badge {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 9px;
+            border-radius: 20px;
+        }
+        .badge-open   { background: var(--red-dim);   color: var(--red);   border: 1px solid var(--red); }
+        .badge-closed { background: var(--green-dim); color: var(--green); border: 1px solid var(--green); }
+
+        .panel-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border2) transparent;
+        }
+        .panel-list::-webkit-scrollbar { width: 4px; }
+        .panel-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+        /* ══ CARD ════════════════════════════════════════════════════════════ */
+        .chamado-card {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 9px 12px;
+            display: grid;
+            grid-template-columns: 36px 1fr auto;
+            gap: 10px;
+            align-items: start;
+            transition: border-color 0.4s, box-shadow 0.4s;
+        }
+        .chamado-card.new-item {
+            animation: cardIn 0.4s ease, glow 2s ease 0.4s;
+        }
+        @keyframes cardIn {
+            from { opacity: 0; transform: translateY(-6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes glow {
+            0%   { border-color: var(--blue); box-shadow: 0 0 14px rgba(99,179,237,0.5); }
+            100% { border-color: var(--border); box-shadow: none; }
+        }
+
+        /* left col — status icon */
+        .card-icon {
+            width: 36px; height: 36px;
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        .icon-pendente       { background: var(--yellow-dim); border: 1px solid var(--yellow); }
+        .icon-aberto         { background: var(--blue-dim);   border: 1px solid var(--blue); }
+        .icon-em_atendimento { background: var(--purple-dim); border: 1px solid var(--purple); }
+        .icon-finalizado     { background: var(--green-dim);  border: 1px solid var(--green); }
+
+        /* center col */
+        .card-body { min-width: 0; }
+        .card-protocolo {
+            font-size: 9px;
+            color: var(--muted);
+            font-family: 'Courier New', monospace;
+            letter-spacing: 0.3px;
+            margin-bottom: 1px;
+        }
+        .card-nome {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .card-categoria {
+            font-size: 11px;
+            color: var(--text2);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-top: 1px;
+        }
+        .card-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 5px;
+        }
+        .card-tag {
+            font-size: 10px;
+            padding: 1px 7px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+        .tag-setor     { background: var(--blue-dim);   color: var(--blue);   border: 1px solid rgba(99,179,237,0.3); }
+        .tag-atendente { background: var(--purple-dim); color: var(--purple); border: 1px solid rgba(183,148,244,0.3); }
+
+        /* right col */
+        .card-meta {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 5px;
+            flex-shrink: 0;
+            min-width: 110px;
+        }
+        .status-pill {
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 20px;
+            white-space: nowrap;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+        .pill-pendente       { background: var(--yellow-dim); color: var(--yellow); border: 1px solid var(--yellow); }
+        .pill-aberto         { background: var(--blue-dim);   color: var(--blue);   border: 1px solid var(--blue); }
+        .pill-em_atendimento { background: var(--purple-dim); color: var(--purple); border: 1px solid var(--purple); }
+        .pill-finalizado     { background: var(--green-dim);  color: var(--green);  border: 1px solid var(--green); }
+
+        .card-tempo {
+            font-size: 12px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            color: var(--muted);
+            text-align: right;
+        }
+        .card-tempo.ok      { color: var(--green); }
+        .card-tempo.atencao { color: var(--yellow); }
+        .card-tempo.urgente { color: var(--red); }
+
+        .card-datas {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 2px;
+        }
+        .card-data-row {
+            font-size: 10px;
+            color: var(--muted);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .card-data-row span.lbl {
+            font-size: 9px;
+            color: var(--border2);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        /* ══ EMPTY ═══════════════════════════════════════════════════════════ */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 50px 20px;
+            color: var(--muted);
+            font-size: 13px;
+            opacity: 0.6;
+        }
+
+        /* ══ TICKER ══════════════════════════════════════════════════════════ */
+        .tv-ticker {
+            background: var(--blue-dim);
+            border-top: 1px solid var(--blue);
+            padding: 5px 20px;
+            font-size: 12px;
+            color: var(--blue);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        .ticker-label { font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+        .ticker-scroll { overflow: hidden; flex: 1; }
+        .ticker-text {
+            white-space: nowrap;
+            display: inline-block;
+            animation: ticker 25s linear infinite;
+        }
+        @keyframes ticker {
+            from { transform: translateX(100%); }
+            to   { transform: translateX(-100%); }
+        }
+    </style>
+</head>
+<body>
+<div class="tv-wrap">
+
+    <!-- Header -->
+    <header class="tv-header">
+        <div class="tv-header-left">
+            <div class="tv-logo">📋</div>
+            <div>
+                <div class="tv-title">Central de Chamados</div>
+                <div class="tv-live">
+                    <span class="tv-dot"></span>
+                    <span class="tv-live-text" id="statusLabel">Carregando...</span>
+                </div>
+            </div>
+        </div>
+        <div class="tv-clock-block">
+            <div class="tv-clock" id="clock">--:--:--</div>
+            <div class="tv-date" id="dateLabel"></div>
+        </div>
+    </header>
+
+    <!-- Stats -->
+    <div class="stats-bar">
+        <div class="stat-card red">
+            <div class="stat-icon">🔴</div>
+            <div class="stat-info">
+                <div class="stat-value" id="statAberto">—</div>
+                <div class="stat-label">Em Aberto</div>
+            </div>
+        </div>
+        <div class="stat-card yellow">
+            <div class="stat-icon">⏳</div>
+            <div class="stat-info">
+                <div class="stat-value" id="statPendente">—</div>
+                <div class="stat-label">Pendentes</div>
+            </div>
+        </div>
+        <div class="stat-card purple">
+            <div class="stat-icon">🔧</div>
+            <div class="stat-info">
+                <div class="stat-value" id="statAtendimento">—</div>
+                <div class="stat-label">Em Atendimento</div>
+            </div>
+        </div>
+        <div class="stat-card green">
+            <div class="stat-icon">✅</div>
+            <div class="stat-info">
+                <div class="stat-value" id="statFinalizado">—</div>
+                <div class="stat-label">Finalizados 24h</div>
+            </div>
+        </div>
+        <div class="stat-card blue">
+            <div class="stat-icon">⏱️</div>
+            <div class="stat-info">
+                <div class="stat-value" id="statMedia">—</div>
+                <div class="stat-label">Tempo Médio</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Painéis -->
+    <div class="tv-body">
+        <div class="tv-panel">
+            <div class="panel-header">
+                <span style="font-size:14px;">🔴</span>
+                <h3>Chamados em Aberto</h3>
+                <span class="panel-badge badge-open" id="badgeAbertos">0</span>
+            </div>
+            <div class="panel-list" id="listAbertos">
+                <div class="empty-state">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    Carregando...
+                </div>
+            </div>
+        </div>
+
+        <div class="tv-panel">
+            <div class="panel-header">
+                <span style="font-size:14px;">✅</span>
+                <h3>Finalizados — Últimas 24h</h3>
+                <span class="panel-badge badge-closed" id="badgeFinalizados">0</span>
+            </div>
+            <div class="panel-list" id="listFinalizados">
+                <div class="empty-state">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    Carregando...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rodapé -->
+    <div style="background:var(--surface);border-top:1px solid var(--border);padding:4px 24px;display:flex;align-items:center;justify-content:flex-end;flex-shrink:0;">
+        <span style="font-size:10px;color:var(--muted);">Desenvolvido por <span style="color:var(--blue);">Erick Vinicius</span></span>
+    </div>
+
+    <!-- Ticker novos chamados -->
+    <div class="tv-ticker" id="ticker" style="display:none;">
+        <span class="ticker-label">🔔 NOVO CHAMADO:</span>
+        <div class="ticker-scroll">
+            <span class="ticker-text" id="tickerText"></span>
+        </div>
+    </div>
+
+</div><!-- /tv-wrap -->
+
+<script>
+    // ── Relógio ──────────────────────────────────────────────────────────────
+    function updateClock() {
+        const now = new Date();
+        document.getElementById('clock').textContent =
+            now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        document.getElementById('dateLabel').textContent =
+            now.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    // ── Constantes ───────────────────────────────────────────────────────────
+    const STATUS_ICON = {
+        pendente:       '⏳',
+        aberto:         '📂',
+        em_atendimento: '🔧',
+        finalizado:     '✅'
+    };
+    const STATUS_LABEL = {
+        pendente:       'Pendente',
+        aberto:         'Aberto',
+        em_atendimento: 'Em Atendimento',
+        finalizado:     'Finalizado'
+    };
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    function fmtTempo(minutos) {
+        if (minutos === null || minutos === undefined || isNaN(minutos)) return '—';
+        minutos = Math.max(0, Math.round(Number(minutos)));
+        if (minutos < 60) return `${minutos}min`;
+        const h = Math.floor(minutos / 60);
+        const m = minutos % 60;
+        return m > 0 ? `${h}h ${m}min` : `${h}h`;
+    }
+
+    function tempoClass(minutos, status) {
+        if (status === 'finalizado') return 'ok';
+        const m = Number(minutos);
+        if (m >= 120) return 'urgente';
+        if (m >= 60)  return 'atencao';
+        return 'ok';
+    }
+
+    function esc(s) {
+        return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // ── Render card ──────────────────────────────────────────────────────────
+    function renderCard(c, isNew) {
+        const status    = c.status || 'pendente';
+        const icon      = STATUS_ICON[status]  || '📋';
+        const label     = STATUS_LABEL[status] || status;
+        const mins      = c.minutos_total;
+        const tc        = tempoClass(mins, status);
+        const atendente = c.atendente_nome || c.tecnico_nome || '';
+        const newCls    = isNew ? 'new-item' : '';
+
+        // Tempo exibido
+        const tempoStr = status === 'finalizado'
+            ? `Resolvido em ${fmtTempo(mins)}`
+            : `Aberto há ${fmtTempo(mins)}`;
+
+        // Datas — já vêm formatadas do servidor (dd/mm/yyyy HH:mm)
+        const criadoStr    = c.criado_fmt    || '—';
+        const encerradoStr = c.encerrado_fmt || null;
+
+        const datasHtml = status === 'finalizado'
+            ? `<div class="card-data-row"><span class="lbl">Aberto</span> ${esc(criadoStr)}</div>
+               <div class="card-data-row"><span class="lbl">Encerrado</span> ${esc(encerradoStr || '—')}</div>`
+            : `<div class="card-data-row"><span class="lbl">Aberto em</span> ${esc(criadoStr)}</div>`;
+
+        return `
+        <div class="chamado-card ${newCls}" data-id="${c.id}">
+            <div class="card-icon icon-${status}">${icon}</div>
+            <div class="card-body">
+                <div class="card-protocolo">${esc(c.protocolo || '#' + c.id)}</div>
+                <div class="card-nome">${esc(c.solicitante_nome || '—')}</div>
+                <div class="card-categoria">${esc(c.categoria || '—')}</div>
+                <div class="card-tags">
+                    ${c.setor     ? `<span class="card-tag tag-setor">📍 ${esc(c.setor)}</span>` : ''}
+                    ${atendente   ? `<span class="card-tag tag-atendente">👤 ${esc(atendente)}</span>` : ''}
+                </div>
+            </div>
+            <div class="card-meta">
+                <span class="status-pill pill-${status}">${label}</span>
+                <span class="card-tempo ${tc}">${tempoStr}</span>
+                <div class="card-datas">${datasHtml}</div>
+            </div>
+        </div>`;
+    }
+
+    // ── Estado ───────────────────────────────────────────────────────────────
+    let prevAbertosIds    = new Set();
+    let prevFinalizadosIds = new Set();
+    let firstLoad = true;
+
+    // ── Atualizar ────────────────────────────────────────────────────────────
+    async function atualizar() {
+        try {
+            const r = await fetch('/api/tv/chamados');
+            const d = await r.json();
+            if (!d.success) return;
+
+            // Stats
+            const s = d.stats || {};
+            document.getElementById('statAberto').textContent      = s.em_aberto      ?? '0';
+            document.getElementById('statPendente').textContent    = s.pendentes       ?? '0';
+            document.getElementById('statAtendimento').textContent = s.em_atendimento  ?? '0';
+            document.getElementById('statFinalizado').textContent  = s.finalizados_24h ?? '0';
+
+            // Tempo médio: prefere 24h, cai para geral se não houver
+            const mediaMin = s.media_minutos_24h ?? s.media_minutos_geral ?? null;
+            document.getElementById('statMedia').textContent = fmtTempo(mediaMin);
+
+            // Detectar novos
+            const novosAbertos = [];
+            const abertosIds = new Set(d.abertos.map(c => c.id));
+            if (!firstLoad) d.abertos.forEach(c => { if (!prevAbertosIds.has(c.id)) novosAbertos.push(c); });
+            prevAbertosIds = abertosIds;
+
+            const novosFinalizados = [];
+            const finalizadosIds = new Set(d.finalizados.map(c => c.id));
+            if (!firstLoad) d.finalizados.forEach(c => { if (!prevFinalizadosIds.has(c.id)) novosFinalizados.push(c); });
+            prevFinalizadosIds = finalizadosIds;
+
+            firstLoad = false;
+
+            // Render abertos
+            const listA = document.getElementById('listAbertos');
+            document.getElementById('badgeAbertos').textContent = d.abertos.length;
+            listA.innerHTML = d.abertos.length === 0
+                ? `<div class="empty-state">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    Nenhum chamado em aberto
+                   </div>`
+                : d.abertos.map(c => renderCard(c, novosAbertos.some(n => n.id === c.id))).join('');
+
+            // Render finalizados
+            const listF = document.getElementById('listFinalizados');
+            document.getElementById('badgeFinalizados').textContent = d.finalizados.length;
+            listF.innerHTML = d.finalizados.length === 0
+                ? `<div class="empty-state">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    Nenhum chamado finalizado nas últimas 24h
+                   </div>`
+                : d.finalizados.map(c => renderCard(c, novosFinalizados.some(n => n.id === c.id))).join('');
+
+            // Ticker
+            if (novosAbertos.length > 0) {
+                const txt = novosAbertos.map(c =>
+                    `${c.protocolo} — ${c.solicitante_nome}${c.setor ? ' · ' + c.setor : ''}`
+                ).join('   •   ');
+                document.getElementById('tickerText').textContent = txt;
+                document.getElementById('ticker').style.display = 'flex';
+                setTimeout(() => { document.getElementById('ticker').style.display = 'none'; }, 25000);
+            }
+
+            document.getElementById('statusLabel').textContent =
+                'Atualizado às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+        } catch (e) {
+            document.getElementById('statusLabel').textContent = 'Erro ao atualizar — tentando novamente...';
+        }
+    }
+
+    // ── Auto-scroll suave ────────────────────────────────────────────────────
+    function autoScroll(panelId) {
+        const el = document.getElementById(panelId);
+        if (!el) return;
+        let dir = 1, pos = 0, paused = false;
+
+        // Pausa ao passar o mouse
+        el.addEventListener('mouseenter', () => paused = true);
+        el.addEventListener('mouseleave', () => paused = false);
+
+        setInterval(() => {
+            if (paused) return;
+            const max = el.scrollHeight - el.clientHeight;
+            if (max <= 0) return;
+            pos += dir * 0.8;
+            if (pos >= max) { dir = -1; setTimeout(() => {}, 1500); }
+            if (pos <= 0)   { dir = 1; }
+            el.scrollTop = pos;
+        }, 40);
+    }
+
+    // ── Init ─────────────────────────────────────────────────────────────────
+    atualizar();
+    setInterval(atualizar, 15000);
+    setTimeout(() => {
+        autoScroll('listAbertos');
+        autoScroll('listFinalizados');
+    }, 4000);
+</script>
+</body>
+</html>
