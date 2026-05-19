@@ -160,7 +160,9 @@
                     <select id="nivel_acesso" name="nivel_acesso" required>
                         <option value="gestor">📊 Gestor (Acesso apenas a Chamados)</option>
                         <option value="gerenciador">🛡️ Gerenciador (Tudo exceto Fluxo Bot e Config)</option>
+                        <% if (nivelAcesso === 'administrador') { %>
                         <option value="administrador">🔑 Administrador (Acesso Total)</option>
+                        <% } %>
                         <option value="visualizador">👁️ Visualizador (Somente Leitura)</option>
                     </select>
                 </div>
