@@ -22,6 +22,384 @@
             justify-content: center;
             border: 2px solid white;
         }
+
+        /* ═══ CHAMADOS PAGE OVERRIDES ═══════════════════════════════════ */
+
+        /* ── Hero section ── */
+        .dashboard-hero {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important;
+            border-radius: 12px !important;
+            padding: 14px 20px !important;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border: 1px solid rgba(99,102,241,0.15) !important;
+            box-shadow: 0 2px 10px rgba(15,23,42,0.1) !important;
+            margin-bottom: 10px !important;
+        }
+        .dashboard-hero .eyebrow {
+            color: #94a3b8 !important;
+            font-size: 10px !important;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 700;
+        }
+        .dashboard-hero h1 {
+            color: #f1f5f9 !important;
+            font-size: 18px !important;
+            font-weight: 800 !important;
+            margin-top: 2px;
+        }
+        .hero-highlight {
+            background: rgba(34,197,94,0.1) !important;
+            border: 1px solid rgba(34,197,94,0.25) !important;
+            border-radius: 10px !important;
+            padding: 8px 14px !important;
+        }
+        .hero-highlight-label { color: #94a3b8 !important; font-size: 9px !important; }
+        .hero-highlight strong { color: #22c55e !important; font-size: 15px !important; }
+        .hero-highlight small { color: #f59e0b !important; font-size: 12px !important; }
+
+        /* ── Stats grid ── */
+        .stats-grid {
+            grid-template-columns: repeat(5, 1fr) !important;
+            gap: 8px !important;
+            margin-bottom: 12px !important;
+        }
+        .stat-card {
+            background: #fff !important;
+            border-radius: 10px !important;
+            padding: 10px 14px !important;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #e2e8f0 !important;
+            cursor: pointer;
+            transition: all 0.2s ease !important;
+            box-shadow: none !important;
+        }
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; bottom: 0;
+            width: 3px;
+        }
+        .stat-card[data-filter="aberto"]::before         { background: #22c55e; }
+        .stat-card[data-filter="pendente"]::before        { background: #f59e0b; }
+        .stat-card[data-filter="em_atendimento"]::before  { background: #3b82f6; }
+        .stat-card[data-filter="finalizado"]::before      { background: #8b5cf6; }
+        .stat-card-meus::before                           { background: #0ea5e9; }
+        .stat-card:hover {
+            transform: translateY(-1px) !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.06) !important;
+        }
+        .stat-card-active, .stat-card.stat-card-active {
+            border-color: var(--primary) !important;
+            background: #f0fdf4 !important;
+        }
+        .stat-card .stat-info h3 {
+            font-size: 22px !important;
+            font-weight: 800 !important;
+            line-height: 1 !important;
+            margin-bottom: 2px !important;
+        }
+        .stat-card .stat-info p {
+            font-size: 10px !important;
+            font-weight: 600 !important;
+            color: #64748b !important;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin: 0 !important;
+        }
+
+        /* ── Card container ── */
+        .card {
+            border-radius: 14px !important;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.03) !important;
+            padding: 12px !important;
+        }
+
+        /* ── Toolbar ── */
+        .chamados-toolbar {
+            gap: 10px !important;
+            padding-bottom: 10px !important;
+            border-bottom: 1px solid #f1f5f9;
+            margin-bottom: 0 !important;
+        }
+        .filter-tabs {
+            background: #f8fafc !important;
+            border-radius: 10px !important;
+            padding: 4px !important;
+            border: 1px solid #e2e8f0 !important;
+        }
+        .filter-tab {
+            border-radius: 8px !important;
+            padding: 7px 14px !important;
+            font-size: 12px !important;
+            font-weight: 600 !important;
+            transition: all 0.15s !important;
+        }
+        .filter-tab.active {
+            background: #0f172a !important;
+            color: white !important;
+            box-shadow: 0 2px 8px rgba(15,23,42,0.15) !important;
+        }
+        .chamados-search {
+            border-radius: 10px !important;
+            border: 1px solid #e2e8f0 !important;
+            padding: 8px 12px 8px 34px !important;
+            font-size: 13px !important;
+            background: #f8fafc !important;
+            transition: all 0.2s !important;
+        }
+        .chamados-search:focus {
+            background: #fff !important;
+            border-color: var(--primary) !important;
+            box-shadow: 0 0 0 3px rgba(37,211,102,0.1) !important;
+        }
+        .chamados-count {
+            font-size: 12px !important;
+            color: #64748b !important;
+            font-weight: 600;
+            background: #f1f5f9;
+            padding: 4px 10px;
+            border-radius: 8px;
+        }
+
+        /* ── Table ── */
+        .messages-table {
+            border-collapse: separate !important;
+            border-spacing: 0 !important;
+        }
+        .messages-table thead th {
+            background: #f8fafc !important;
+            color: #475569 !important;
+            font-size: 10px !important;
+            font-weight: 700 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
+            padding: 8px 10px !important;
+            border-bottom: 1px solid #e2e8f0 !important;
+            white-space: nowrap;
+        }
+        .messages-table tbody tr {
+            transition: background 0.15s !important;
+        }
+        .messages-table tbody tr:hover {
+            background: #f8fafc !important;
+        }
+        .messages-table tbody td {
+            padding: 8px 10px !important;
+            font-size: 12px !important;
+            border-bottom: 1px solid #f1f5f9 !important;
+            vertical-align: middle !important;
+        }
+        .td-protocolo strong {
+            font-size: 11px;
+            color: #0f172a;
+            font-family: 'Courier New', monospace;
+        }
+        .td-protocolo .td-hora {
+            color: #94a3b8;
+            font-size: 10px;
+        }
+        .td-solicitante {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .solicitante-nome {
+            font-weight: 600;
+            color: #1e293b;
+            font-size: 12px;
+        }
+        .td-setor span {
+            display: block;
+            font-weight: 600;
+            color: #334155;
+            font-size: 11px;
+        }
+        .td-setor small {
+            color: #94a3b8;
+            font-size: 10px;
+        }
+        .td-data {
+            font-size: 11px !important;
+            color: #64748b !important;
+            white-space: nowrap;
+        }
+
+        /* ── Status chips ── */
+        .status-chip {
+            font-size: 11px !important;
+            font-weight: 700 !important;
+            padding: 4px 10px !important;
+            border-radius: 8px !important;
+            gap: 5px !important;
+        }
+        .status-chip .status-dot {
+            width: 7px !important;
+            height: 7px !important;
+        }
+        .status-pendente {
+            background: #fef3c7 !important;
+            color: #d97706 !important;
+            border: 1px solid #fcd34d !important;
+        }
+        .status-pendente .status-dot { background: #f59e0b !important; }
+        .status-aberto {
+            background: #dcfce7 !important;
+            color: #16a34a !important;
+            border: 1px solid #86efac !important;
+        }
+        .status-aberto .status-dot { background: #22c55e !important; }
+        .status-em-atendimento {
+            background: #dbeafe !important;
+            color: #2563eb !important;
+            border: 1px solid #93c5fd !important;
+        }
+        .status-em-atendimento .status-dot { background: #3b82f6 !important; }
+        .status-finalizado {
+            background: #ede9fe !important;
+            color: #7c3aed !important;
+            border: 1px solid #c4b5fd !important;
+        }
+        .status-finalizado .status-dot { background: #8b5cf6 !important; }
+
+        /* ── Atendente avatar ── */
+        .atendente-avatar {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: default;
+        }
+        .atendente-vazio { color: #cbd5e1; font-size: 13px; }
+
+        /* ── Action buttons ── */
+        .chamado-actions {
+            gap: 4px !important;
+        }
+        .ca-btn {
+            border-radius: 8px !important;
+            padding: 5px 8px !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            border: 1px solid transparent !important;
+            transition: all 0.15s !important;
+        }
+        .ca-btn:hover {
+            transform: scale(1.05);
+        }
+        .ca-atender { background: #dcfce7 !important; color: #16a34a !important; border-color: #86efac !important; }
+        .ca-chat    { background: #dbeafe !important; color: #2563eb !important; border-color: #93c5fd !important; }
+        .ca-info    { background: #f1f5f9 !important; color: #475569 !important; border-color: #e2e8f0 !important; }
+        .ca-forward { background: #fef3c7 !important; color: #d97706 !important; border-color: #fcd34d !important; }
+        .ca-close   { background: #fee2e2 !important; color: #dc2626 !important; border-color: #fca5a5 !important; }
+
+        /* ── Banner ── */
+        #bannerMeusChamadosPage {
+            border-radius: 12px !important;
+            border: 1px solid rgba(14,165,233,0.2) !important;
+        }
+
+        /* ── Paginação ── */
+        #paginacao {
+            padding: 14px 0 !important;
+        }
+        #paginacaoBtns button {
+            border-radius: 8px !important;
+            font-weight: 600 !important;
+            transition: all 0.15s !important;
+        }
+        #paginacaoBtns button:hover:not(:disabled) {
+            background: #f1f5f9 !important;
+        }
+
+        /* ── Separador ativo/finalizado ── */
+        .separator-row td {
+            padding: 0 !important;
+            border: none !important;
+        }
+        .table-separator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+        }
+        .table-separator::before,
+        .table-separator::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #e2e8f0;
+        }
+        .table-separator span {
+            font-size: 10px;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+
+        /* ── Novo chamado highlight ── */
+        .chamado-row-new {
+            animation: rowPulse 2s ease;
+        }
+        .chamado-row-new td {
+            background: #f0fdf4 !important;
+        }
+        @keyframes rowPulse {
+            0%   { box-shadow: inset 0 0 0 2px #22c55e; }
+            100% { box-shadow: inset 0 0 0 0px transparent; }
+        }
+
+        /* ── Linha de status pendente/aberto destaque sutil ── */
+        .messages-table tbody tr[data-status="pendente"] td:first-child {
+            border-left: 3px solid #f59e0b;
+        }
+        .messages-table tbody tr[data-status="aberto"] td:first-child {
+            border-left: 3px solid #22c55e;
+        }
+        .messages-table tbody tr[data-status="em_atendimento"] td:first-child {
+            border-left: 3px solid #3b82f6;
+        }
+        .messages-table tbody tr[data-status="finalizado"] td:first-child {
+            border-left: 3px solid #e2e8f0;
+        }
+
+        /* ── Responsive overrides ── */
+        @media (max-width: 1024px) {
+            .stats-grid {
+                grid-template-columns: repeat(3, 1fr) !important;
+            }
+        }
+        @media (max-width: 768px) {
+            .dashboard-hero {
+                flex-direction: column;
+                gap: 12px;
+                padding: 16px 18px !important;
+            }
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 8px !important;
+            }
+            .stat-card .stat-info h3 { font-size: 22px !important; }
+            .stat-card-meus { grid-column: 1 / -1; }
+            .filter-tabs { overflow-x: auto; flex-wrap: nowrap !important; }
+        }
+        @media (max-width: 480px) {
+            .stats-grid {
+                grid-template-columns: 1fr 1fr !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -55,7 +433,7 @@
                     <a href="/meus-chamados" style="background:white;color:#0284c7;padding:6px 14px;border-radius:6px;font-size:11px;font-weight:600;text-decoration:none;white-space:nowrap;">Ver Meus Chamados →</a>
                 </div>
 
-                <section class="dashboard-hero" style="margin-bottom: 16px;">
+                <section class="dashboard-hero" style="margin-bottom: 10px;">
                     <div>
                         <p class="eyebrow">Central de atendimento</p>
                         <h1>Chamados</h1>
@@ -67,7 +445,7 @@
                     </div>
                 </section>
 
-                <div class="stats-grid" style="margin-bottom: 16px;">
+                <div class="stats-grid" style="margin-bottom: 10px;">
                     <div class="stat-card stat-card-clickable" data-filter="aberto" onclick="aplicarFiltro('aberto')" style="border-left: 3px solid #22c55e;">
                         <div class="stat-info">
                             <h3 id="statsAberto" style="color:#16a34a;"><%= contagem.aberto || 0 %></h3>
@@ -250,6 +628,7 @@
         let gestoresCache = [];
         let chamadosAutoRefresh = null;
         let chamadosState = initialChamados;
+        let chamadosIdsConhecidos = new Set(initialChamados.map(c => c.id));
         let filtroAtivo = 'todos';
         let buscaAtiva = '';
         let buscaTimer = null;
@@ -377,7 +756,7 @@
         }
 
         let paginaAtual = 1;
-        const itensPorPagina = 15;
+        const itensPorPagina = 25;
 
         function renderChamadosTable(chamados) {
             const tabelaChamados = document.getElementById('chamadosTable');
@@ -387,7 +766,18 @@
             const paginacaoEl = document.getElementById('paginacao');
             if (!tabelaChamados || !tbody || !emptyState) return;
 
-            const filtrados = Array.isArray(chamados) ? chamados.filter(chamadoMatchFiltro) : [];
+            let filtrados = Array.isArray(chamados) ? chamados.filter(chamadoMatchFiltro) : [];
+
+            // Ordenar: ativos primeiro (pendente, aberto, em_atendimento), finalizados por último
+            const statusOrdem = { pendente: 0, aberto: 1, em_atendimento: 2, finalizado: 3 };
+            filtrados.sort((a, b) => {
+                const ordemA = statusOrdem[a.status] ?? 9;
+                const ordemB = statusOrdem[b.status] ?? 9;
+                if (ordemA !== ordemB) return ordemA - ordemB;
+                // Dentro do mesmo status, mais recente primeiro
+                return new Date(b.criado_em) - new Date(a.criado_em);
+            });
+
             const totalPaginas = Math.ceil(filtrados.length / itensPorPagina);
             if (paginaAtual > totalPaginas) paginaAtual = totalPaginas || 1;
 
@@ -411,10 +801,16 @@
                 ? `<button onclick="mostrarDadosWhatsApp('${escapeHtml(c.protocolo)}','${escapeHtml(c.solicitante_nome)}','${escapeHtml(c.telefone_contato||'')}','${escapeHtml(c.nome_whatsapp||'')}','${escapeHtml(c.telefone_whatsapp||'')}')" class="ca-btn ca-whatsapp" title="Dados WhatsApp"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button>`
                 : '';
 
-            tbody.innerHTML = paginados.map(chamado => {
+            tbody.innerHTML = paginados.map((chamado, idx) => {
                 const dh = formatarDataHora(chamado.criado_em);
-                return `
-                    <tr data-status="${chamado.status}">
+                const isNew = chamado._isNew ? 'chamado-row-new' : '';
+                // Separador entre ativos e finalizados
+                let separator = '';
+                if (idx > 0 && chamado.status === 'finalizado' && paginados[idx-1].status !== 'finalizado') {
+                    separator = `<tr class="separator-row"><td colspan="7"><div class="table-separator"><span>Finalizados</span></div></td></tr>`;
+                }
+                return `${separator}
+                    <tr data-status="${chamado.status}" class="${isNew}">
                         <td class="td-protocolo" data-label="Protocolo"><strong>${escapeHtml(chamado.protocolo)}</strong><br><small class="td-hora">${dh.hora}</small></td>
                         <td class="td-solicitante" data-label="Solicitante">
                             <span class="solicitante-nome">${escapeHtml(chamado.solicitante_nome)}</span>
@@ -490,7 +886,21 @@
                     return;
                 }
 
-                chamadosState = result.chamados || [];
+                const novosChamados = result.chamados || [];
+
+                // Marcar novos chamados que não existiam antes
+                novosChamados.forEach(c => {
+                    if (!chamadosIdsConhecidos.has(c.id)) {
+                        c._isNew = true;
+                        // Remove a marcação após 5 segundos
+                        setTimeout(() => { c._isNew = false; renderChamadosTable(chamadosState); }, 5000);
+                    }
+                });
+
+                // Atualizar set de IDs conhecidos
+                chamadosIdsConhecidos = new Set(novosChamados.map(c => c.id));
+
+                chamadosState = novosChamados;
                 renderStats(result.contagem || {});
                 renderChamadosTable(chamadosState);
                 await verificarMensagensNaoLidas();
