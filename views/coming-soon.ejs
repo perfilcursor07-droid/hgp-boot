@@ -21,7 +21,7 @@
                             : 'dashboard';
     %>
     <div class="dashboard">
-        <%- include('partials/sidebar', { activePage: activeComingSoonPage, username, role: 'Administrador', isAdmin: true }) %>
+        <%- include('partials/sidebar', { activePage: activeComingSoonPage, username, role: nivelAcesso === 'gerenciador' ? 'Gerenciador' : 'Administrador', isAdmin: true, nivelAcesso: nivelAcesso || 'administrador' }) %>
 
         <!-- Main Content -->
         <main class="main-content">

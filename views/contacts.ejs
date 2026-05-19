@@ -8,7 +8,7 @@
 </head>
 <body>
     <div class="dashboard">
-        <%- include('partials/sidebar', { activePage: 'contacts', username, role: 'Administrador', isAdmin: true }) %>
+        <%- include('partials/sidebar', { activePage: 'contacts', username, role: nivelAcesso === 'gerenciador' ? 'Gerenciador' : 'Administrador', isAdmin: true, nivelAcesso: nivelAcesso || 'administrador' }) %>
 
         <!-- Main Content -->
         <main class="main-content">

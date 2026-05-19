@@ -53,6 +53,9 @@ app.use(async (req, res, next) => {
         return next();
     }
 
+    // Disponibilizar nivelAcesso em todas as views
+    res.locals.nivelAcesso = req.session.nivelAcesso || 'administrador';
+
     try {
         const [rows] = await db.query(
             `SELECT COUNT(*) AS total
@@ -387,6 +390,19 @@ const isAuthenticated = (req, res, next) => {
 
 // Middleware de verificação de nível de acesso
 const isAdmin = (req, res, next) => {
+    if (req.session.nivelAcesso === 'administrador' || req.session.nivelAcesso === 'gerenciador') {
+        return next();
+    }
+
+    if (isApiRequest(req)) {
+        return res.status(403).json({ success: false, message: 'Acesso negado. Apenas administradores e gerenciadores.' });
+    }
+
+    res.redirect('/chamados');
+};
+
+// Middleware para funcionalidades exclusivas do administrador (fluxo bot, configurações)
+const isAdminOnly = (req, res, next) => {
     if (req.session.nivelAcesso === 'administrador') {
         return next();
     }
@@ -996,7 +1012,7 @@ app.get('/escala', isAuthenticated, isAdmin, async (req, res) => {
     }
 });
 
-app.get('/fluxo', isAuthenticated, isAdmin, async (req, res) => {
+app.get('/fluxo', isAuthenticated, isAdminOnly, async (req, res) => {
     try {
         const flows = await listChatbotFlows();
         const selectedFlowId = req.query.flowId ? Number(req.query.flowId) : flows[0]?.id;
@@ -1141,7 +1157,7 @@ app.get('/api/relatorios/chamados', isAuthenticated, isAdmin, async (req, res) =
     }
 });
 
-app.get('/settings', isAuthenticated, isAdmin, async (req, res) => {
+app.get('/settings', isAuthenticated, isAdminOnly, async (req, res) => {
     try {
         const chatbotCode = await readChatbotFile();
         const [settings] = await db.query('SELECT setting_key, setting_value FROM system_settings');
@@ -1165,7 +1181,7 @@ app.get('/settings', isAuthenticated, isAdmin, async (req, res) => {
     }
 });
 
-app.get('/api/settings/system', isAuthenticated, isAdmin, async (req, res) => {
+app.get('/api/settings/system', isAuthenticated, isAdminOnly, async (req, res) => {
     try {
         const [settings] = await db.query('SELECT setting_key, setting_value FROM system_settings');
         const settingsMap = {};
@@ -1176,7 +1192,7 @@ app.get('/api/settings/system', isAuthenticated, isAdmin, async (req, res) => {
     }
 });
 
-app.post('/api/settings/system', isAuthenticated, isAdmin, async (req, res) => {
+app.post('/api/settings/system', isAuthenticated, isAdminOnly, async (req, res) => {
     try {
         const { key, value } = req.body;
         if (!key) return res.status(400).json({ success: false, message: 'Chave obrigatória' });
@@ -1191,7 +1207,7 @@ app.post('/api/settings/system', isAuthenticated, isAdmin, async (req, res) => {
     }
 });
 
-app.get('/api/settings/chatbot-file', isAuthenticated, async (req, res) => {
+app.get('/api/settings/chatbot-file', isAuthenticated, isAdminOnly, async (req, res) => {
     try {
         const content = await readChatbotFile();
         res.json({ success: true, content, fileName: 'chatbot.js' });
@@ -1201,7 +1217,7 @@ app.get('/api/settings/chatbot-file', isAuthenticated, async (req, res) => {
     }
 });
 
-app.post('/api/settings/chatbot-file', isAuthenticated, async (req, res) => {
+app.post('/api/settings/chatbot-file', isAuthenticated, isAdminOnly, async (req, res) => {
     const { content } = req.body;
 
     if (typeof content !== 'string' || !content.trim()) {
@@ -1261,7 +1277,7 @@ app.get('/api/escala/:id', isAuthenticated, isAdmin, async (req, res) => {
     }
 });
 
-app.get('/api/fluxos', isAuthenticated, isAdmin, async (req, res) => {
+app.get('/api/fluxos', isAuthenticated, isAdminOnly, async (req, res) => {
     try {
         const flows = await listChatbotFlows();
         res.json({ success: true, flows });
@@ -1271,7 +1287,7 @@ app.get('/api/fluxos', isAuthenticated, isAdmin, async (req, res) => {
     }
 });
 
-app.get('/api/fluxos/:id', isAuthenticated, isAdmin, async (req, res) => {
+app.get('/api/fluxos/:id', isAuthenticated, isAdminOnly, async (req, res) => {
     try {
         const flowData = await getChatbotFlowById(req.params.id);
 
@@ -1286,7 +1302,7 @@ app.get('/api/fluxos/:id', isAuthenticated, isAdmin, async (req, res) => {
     }
 });
 
-app.post('/api/fluxos', isAuthenticated, isAdmin, async (req, res) => {
+app.post('/api/fluxos', isAuthenticated, isAdminOnly, async (req, res) => {
     const { name, description, is_active } = req.body;
 
     if (typeof name !== 'string' || !name.trim()) {
@@ -1312,7 +1328,7 @@ app.post('/api/fluxos', isAuthenticated, isAdmin, async (req, res) => {
     }
 });
 
-app.put('/api/fluxos/:id', isAuthenticated, isAdmin, async (req, res) => {
+app.put('/api/fluxos/:id', isAuthenticated, isAdminOnly, async (req, res) => {
     const { name, description, is_active } = req.body;
 
     if (typeof name !== 'string' || !name.trim()) {
@@ -1339,7 +1355,7 @@ app.put('/api/fluxos/:id', isAuthenticated, isAdmin, async (req, res) => {
     }
 });
 
-app.delete('/api/fluxos/:id', isAuthenticated, isAdmin, async (req, res) => {
+app.delete('/api/fluxos/:id', isAuthenticated, isAdminOnly, async (req, res) => {
     try {
         const [flows] = await db.query('SELECT id, is_default FROM chatbot_flows WHERE id = ?', [req.params.id]);
         if (flows.length === 0) {
@@ -1358,7 +1374,7 @@ app.delete('/api/fluxos/:id', isAuthenticated, isAdmin, async (req, res) => {
     }
 });
 
-app.post('/api/fluxos/:id/steps', isAuthenticated, isAdmin, async (req, res) => {
+app.post('/api/fluxos/:id/steps', isAuthenticated, isAdminOnly, async (req, res) => {
     const {
         step_key,
         title,
@@ -1424,7 +1440,7 @@ app.post('/api/fluxos/:id/steps', isAuthenticated, isAdmin, async (req, res) => 
     }
 });
 
-app.put('/api/fluxos/:flowId/steps/:stepId', isAuthenticated, isAdmin, async (req, res) => {
+app.put('/api/fluxos/:flowId/steps/:stepId', isAuthenticated, isAdminOnly, async (req, res) => {
     const {
         step_key,
         title,
@@ -1495,7 +1511,7 @@ app.put('/api/fluxos/:flowId/steps/:stepId', isAuthenticated, isAdmin, async (re
     }
 });
 
-app.delete('/api/fluxos/:flowId/steps/:stepId', isAuthenticated, isAdmin, async (req, res) => {
+app.delete('/api/fluxos/:flowId/steps/:stepId', isAuthenticated, isAdminOnly, async (req, res) => {
     try {
         const [steps] = await db.query(
             'SELECT id FROM chatbot_flow_steps WHERE id = ? AND flow_id = ?',
@@ -1629,6 +1645,7 @@ app.get('/usuarios', isAuthenticated, isAdmin, async (req, res) => {
         const stats = {
             total: usuarios.length,
             administradores: usuarios.filter(u => u.nivel_acesso === 'administrador').length,
+            gerenciadores: usuarios.filter(u => u.nivel_acesso === 'gerenciador').length,
             gestores: usuarios.filter(u => u.nivel_acesso === 'gestor').length,
             ativos: usuarios.filter(u => u.ativo).length
         };
@@ -1643,7 +1660,7 @@ app.get('/usuarios', isAuthenticated, isAdmin, async (req, res) => {
         res.render('usuarios', { 
             username: req.session.username,
             usuarios: [],
-            stats: { total: 0, administradores: 0, gestores: 0, ativos: 0 }
+            stats: { total: 0, administradores: 0, gerenciadores: 0, gestores: 0, ativos: 0 }
         });
     }
 });
@@ -1663,7 +1680,7 @@ app.get('/api/usuarios/gestores', isAuthenticated, async (req, res) => {
             SELECT DISTINCT a.id, a.username, a.nome_completo, a.telefone
             FROM admins a
             INNER JOIN user_turnos t ON t.admin_id = a.id
-            WHERE a.nivel_acesso IN ('administrador', 'gestor')
+            WHERE a.nivel_acesso IN ('administrador', 'gerenciador', 'gestor')
               AND a.ativo = TRUE
               AND a.id != ?
               AND t.ativo = TRUE
@@ -1692,7 +1709,7 @@ app.get('/api/usuarios/atendentes', isAuthenticated, async (req, res) => {
             FROM admins a
             INNER JOIN user_turnos t ON t.admin_id = a.id AND t.ativo = TRUE
             WHERE a.ativo = TRUE
-              AND a.nivel_acesso IN ('administrador', 'gestor')
+              AND a.nivel_acesso IN ('administrador', 'gerenciador', 'gestor')
               AND a.id != ?
               AND a.id NOT IN (
                   SELECT t2.admin_id FROM user_turnos t2
@@ -1970,7 +1987,7 @@ app.post('/api/chamados/:id/encaminhar', isAuthenticated, async (req, res) => {
 
         // Buscar dados do técnico destino
         const [gestor] = await db.query(
-            'SELECT id, nome_completo, telefone FROM admins WHERE id = ? AND nivel_acesso IN ("administrador", "gestor") AND ativo = TRUE',
+            'SELECT id, nome_completo, telefone FROM admins WHERE id = ? AND nivel_acesso IN ("administrador", "gerenciador", "gestor") AND ativo = TRUE',
             [gestorId]
         );
 

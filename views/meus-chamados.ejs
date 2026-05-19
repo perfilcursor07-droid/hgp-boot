@@ -186,9 +186,9 @@
     </style>
 </head>
 <body>
-    <% const isAdmin = typeof nivelAcesso !== 'undefined' && nivelAcesso === 'administrador'; %>
+    <% const isAdmin = typeof nivelAcesso !== 'undefined' && (nivelAcesso === 'administrador' || nivelAcesso === 'gerenciador'); %>
     <div class="dashboard">
-        <%- include('partials/sidebar', { activePage: 'meus-chamados', username, role: isAdmin ? 'Administrador' : (nivelAcesso === 'gestor' ? 'Gestor' : 'Visualizador'), isAdmin }) %>
+        <%- include('partials/sidebar', { activePage: 'meus-chamados', username, role: nivelAcesso === 'administrador' ? 'Administrador' : (nivelAcesso === 'gerenciador' ? 'Gerenciador' : (nivelAcesso === 'gestor' ? 'Gestor' : 'Visualizador')), isAdmin, nivelAcesso: nivelAcesso || 'administrador' }) %>
 
         <main class="main-content">
             <div class="topbar">

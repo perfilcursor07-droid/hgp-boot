@@ -1,6 +1,8 @@
 <%
     const isSidebarAdmin = typeof isAdmin === 'boolean' ? isAdmin : true;
-    const sidebarRole = typeof role !== 'undefined' ? role : 'Administrador';
+    const sidebarNivelAcesso = typeof nivelAcesso !== 'undefined' ? nivelAcesso : (typeof role !== 'undefined' && role === 'Administrador' ? 'administrador' : 'gerenciador');
+    const isSidebarAdminOnly = sidebarNivelAcesso === 'administrador';
+    const sidebarRole = typeof role !== 'undefined' ? role : (sidebarNivelAcesso === 'administrador' ? 'Administrador' : (sidebarNivelAcesso === 'gerenciador' ? 'Gerenciador' : 'Gestor'));
     const userInitial = typeof username === 'string' && username.length ? username.charAt(0).toUpperCase() : 'U';
 
     const svgIcons = {
@@ -43,7 +45,7 @@
                 { key: 'usuarios', href: '/usuarios', label: 'Usuários', visible: isSidebarAdmin },
                 { key: 'turnos', href: '/turnos', label: 'Turnos', visible: isSidebarAdmin },
                 { key: 'escala', href: '/escala', label: 'Escala', visible: isSidebarAdmin },
-                { key: 'fluxo', href: '/fluxo', label: 'Fluxo Bot', visible: isSidebarAdmin },
+                { key: 'fluxo', href: '/fluxo', label: 'Fluxo Bot', visible: isSidebarAdminOnly },
                 { key: 'relatorios', href: '/relatorios', label: 'Relatórios', visible: isSidebarAdmin }
             ]
         },
@@ -51,7 +53,7 @@
             label: 'Sistema',
             items: [
                 { key: 'avaliacoes', href: '/avaliacoes', label: 'Avaliações', visible: isSidebarAdmin },
-                { key: 'settings', href: '/settings', label: 'Configurações', visible: isSidebarAdmin }
+                { key: 'settings', href: '/settings', label: 'Configurações', visible: isSidebarAdminOnly }
             ]
         }
     ];

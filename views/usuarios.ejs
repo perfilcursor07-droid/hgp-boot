@@ -8,7 +8,7 @@
 </head>
 <body>
     <div class="dashboard">
-        <%- include('partials/sidebar', { activePage: 'usuarios', username, role: 'Administrador', isAdmin: true }) %>
+        <%- include('partials/sidebar', { activePage: 'usuarios', username, role: nivelAcesso === 'gerenciador' ? 'Gerenciador' : 'Administrador', isAdmin: true, nivelAcesso: nivelAcesso || 'administrador' }) %>
 
         <!-- Main Content -->
         <main class="main-content">
@@ -93,8 +93,8 @@
                                             <td><%= usuario.cpf || '-' %></td>
                                             <td><%= usuario.telefone || '-' %></td>
                                             <td>
-                                                <span class="badge <%= usuario.nivel_acesso === 'administrador' ? 'badge-admin' : (usuario.nivel_acesso === 'visualizador' ? 'badge-viewer' : 'badge-gestor') %>">
-                                                    <%= usuario.nivel_acesso === 'administrador' ? '🔑 Administrador' : (usuario.nivel_acesso === 'visualizador' ? '👁️ Visualizador' : '📊 Gestor') %>
+                                                <span class="badge <%= usuario.nivel_acesso === 'administrador' ? 'badge-admin' : (usuario.nivel_acesso === 'gerenciador' ? 'badge-admin' : (usuario.nivel_acesso === 'visualizador' ? 'badge-viewer' : 'badge-gestor')) %>">
+                                                    <%= usuario.nivel_acesso === 'administrador' ? '🔑 Administrador' : (usuario.nivel_acesso === 'gerenciador' ? '🛡️ Gerenciador' : (usuario.nivel_acesso === 'visualizador' ? '👁️ Visualizador' : '📊 Gestor')) %>
                                                 </span>
                                             </td>
                                             <td>
@@ -159,6 +159,7 @@
                     <label for="nivel_acesso">Nível de Acesso *</label>
                     <select id="nivel_acesso" name="nivel_acesso" required>
                         <option value="gestor">📊 Gestor (Acesso apenas a Chamados)</option>
+                        <option value="gerenciador">🛡️ Gerenciador (Tudo exceto Fluxo Bot e Config)</option>
                         <option value="administrador">🔑 Administrador (Acesso Total)</option>
                         <option value="visualizador">👁️ Visualizador (Somente Leitura)</option>
                     </select>

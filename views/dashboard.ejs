@@ -193,7 +193,7 @@
 </head>
 <body data-bot-connected="<%= session && session.is_connected ? 'true' : 'false' %>">
     <div class="dashboard">
-        <%- include('partials/sidebar', { activePage: 'dashboard', username, role: 'Administrador', isAdmin: true }) %>
+        <%- include('partials/sidebar', { activePage: 'dashboard', username, role: nivelAcesso === 'gerenciador' ? 'Gerenciador' : 'Administrador', isAdmin: true, nivelAcesso: nivelAcesso || 'administrador' }) %>
 
         <main class="main-content">
             <div class="topbar">
