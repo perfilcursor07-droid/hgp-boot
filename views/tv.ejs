@@ -366,6 +366,96 @@
             from { transform: translateX(100%); }
             to   { transform: translateX(-100%); }
         }
+
+        /* ══ RESPONSIVO — CELULAR ════════════════════════════════════════════ */
+        @media (max-width: 768px) {
+            html, body { overflow: auto; }
+            .tv-wrap { height: auto; min-height: 100vh; }
+
+            .tv-header { padding: 8px 12px; }
+            .tv-logo { width: 30px; height: 30px; font-size: 16px; border-radius: 7px; }
+            .tv-title { font-size: 14px; }
+            .tv-live-text { font-size: 10px; }
+            .tv-clock { font-size: 18px; letter-spacing: 0; }
+            .tv-date { font-size: 9px; }
+
+            .stats-bar {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 6px;
+                padding: 8px 10px;
+            }
+            .stat-card { padding: 8px 10px; gap: 8px; border-radius: 8px; }
+            .stat-icon { font-size: 16px; }
+            .stat-value { font-size: 20px; }
+            .stat-label { font-size: 9px; }
+
+            .tv-body {
+                grid-template-columns: 1fr;
+                overflow: visible;
+                flex: none;
+            }
+            .tv-panel {
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+                max-height: none;
+                overflow: visible;
+            }
+            .panel-list {
+                overflow-y: visible;
+                max-height: none;
+                padding: 6px;
+                gap: 4px;
+            }
+            .panel-header { padding: 8px 12px; }
+            .panel-header h3 { font-size: 12px; }
+
+            .chamado-card {
+                grid-template-columns: 28px 1fr;
+                gap: 8px;
+                padding: 8px 10px;
+            }
+            .card-icon { width: 28px; height: 28px; font-size: 13px; }
+            .card-meta {
+                grid-column: 1 / -1;
+                flex-direction: row;
+                align-items: center;
+                justify-content: space-between;
+                gap: 6px;
+                min-width: 0;
+                margin-top: 4px;
+            }
+            .card-tempo { font-size: 11px; }
+            .card-datas { flex-direction: row; gap: 8px; }
+            .card-data-row { font-size: 9px; }
+            .card-protocolo { font-size: 8px; }
+            .card-nome { font-size: 12px; }
+            .card-categoria { font-size: 10px; }
+            .card-tag { font-size: 9px; padding: 1px 5px; }
+            .status-pill { font-size: 8px; padding: 2px 6px; }
+
+            .tv-ticker { padding: 4px 10px; font-size: 11px; }
+        }
+
+        @media (max-width: 480px) {
+            .stats-bar {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 5px;
+                padding: 6px 8px;
+            }
+            .stat-card:last-child {
+                grid-column: 1 / -1;
+            }
+            .stat-value { font-size: 18px; }
+
+            .tv-header-left { gap: 8px; }
+            .tv-logo { width: 26px; height: 26px; font-size: 14px; }
+            .tv-title { font-size: 13px; }
+            .tv-clock { font-size: 16px; }
+
+            .chamado-card { padding: 7px 8px; gap: 6px; }
+            .card-nome { font-size: 11px; }
+            .card-tags { gap: 3px; margin-top: 3px; }
+        }
     </style>
 </head>
 <body>
