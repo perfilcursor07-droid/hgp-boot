@@ -25,6 +25,101 @@
                     <button onclick="abrirModalNovo()" class="btn btn-primary">➕ Novo Usuário</button>
                 </div>
             </div>
+
+            <div class="content">
+                <!-- Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">👥</div>
+                        <div class="stat-info">
+                            <h3><%= stats.total %></h3>
+                            <p>Total de Usuários</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon purple">🔑</div>
+                        <div class="stat-info">
+                            <h3><%= stats.administradores %></h3>
+                            <p>Administradores</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange">📊</div>
+                        <div class="stat-info">
+                            <h3><%= stats.gestores %></h3>
+                            <p>Gestores</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green">✓</div>
+                        <div class="stat-info">
+                            <h3><%= stats.ativos %></h3>
+                            <p>Usuários Ativos</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabela de Usuários -->
+                <div class="card">
+                    <h2>Lista de Usuários</h2>
+                    <div style="margin: 16px 0;">
+                        <input type="text" id="searchInput" placeholder="🔍 Buscar por nome, CPF ou usuário..." class="search-input">
+                    </div>
+                    <div class="messages-container">
+                        <table class="messages-table">
+                            <thead>
+                                <tr>
+                                    <th>Nome Completo</th>
+                                    <th>Usuário</th>
+                                    <th>CPF</th>
+                                    <th>Telefone</th>
+                                    <th>Nível de Acesso</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usuariosTable">
+                                <% if (usuarios.length === 0) { %>
+                                    <tr>
+                                        <td colspan="7" class="no-messages">
+                                            Nenhum usuário encontrado.
+                                        </td>
+                                    </tr>
+                                <% } else { %>
+                                    <% usuarios.forEach(usuario => { %>
+                                        <tr>
+                                            <td><strong><%= usuario.nome_completo || 'Não informado' %></strong></td>
+                                            <td><%= usuario.username %></td>
+                                            <td><%= usuario.cpf || '-' %></td>
+                                            <td><%= usuario.telefone || '-' %></td>
+                                            <td>
+                                                <span class="badge <%= usuario.nivel_acesso === 'administrador' ? 'badge-admin' : (usuario.nivel_acesso === 'gerenciador' ? 'badge-admin' : (usuario.nivel_acesso === 'visualizador' ? 'badge-viewer' : 'badge-gestor')) %>">
+                                                    <%= usuario.nivel_acesso === 'administrador' ? '🔑 Administrador' : (usuario.nivel_acesso === 'gerenciador' ? '🛡️ Gerenciador' : (usuario.nivel_acesso === 'visualizador' ? '👁️ Visualizador' : '📊 Gestor')) %>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="badge <%= usuario.ativo ? 'success' : 'badge-inactive' %>">
+                                                    <%= usuario.ativo ? '✓ Ativo' : '✗ Inativo' %>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <button onclick="editarUsuario(<%= usuario.id %>)" class="btn-icon" title="Editar">✏️</button>
+                                                <button onclick="resetarSenha(<%= usuario.id %>, '<%= usuario.username %>')" class="btn-icon" title="Resetar senha">🔑</button>
+                                                <% if (usuario.username !== 'admin') { %>
+                                                    <button onclick="toggleStatus(<%= usuario.id %>, <%= usuario.ativo %>)" class="btn-icon" title="<%= usuario.ativo ? 'Desativar' : 'Ativar' %>">
+                                                        <%= usuario.ativo ? '🔒' : '🔓' %>
+                                                    </button>
+                                                    <button onclick="excluirUsuario(<%= usuario.id %>)" class="btn-icon btn-danger" title="Excluir">🗑️</button>
+                                                <% } %>
+                                            </td>
+                                        </tr>
+                                    <% }) %>
+                                <% } %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
 
