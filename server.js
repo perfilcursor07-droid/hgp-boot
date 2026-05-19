@@ -1762,6 +1762,11 @@ app.get('/api/usuarios/:id', isAuthenticated, isAdmin, async (req, res) => {
 app.post('/api/usuarios', isAuthenticated, isAdmin, async (req, res) => {
     const { nome_completo, username, cpf, telefone, nivel_acesso, password, ativo } = req.body;
 
+    // Gerenciador não pode criar administrador
+    if (req.session.nivelAcesso === 'gerenciador' && nivel_acesso === 'administrador') {
+        return res.status(403).json({ success: false, message: 'Você não tem permissão para criar administradores.' });
+    }
+
     try {
         // Verificar se o usuário já existe
         const [existing] = await db.query('SELECT id FROM admins WHERE username = ? OR cpf = ?', [username, cpf]);
@@ -1790,6 +1795,11 @@ app.post('/api/usuarios', isAuthenticated, isAdmin, async (req, res) => {
 app.put('/api/usuarios/:id', isAuthenticated, isAdmin, async (req, res) => {
     const { nome_completo, username, cpf, telefone, nivel_acesso, password, ativo } = req.body;
     const userId = req.params.id;
+
+    // Gerenciador não pode promover a administrador
+    if (req.session.nivelAcesso === 'gerenciador' && nivel_acesso === 'administrador') {
+        return res.status(403).json({ success: false, message: 'Você não tem permissão para definir nível administrador.' });
+    }
 
     try {
         // Verificar se outro usuário já usa o username ou CPF
