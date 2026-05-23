@@ -78,6 +78,7 @@
                                     <th>CPF</th>
                                     <th>Telefone</th>
                                     <th>Nível de Acesso</th>
+                                    <th>Unidades</th>
                                     <th>Status</th>
                                     <th>Ações</th>
                                 </tr>
@@ -85,7 +86,7 @@
                             <tbody id="usuariosTable">
                                 <% if (usuarios.length === 0) { %>
                                     <tr>
-                                        <td colspan="7" class="no-messages">
+                                        <td colspan="8" class="no-messages">
                                             Nenhum usuário encontrado.
                                         </td>
                                     </tr>
@@ -100,6 +101,15 @@
                                                 <span class="badge <%= usuario.nivel_acesso === 'administrador' ? 'badge-admin' : (usuario.nivel_acesso === 'gerenciador' ? 'badge-admin' : (usuario.nivel_acesso === 'visualizador' ? 'badge-viewer' : 'badge-gestor')) %>">
                                                     <%= usuario.nivel_acesso === 'administrador' ? '🔑 Administrador' : (usuario.nivel_acesso === 'gerenciador' ? '🛡️ Gerenciador' : (usuario.nivel_acesso === 'visualizador' ? '👁️ Visualizador' : '📊 Gestor')) %>
                                                 </span>
+                                            </td>
+                                            <td style="font-size:12px;color:#475569;">
+                                                <% if (usuario.nivel_acesso === 'administrador') { %>
+                                                    <span style="color:#94a3b8;font-style:italic;">Todas</span>
+                                                <% } else if (usuario.unidades_nomes) { %>
+                                                    <%= usuario.unidades_nomes %>
+                                                <% } else { %>
+                                                    <span style="color:#cbd5e1;">—</span>
+                                                <% } %>
                                             </td>
                                             <td>
                                                 <span class="badge <%= usuario.ativo ? 'success' : 'badge-inactive' %>">
@@ -176,6 +186,23 @@
                 </div>
 
                 <div class="form-group">
+                    <label>Unidades vinculadas <small style="color:#64748b;font-weight:normal;">(o usuário só verá chamados dessas unidades)</small></label>
+                    <div id="unidadesList" style="border:1px solid #e2e8f0;border-radius:8px;padding:8px;max-height:160px;overflow-y:auto;background:#f8fafc;">
+                        <% if (unidades && unidades.length > 0) { %>
+                            <% unidades.forEach(u => { %>
+                                <label style="display:flex;align-items:center;gap:8px;padding:5px 8px;cursor:pointer;font-size:13px;border-radius:5px;" onmouseover="this.style.background='#fff'" onmouseout="this.style.background='transparent'">
+                                    <input type="checkbox" name="unidade_ids" value="<%= u.id %>" class="check-unidade" style="width:auto">
+                                    <span><strong><%= u.codigo %></strong> — <%= u.nome %></span>
+                                </label>
+                            <% }) %>
+                        <% } else { %>
+                            <p style="color:#64748b;font-size:12px;padding:10px;text-align:center;">Nenhuma unidade cadastrada. <a href="/unidades">Cadastrar agora</a></p>
+                        <% } %>
+                    </div>
+                    <small style="color:#94a3b8;display:block;margin-top:4px;">Administradores sempre veem todas as unidades.</small>
+                </div>
+
+                <div class="form-group">
                     <label for="password">Senha <span id="senhaOpcional" style="color: #64748b;">(deixe em branco para manter a atual)</span></label>
                     <input type="password" id="password" name="password" minlength="6">
                 </div>
@@ -233,6 +260,7 @@
             document.getElementById('usuarioId').value = '';
             document.getElementById('password').required = true;
             document.getElementById('senhaOpcional').style.display = 'none';
+            document.querySelectorAll('.check-unidade').forEach(cb => cb.checked = false);
             document.getElementById('modalUsuario').style.display = 'flex';
         }
 
@@ -257,6 +285,13 @@
                     document.getElementById('password').required = false;
                     document.getElementById('password').value = '';
                     document.getElementById('senhaOpcional').style.display = 'inline';
+
+                    // Marcar unidades vinculadas
+                    const vincSet = new Set((data.usuario.unidade_ids || []).map(Number));
+                    document.querySelectorAll('.check-unidade').forEach(cb => {
+                        cb.checked = vincSet.has(Number(cb.value));
+                    });
+
                     document.getElementById('modalUsuario').style.display = 'flex';
                 } else {
                     alert('Erro ao carregar usuário');
@@ -271,6 +306,7 @@
             event.preventDefault();
             
             const formData = new FormData(event.target);
+            const unidadeIds = Array.from(document.querySelectorAll('.check-unidade:checked')).map(cb => Number(cb.value));
             const data = {
                 id: formData.get('id'),
                 nome_completo: formData.get('nome_completo'),
@@ -279,7 +315,8 @@
                 telefone: formData.get('telefone'),
                 nivel_acesso: formData.get('nivel_acesso'),
                 ativo: formData.get('ativo') === 'on',
-                password: formData.get('password')
+                password: formData.get('password'),
+                unidade_ids: unidadeIds
             };
 
             console.log('Dados do formulário:', data);

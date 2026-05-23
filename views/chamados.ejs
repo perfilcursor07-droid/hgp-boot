@@ -302,6 +302,7 @@
         .ca-info    { background: #f1f5f9 !important; color: #475569 !important; border-color: #e2e8f0 !important; }
         .ca-forward { background: #fef3c7 !important; color: #d97706 !important; border-color: #fcd34d !important; }
         .ca-close   { background: #fee2e2 !important; color: #dc2626 !important; border-color: #fca5a5 !important; }
+        .ca-reabrir { background: #ede9fe !important; color: #7c3aed !important; border-color: #c4b5fd !important; }
 
         /* ── Banner ── */
         #bannerMeusChamadosPage {
@@ -588,11 +589,36 @@
         </div>
     </div>
 
+    <!-- Modal Reabrir Chamado -->
+    <div id="modalReabrir" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🔄 Reabrir Chamado</h2>
+                <span class="modal-close" onclick="fecharModalReabrir()">&times;</span>
+            </div>
+            <form id="formReabrir" onsubmit="reabrirChamado(event)">
+                <input type="hidden" id="reabrirChamadoId" name="chamadoId">
+                <p>Protocolo: <strong id="reabrirProtocolo"></strong></p>
+                
+                <div class="form-group">
+                    <label for="motivoReabrir">Motivo da reabertura *</label>
+                    <textarea id="motivoReabrir" name="motivo" rows="3" required minlength="3" placeholder="Ex: Problema voltou a ocorrer, solução aplicada não funcionou..." style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;"></textarea>
+                    <small style="color: #64748b;">Descreva o motivo para reabrir este chamado.</small>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" onclick="fecharModalReabrir()" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Reabrir Chamado</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Modal Transferir Chamado -->
     <div id="modalTransferir" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>� Transferir Chamado</h2>
+                <h2>🔄 Transferir Chamado</h2>
                 <span class="modal-close" onclick="fecharModalTransferir()">&times;</span>
             </div>
             <form id="formTransferir" onsubmit="transferirChamado(event)">
@@ -722,8 +748,10 @@
                 }
                 html += `<button onclick="abrirModalEncerrar(${chamado.id},'${p}')" class="ca-btn ca-close" title="Encerrar chamado">${icEncerrar}<span class="ca-label">Encerrar</span></button>`;
             } else {
+                const icReabrir = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>`;
                 html += `<button onclick="abrirChat(${chamado.id},'${p}')" class="ca-btn ca-chat" title="Ver chat" style="position:relative">${icChat}<span class="ca-label">Chat</span><span id="badge-${chamado.id}" class="chat-badge" style="display:none;"></span></button>`;
                 html += `<button class="ca-btn ca-info btn-detalhes" title="Ver detalhes" data-id="${chamado.id}">${icInfo}<span class="ca-label">Detalhes</span></button>`;
+                html += `<button onclick="abrirModalReabrir(${chamado.id},'${p}')" class="ca-btn ca-reabrir" title="Reabrir chamado">${icReabrir}<span class="ca-label">Reabrir</span></button>`;
             }
 
             html += '</div>';
@@ -1236,6 +1264,47 @@
 
         function fecharModalMeusAtendimentos() {
             document.getElementById('modalMeusAtendimentos').style.display = 'none';
+        }
+
+        // ── Reabrir chamado ──
+        function abrirModalReabrir(id, protocolo) {
+            document.getElementById('reabrirChamadoId').value = id;
+            document.getElementById('reabrirProtocolo').textContent = protocolo;
+            document.getElementById('motivoReabrir').value = '';
+            document.getElementById('modalReabrir').style.display = 'flex';
+        }
+
+        function fecharModalReabrir() {
+            document.getElementById('modalReabrir').style.display = 'none';
+        }
+
+        async function reabrirChamado(event) {
+            event.preventDefault();
+            const chamadoId = document.getElementById('reabrirChamadoId').value;
+            const motivo = document.getElementById('motivoReabrir').value.trim();
+
+            if (!motivo || motivo.length < 3) {
+                mostrarToast('Informe o motivo da reabertura', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/chamados/${chamadoId}/reabrir`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ motivo })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    fecharModalReabrir();
+                    mostrarToast('✓ ' + result.message, 'success');
+                    await atualizarOverviewChamados();
+                } else {
+                    mostrarToast('✗ ' + result.message, 'error');
+                }
+            } catch (error) {
+                mostrarToast('✗ Erro ao reabrir chamado', 'error');
+            }
         }
 
     </script>

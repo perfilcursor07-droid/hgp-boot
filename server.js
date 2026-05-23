@@ -16,6 +16,7 @@ const multer = require('multer');
 const db = require('./config/database');
 const { ensureSchema } = require('./config/ensureSchema');
 const { attachChatbot } = require('./chatbot-handler');
+const instanceManager = require('./modules/instance-manager');
 
 const uploadChatMedia = multer({
     storage: multer.diskStorage({
@@ -57,10 +58,23 @@ app.use(async (req, res, next) => {
     res.locals.nivelAcesso = req.session.nivelAcesso || 'administrador';
 
     try {
+        // Filtrar por unidades do usuário (admin = null = todas)
+        const ids = req.session.unidadeIds;
+        let whereClause = `WHERE status = 'pendente'`;
+        const params = [];
+
+        if (Array.isArray(ids)) {
+            if (ids.length === 0) {
+                whereClause += ` AND unidade_id IS NULL`;
+            } else {
+                whereClause += ` AND (unidade_id IS NULL OR unidade_id IN (${ids.map(() => '?').join(',')}))`;
+                params.push(...ids);
+            }
+        }
+
         const [rows] = await db.query(
-            `SELECT COUNT(*) AS total
-             FROM chamados
-             WHERE status = 'pendente'`
+            `SELECT COUNT(*) AS total FROM chamados ${whereClause}`,
+            params
         );
         res.locals.pendingChamadosCount = Number(rows[0]?.total || 0);
     } catch (error) {
@@ -357,13 +371,29 @@ const buildFluxoStats = (flows, selectedFlowData) => ({
     etapas: selectedFlowData?.steps?.length || 0
 });
 
-const listChamadosOverview = async () => {
+const listChamadosOverview = async (req = null) => {
+    // Filtrar por unidades do usuário (administrador vê tudo)
+    let where = '';
+    const params = [];
+    if (req && req.session && Array.isArray(req.session.unidadeIds)) {
+        // null/undefined = administrador, vê tudo
+        if (req.session.unidadeIds.length === 0) {
+            // Usuário sem unidade vinculada e não-admin: vê só chamados sem unidade (legado)
+            where = 'WHERE unidade_id IS NULL';
+        } else {
+            const placeholders = req.session.unidadeIds.map(() => '?').join(',');
+            where = `WHERE unidade_id IS NULL OR unidade_id IN (${placeholders})`;
+            params.push(...req.session.unidadeIds);
+        }
+    }
+
     const [chamados] = await db.query(`
         SELECT *
         FROM chamados
+        ${where}
         ORDER BY criado_em DESC
         LIMIT 200
-    `);
+    `, params);
 
     const contagem = chamados.reduce((acc, chamado) => {
         const status = chamado.status || 'pendente';
@@ -443,6 +473,17 @@ app.post('/login', async (req, res) => {
         req.session.username = user.username;
         req.session.nivelAcesso = user.nivel_acesso;
         req.session.nomeCompleto = user.nome_completo;
+
+        // Carregar unidades vinculadas (admin sempre vê todas)
+        if (user.nivel_acesso === 'administrador') {
+            req.session.unidadeIds = null; // null = todas
+        } else {
+            const [unids] = await db.query(
+                'SELECT unidade_id FROM admin_unidades WHERE admin_id = ?',
+                [user.id]
+            );
+            req.session.unidadeIds = unids.map(u => u.unidade_id);
+        }
         
         // Redirecionar baseado no nível de acesso
         if (user.nivel_acesso === 'gestor' || user.nivel_acesso === 'visualizador') {
@@ -720,6 +761,306 @@ app.get('/api/tv/chamados', async (req, res) => {
     }
 });
 
+// ════════════════════════════════════════════════════════════════════
+// MULTI-INSTÂNCIA — Unidades, Fluxos, Instâncias
+// ════════════════════════════════════════════════════════════════════
+
+// ─── UNIDADES ────────────────────────────────────────────────────
+app.get('/unidades', isAuthenticated, isAdminOnly, async (req, res) => {
+    try {
+        const [unidades] = await db.query(`
+            SELECT u.*, 
+                   (SELECT COUNT(*) FROM admin_unidades au WHERE au.unidade_id = u.id) AS total_admins,
+                   (SELECT COUNT(*) FROM instancias i WHERE i.unidade_id = u.id) AS total_instancias
+            FROM unidades u
+            ORDER BY u.nome
+        `);
+        res.render('unidades', {
+            username: req.session.username,
+            nivelAcesso: req.session.nivelAcesso,
+            unidades
+        });
+    } catch (e) {
+        console.error('Erro /unidades:', e);
+        res.render('unidades', { username: req.session.username, nivelAcesso: req.session.nivelAcesso, unidades: [] });
+    }
+});
+
+app.post('/api/unidades', isAuthenticated, isAdminOnly, async (req, res) => {
+    try {
+        const { nome, codigo, descricao, cor } = req.body;
+        if (!nome || !codigo) return res.json({ success: false, message: 'Nome e código são obrigatórios' });
+        const [r] = await db.query(
+            `INSERT INTO unidades (nome, codigo, descricao, cor, ativo) VALUES (?, ?, ?, ?, TRUE)`,
+            [nome.trim(), codigo.trim().toUpperCase(), descricao || null, cor || '#25d366']
+        );
+        res.json({ success: true, id: r.insertId });
+    } catch (e) {
+        if (e.code === 'ER_DUP_ENTRY') return res.json({ success: false, message: 'Código já existe' });
+        res.json({ success: false, message: e.message });
+    }
+});
+
+app.put('/api/unidades/:id', isAuthenticated, isAdminOnly, async (req, res) => {
+    try {
+        const { nome, codigo, descricao, cor, ativo } = req.body;
+        await db.query(
+            `UPDATE unidades SET nome = ?, codigo = ?, descricao = ?, cor = ?, ativo = ? WHERE id = ?`,
+            [nome, codigo, descricao || null, cor || '#25d366', ativo ? 1 : 0, req.params.id]
+        );
+        res.json({ success: true });
+    } catch (e) {
+        res.json({ success: false, message: e.message });
+    }
+});
+
+app.delete('/api/unidades/:id', isAuthenticated, isAdminOnly, async (req, res) => {
+    try {
+        await db.query('DELETE FROM unidades WHERE id = ?', [req.params.id]);
+        res.json({ success: true });
+    } catch (e) {
+        res.json({ success: false, message: e.message });
+    }
+});
+
+// Vincular admins a unidades
+app.get('/api/unidades/:id/admins', isAuthenticated, isAdminOnly, async (req, res) => {
+    try {
+        const [vinc] = await db.query(
+            `SELECT a.id, a.username, a.nome_completo, a.nivel_acesso
+             FROM admins a
+             JOIN admin_unidades au ON au.admin_id = a.id
+             WHERE au.unidade_id = ? AND a.ativo = TRUE
+             ORDER BY a.nome_completo, a.username`,
+            [req.params.id]
+        );
+        const [todos] = await db.query(`
+            SELECT id, username, nome_completo, nivel_acesso
+            FROM admins
+            WHERE ativo = TRUE
+            ORDER BY nome_completo, username
+        `);
+        res.json({ success: true, vinculados: vinc, todos });
+    } catch (e) {
+        res.json({ success: false, message: e.message });
+    }
+});
+
+app.post('/api/unidades/:id/admins', isAuthenticated, isAdminOnly, async (req, res) => {
+    try {
+        const { admin_ids } = req.body; // array de ids
+        const unidadeId = req.params.id;
+        await db.query('DELETE FROM admin_unidades WHERE unidade_id = ?', [unidadeId]);
+        if (Array.isArray(admin_ids) && admin_ids.length > 0) {
+            const values = admin_ids.map(id => [Number(id), Number(unidadeId)]);
+            await db.query('INSERT INTO admin_unidades (admin_id, unidade_id) VALUES ?', [values]);
+        }
+        res.json({ success: true });
+    } catch (e) {
+        res.json({ success: false, message: e.message });
+    }
+});
+
+// ─── FLOWS V2 ─────────────────────────────────────────────────────
+app.get('/flows', isAuthenticated, isAdminOnly, async (req, res) => {
+    try {
+        const [flows] = await db.query(`
+            SELECT id, nome, descricao, is_default, ativo, criado_em, atualizado_em
+            FROM bot_flows_v2
+            ORDER BY is_default DESC, nome
+        `);
+        res.render('flows', {
+            username: req.session.username,
+            nivelAcesso: req.session.nivelAcesso,
+            flows
+        });
+    } catch (e) {
+        res.render('flows', { username: req.session.username, nivelAcesso: req.session.nivelAcesso, flows: [] });
+    }
+});
+
+app.get('/api/flows/:id', isAuthenticated, isAdminOnly, async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT * FROM bot_flows_v2 WHERE id = ?', [req.params.id]);
+        if (rows.length === 0) return res.json({ success: false, message: 'Não encontrado' });
+        const flow = rows[0];
+        try { flow.definicao = JSON.parse(flow.definicao_json); } catch (e) { flow.definicao = null; }
+        delete flow.definicao_json;
+        res.json({ success: true, flow });
+    } catch (e) {
+        res.json({ success: false, message: e.message });
+    }
+});
+
+app.post('/api/flows', isAuthenticated, isAdminOnly, async (req, res) => {
+    try {
+        const { nome, descricao, definicao } = req.body;
+        if (!nome || !definicao) return res.json({ success: false, message: 'Nome e definição são obrigatórios' });
+        const json = typeof definicao === 'string' ? definicao : JSON.stringify(definicao);
+        // Validar se é JSON válido
+        try { JSON.parse(json); } catch (e) { return res.json({ success: false, message: 'Definição não é JSON válido' }); }
+        const [r] = await db.query(
+            `INSERT INTO bot_flows_v2 (nome, descricao, definicao_json, ativo) VALUES (?, ?, ?, TRUE)`,
+            [nome.trim(), descricao || null, json]
+        );
+        res.json({ success: true, id: r.insertId });
+    } catch (e) {
+        res.json({ success: false, message: e.message });
+    }
+});
+
+app.put('/api/flows/:id', isAuthenticated, isAdminOnly, async (req, res) => {
+    try {
+        const { nome, descricao, definicao, ativo } = req.body;
+        const json = typeof definicao === 'string' ? definicao : JSON.stringify(definicao);
+        try { JSON.parse(json); } catch (e) { return res.json({ success: false, message: 'Definição não é JSON válido' }); }
+        await db.query(
+            `UPDATE bot_flows_v2 SET nome = ?, descricao = ?, definicao_json = ?, ativo = ? WHERE id = ?`,
+            [nome, descricao || null, json, ativo ? 1 : 0, req.params.id]
+        );
+        res.json({ success: true });
+    } catch (e) {
+        res.json({ success: false, message: e.message });
+    }
+});
+
+app.delete('/api/flows/:id', isAuthenticated, isAdminOnly, async (req, res) => {
+    try {
+        const [used] = await db.query('SELECT COUNT(*) AS c FROM instancias WHERE flow_id = ?', [req.params.id]);
+        if (used[0].c > 0) return res.json({ success: false, message: 'Fluxo está vinculado a instâncias' });
+        await db.query('DELETE FROM bot_flows_v2 WHERE id = ?', [req.params.id]);
+        res.json({ success: true });
+    } catch (e) {
+        res.json({ success: false, message: e.message });
+    }
+});
+
+// ─── INSTÂNCIAS ───────────────────────────────────────────────────
+app.get('/instancias', isAuthenticated, isAdminOnly, async (req, res) => {
+    try {
+        const [instancias] = await db.query(`
+            SELECT i.*, u.nome AS unidade_nome, u.cor AS unidade_cor, f.nome AS flow_nome
+            FROM instancias i
+            LEFT JOIN unidades u ON u.id = i.unidade_id
+            LEFT JOIN bot_flows_v2 f ON f.id = i.flow_id
+            ORDER BY i.is_legacy DESC, i.nome
+        `);
+        const [unidades] = await db.query('SELECT id, nome, codigo FROM unidades WHERE ativo = TRUE ORDER BY nome');
+        const [flows] = await db.query('SELECT id, nome FROM bot_flows_v2 WHERE ativo = TRUE ORDER BY nome');
+        res.render('instancias', {
+            username: req.session.username,
+            nivelAcesso: req.session.nivelAcesso,
+            instancias, unidades, flows
+        });
+    } catch (e) {
+        console.error('Erro /instancias:', e);
+        res.render('instancias', { username: req.session.username, nivelAcesso: req.session.nivelAcesso, instancias: [], unidades: [], flows: [] });
+    }
+});
+
+app.post('/api/instancias', isAuthenticated, isAdminOnly, async (req, res) => {
+    try {
+        const { nome, session_name, unidade_id, flow_id } = req.body;
+        if (!nome || !session_name) return res.json({ success: false, message: 'Nome e session_name são obrigatórios' });
+        if (session_name === 'admin-session') return res.json({ success: false, message: 'session_name "admin-session" é reservado' });
+
+        const sessionSafe = String(session_name).trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+        const [r] = await db.query(
+            `INSERT INTO instancias (nome, session_name, unidade_id, flow_id, status, is_legacy, ativo)
+             VALUES (?, ?, ?, ?, 'disconnected', FALSE, TRUE)`,
+            [nome.trim(), sessionSafe, unidade_id || null, flow_id || null]
+        );
+        res.json({ success: true, id: r.insertId });
+    } catch (e) {
+        if (e.code === 'ER_DUP_ENTRY') return res.json({ success: false, message: 'session_name já existe' });
+        res.json({ success: false, message: e.message });
+    }
+});
+
+app.put('/api/instancias/:id', isAuthenticated, isAdminOnly, async (req, res) => {
+    try {
+        const [chk] = await db.query('SELECT is_legacy, status FROM instancias WHERE id = ?', [req.params.id]);
+        if (chk.length === 0) return res.json({ success: false, message: 'Não encontrada' });
+        if (chk[0].is_legacy) return res.json({ success: false, message: 'Não é possível editar a instância legada' });
+        if (chk[0].status === 'connected' || chk[0].status === 'connecting') {
+            return res.json({ success: false, message: 'Pare a instância antes de editar' });
+        }
+
+        const { nome, unidade_id, flow_id, ativo } = req.body;
+        await db.query(
+            `UPDATE instancias SET nome = ?, unidade_id = ?, flow_id = ?, ativo = ? WHERE id = ?`,
+            [nome, unidade_id || null, flow_id || null, ativo ? 1 : 0, req.params.id]
+        );
+        res.json({ success: true });
+    } catch (e) {
+        res.json({ success: false, message: e.message });
+    }
+});
+
+app.delete('/api/instancias/:id', isAuthenticated, isAdminOnly, async (req, res) => {
+    try {
+        const [chk] = await db.query('SELECT is_legacy FROM instancias WHERE id = ?', [req.params.id]);
+        if (chk.length === 0) return res.json({ success: false, message: 'Não encontrada' });
+        if (chk[0].is_legacy) return res.json({ success: false, message: 'Não é possível remover a instância legada' });
+
+        await instanceManager.pararInstancia(Number(req.params.id)).catch(() => {});
+        await db.query('DELETE FROM instancias WHERE id = ?', [req.params.id]);
+        res.json({ success: true });
+    } catch (e) {
+        res.json({ success: false, message: e.message });
+    }
+});
+
+app.post('/api/instancias/:id/iniciar', isAuthenticated, isAdminOnly, async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        const [chk] = await db.query('SELECT is_legacy FROM instancias WHERE id = ?', [id]);
+        if (chk.length === 0) return res.json({ success: false, message: 'Não encontrada' });
+        if (chk[0].is_legacy) return res.json({ success: false, message: 'Use o painel principal para a instância legada' });
+
+        await instanceManager.iniciarInstancia(id);
+        res.json({ success: true, message: 'Instância iniciada — aguarde o QR Code' });
+    } catch (e) {
+        console.error('Erro iniciar instância:', e);
+        res.json({ success: false, message: e.message });
+    }
+});
+
+app.post('/api/instancias/:id/parar', isAuthenticated, isAdminOnly, async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        const [chk] = await db.query('SELECT is_legacy FROM instancias WHERE id = ?', [id]);
+        if (chk.length === 0) return res.json({ success: false, message: 'Não encontrada' });
+        if (chk[0].is_legacy) return res.json({ success: false, message: 'Use o painel principal para a instância legada' });
+
+        await instanceManager.pararInstancia(id);
+        res.json({ success: true });
+    } catch (e) {
+        res.json({ success: false, message: e.message });
+    }
+});
+
+app.get('/api/instancias/:id/status', isAuthenticated, isAdminOnly, async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        const [rows] = await db.query('SELECT id, nome, session_name, status, qr_code, last_error, last_connected, is_legacy FROM instancias WHERE id = ?', [id]);
+        if (rows.length === 0) return res.json({ success: false, message: 'Não encontrada' });
+        const live = instanceManager.obterStatus(id);
+        res.json({
+            success: true,
+            instancia: rows[0],
+            runtime: live
+        });
+    } catch (e) {
+        res.json({ success: false, message: e.message });
+    }
+});
+
+// ════════════════════════════════════════════════════════════════════
+// FIM Multi-Instância
+// ════════════════════════════════════════════════════════════════════
+
+
 app.get('/meus-chamados', isAuthenticated, async (req, res) => {
     try {
         res.render('meus-chamados', {
@@ -742,7 +1083,7 @@ app.get('/chamados', isAuthenticated, async (req, res) => {
             req.session.nivelAcesso = 'administrador';
         }
 
-        const { chamados, contagem } = await listChamadosOverview();
+        const { chamados, contagem } = await listChamadosOverview(req);
 
         res.render('chamados', {
             username: req.session.username,
@@ -766,7 +1107,7 @@ app.get('/api/chamados/overview', isAuthenticated, async (req, res) => {
         res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
         res.set('Pragma', 'no-cache');
         res.set('Expires', '0');
-        const overview = await listChamadosOverview();
+        const overview = await listChamadosOverview(req);
         res.json({ success: true, ...overview });
     } catch (error) {
         console.error('Erro ao carregar overview de chamados:', error);
@@ -780,10 +1121,21 @@ app.get('/api/chamados/pending-count', isAuthenticated, async (req, res) => {
         res.set('Pragma', 'no-cache');
         res.set('Expires', '0');
 
+        const ids = req.session.unidadeIds;
+        let where = `WHERE status = 'pendente'`;
+        const params = [];
+        if (Array.isArray(ids)) {
+            if (ids.length === 0) {
+                where += ` AND unidade_id IS NULL`;
+            } else {
+                where += ` AND (unidade_id IS NULL OR unidade_id IN (${ids.map(() => '?').join(',')}))`;
+                params.push(...ids);
+            }
+        }
+
         const [rows] = await db.query(
-            `SELECT COUNT(*) AS total
-             FROM chamados
-             WHERE status = 'pendente'`
+            `SELECT COUNT(*) AS total FROM chamados ${where}`,
+            params
         );
 
         res.json({ success: true, total: Number(rows[0]?.total || 0) });
@@ -1058,6 +1410,35 @@ app.get('/avaliacoes', isAuthenticated, isAdmin, async (req, res) => {
     } catch (error) {
         console.error('Erro ao carregar avaliações:', error);
         res.render('avaliacoes', { username: req.session.username, avaliacoes: [], stats: { total: 0, media: 0, positivas: 0, negativas: 0 } });
+    }
+});
+
+// API - Responder avaliação (justificativa do técnico)
+app.post('/api/avaliacoes/:id/responder', isAuthenticated, async (req, res) => {
+    try {
+        const avaliacaoId = req.params.id;
+        const { resposta } = req.body;
+
+        if (!resposta || resposta.trim().length < 3) {
+            return res.status(400).json({ success: false, message: 'A resposta deve ter pelo menos 3 caracteres' });
+        }
+
+        const [avaliacao] = await db.query('SELECT * FROM avaliacoes WHERE id = ?', [avaliacaoId]);
+        if (avaliacao.length === 0) {
+            return res.status(404).json({ success: false, message: 'Avaliação não encontrada' });
+        }
+
+        await db.query(
+            `UPDATE avaliacoes 
+             SET resposta_tecnico = ?, respondido_por = ?, respondido_em = NOW()
+             WHERE id = ?`,
+            [resposta.trim(), req.session.username, avaliacaoId]
+        );
+
+        res.json({ success: true, message: 'Resposta registrada com sucesso' });
+    } catch (error) {
+        console.error('Erro ao responder avaliação:', error);
+        res.status(500).json({ success: false, message: 'Erro ao registrar resposta' });
     }
 });
 
@@ -1637,10 +2018,17 @@ app.delete('/api/escala/:id', isAuthenticated, isAdmin, async (req, res) => {
 app.get('/usuarios', isAuthenticated, isAdmin, async (req, res) => {
     try {
         const [usuarios] = await db.query(`
-            SELECT id, username, nome_completo, cpf, telefone, nivel_acesso, ativo, created_at
-            FROM admins
-            ORDER BY created_at DESC
+            SELECT a.id, a.username, a.nome_completo, a.cpf, a.telefone, a.nivel_acesso, a.ativo, a.created_at,
+                   GROUP_CONCAT(u.nome ORDER BY u.nome SEPARATOR ', ') AS unidades_nomes,
+                   GROUP_CONCAT(u.id) AS unidades_ids
+            FROM admins a
+            LEFT JOIN admin_unidades au ON au.admin_id = a.id
+            LEFT JOIN unidades u ON u.id = au.unidade_id
+            GROUP BY a.id
+            ORDER BY a.created_at DESC
         `);
+
+        const [unidades] = await db.query(`SELECT id, nome, codigo FROM unidades WHERE ativo = TRUE ORDER BY nome`);
 
         const stats = {
             total: usuarios.length,
@@ -1652,14 +2040,18 @@ app.get('/usuarios', isAuthenticated, isAdmin, async (req, res) => {
 
         res.render('usuarios', { 
             username: req.session.username,
+            nivelAcesso: req.session.nivelAcesso || 'administrador',
             usuarios,
+            unidades,
             stats
         });
     } catch (error) {
         console.error('Erro ao carregar usuários:', error);
         res.render('usuarios', { 
             username: req.session.username,
+            nivelAcesso: req.session.nivelAcesso || 'administrador',
             usuarios: [],
+            unidades: [],
             stats: { total: 0, administradores: 0, gerenciadores: 0, gestores: 0, ativos: 0 }
         });
     }
@@ -1751,6 +2143,9 @@ app.get('/api/usuarios/:id', isAuthenticated, isAdmin, async (req, res) => {
             return res.status(404).json({ success: false, message: 'Usuário não encontrado' });
         }
 
+        const [unids] = await db.query('SELECT unidade_id FROM admin_unidades WHERE admin_id = ?', [req.params.id]);
+        usuarios[0].unidade_ids = unids.map(u => u.unidade_id);
+
         res.json({ success: true, usuario: usuarios[0] });
     } catch (error) {
         console.error('Erro ao buscar usuário:', error);
@@ -1760,7 +2155,7 @@ app.get('/api/usuarios/:id', isAuthenticated, isAdmin, async (req, res) => {
 
 // API - Criar usuário
 app.post('/api/usuarios', isAuthenticated, isAdmin, async (req, res) => {
-    const { nome_completo, username, cpf, telefone, nivel_acesso, password, ativo } = req.body;
+    const { nome_completo, username, cpf, telefone, nivel_acesso, password, ativo, unidade_ids } = req.body;
 
     // Gerenciador não pode criar administrador
     if (req.session.nivelAcesso === 'gerenciador' && nivel_acesso === 'administrador') {
@@ -1778,11 +2173,17 @@ app.post('/api/usuarios', isAuthenticated, isAdmin, async (req, res) => {
         // Criptografar senha
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        await db.query(
+        const [result] = await db.query(
             `INSERT INTO admins (username, nome_completo, cpf, telefone, nivel_acesso, password, ativo)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [username, nome_completo, cpf, telefone, nivel_acesso, hashedPassword, ativo]
         );
+
+        // Vincular unidades
+        if (Array.isArray(unidade_ids) && unidade_ids.length > 0) {
+            const values = unidade_ids.map(uid => [result.insertId, Number(uid)]);
+            await db.query('INSERT INTO admin_unidades (admin_id, unidade_id) VALUES ?', [values]);
+        }
 
         res.json({ success: true, message: 'Usuário criado com sucesso' });
     } catch (error) {
@@ -1793,7 +2194,7 @@ app.post('/api/usuarios', isAuthenticated, isAdmin, async (req, res) => {
 
 // API - Atualizar usuário
 app.put('/api/usuarios/:id', isAuthenticated, isAdmin, async (req, res) => {
-    const { nome_completo, username, cpf, telefone, nivel_acesso, password, ativo } = req.body;
+    const { nome_completo, username, cpf, telefone, nivel_acesso, password, ativo, unidade_ids } = req.body;
     const userId = req.params.id;
 
     // Gerenciador não pode promover a administrador
@@ -1829,6 +2230,15 @@ app.put('/api/usuarios/:id', isAuthenticated, isAdmin, async (req, res) => {
                  WHERE id = ?`,
                 [username, nome_completo, cpf, telefone, nivel_acesso, ativo, userId]
             );
+        }
+
+        // Sincronizar unidades vinculadas
+        if (Array.isArray(unidade_ids)) {
+            await db.query('DELETE FROM admin_unidades WHERE admin_id = ?', [userId]);
+            if (unidade_ids.length > 0) {
+                const values = unidade_ids.map(uid => [Number(userId), Number(uid)]);
+                await db.query('INSERT INTO admin_unidades (admin_id, unidade_id) VALUES ?', [values]);
+            }
         }
 
         res.json({ success: true, message: 'Usuário atualizado com sucesso' });
@@ -2316,6 +2726,47 @@ app.post('/api/chamados/:id/encerrar', isAuthenticated, async (req, res) => {
     }
 });
 
+// API - Reabrir chamado finalizado
+app.post('/api/chamados/:id/reabrir', isAuthenticated, async (req, res) => {
+    try {
+        if (req.session.nivelAcesso === 'visualizador') {
+            return res.status(403).json({ success: false, message: 'Seu perfil não tem permissão para reabrir chamados.' });
+        }
+
+        const chamadoId = req.params.id;
+        const { motivo } = req.body;
+
+        const [chamado] = await db.query('SELECT * FROM chamados WHERE id = ?', [chamadoId]);
+        if (chamado.length === 0) {
+            return res.status(404).json({ success: false, message: 'Chamado não encontrado' });
+        }
+        if (chamado[0].status !== 'finalizado') {
+            return res.status(400).json({ success: false, message: 'Somente chamados finalizados podem ser reabertos' });
+        }
+
+        // Reabrir como "em_atendimento" mantendo o atendente
+        await db.query(
+            `UPDATE chamados 
+             SET status = 'em_atendimento', 
+                 encerrado_em = NULL,
+                 observacoes = CONCAT(IFNULL(observacoes,''), '\n[Reaberto em ', NOW(), ' por ', ?, ': ', ?, ']')
+             WHERE id = ?`,
+            [req.session.username, motivo || 'Sem motivo informado', chamadoId]
+        );
+
+        // Registrar no chat como mensagem de sistema
+        await db.query(
+            `INSERT INTO chat_messages (chamado_id, remetente_tipo, remetente_nome, mensagem) VALUES (?, 'sistema', 'Sistema', ?)`,
+            [chamadoId, `🔄 Chamado reaberto por ${req.session.username}${motivo ? ': ' + motivo : ''}`]
+        );
+
+        res.json({ success: true, message: 'Chamado reaberto com sucesso' });
+    } catch (error) {
+        console.error('Erro ao reabrir chamado:', error);
+        res.status(500).json({ success: false, message: 'Erro ao reabrir chamado' });
+    }
+});
+
 // API - Buscar mensagens do chat de um chamado
 app.get('/api/chamados/:id/chat', isAuthenticated, async (req, res) => {
     try {
@@ -2598,6 +3049,7 @@ async function startServer() {
         }
 
         await syncDisconnectedSession();
+        await instanceManager.syncOnStartup();
 
         app.listen(PORT, () => {
             console.log(`Servidor rodando em http://localhost:${PORT}`);

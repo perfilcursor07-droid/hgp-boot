@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Instâncias - HGP</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .in-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+        .in-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; position: relative; overflow: hidden; }
+        .in-card::before { content:''; position:absolute; top:0; left:0; right:0; height:4px; background: var(--cor, #25d366); }
+        .in-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+        .in-title h3 { font-size: 15px; color: #1e293b; }
+        .in-title small { font-size: 10px; color: #64748b; font-family: monospace; background: #f1f5f9; padding: 1px 6px; border-radius: 3px; }
+        .in-status { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+        .st-disconnected { background: #f1f5f9; color: #64748b; }
+        .st-connecting   { background: #fef3c7; color: #d97706; }
+        .st-qr_ready     { background: #dbeafe; color: #2563eb; }
+        .st-connected    { background: #dcfce7; color: #16a34a; }
+        .st-error        { background: #fee2e2; color: #dc2626; }
+        .in-info { font-size: 12px; color: #475569; margin: 6px 0; }
+        .in-info b { color: #0f172a; }
+        .in-actions { display: flex; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #f1f5f9; }
+        .in-btn { padding: 6px 10px; font-size: 11px; border-radius: 6px; border: 1px solid #e2e8f0; background: #f8fafc; cursor: pointer; flex: 1; font-weight: 600; }
+        .in-btn:hover { background: #e2e8f0; }
+        .in-btn.danger { color: #dc2626; }
+        .in-btn.primary { background: #25d366; color: #fff; border-color: #25d366; }
+        .in-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .legacy-banner { background: #fef3c7; border: 1px solid #fcd34d; padding: 8px 12px; border-radius: 6px; font-size: 11px; color: #92400e; margin-bottom: 8px; }
+
+        .qr-modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
+        .qr-modal-bg.open { display: flex; }
+        .qr-modal { background: #fff; border-radius: 12px; padding: 24px; text-align: center; max-width: 380px; }
+        .qr-modal img { max-width: 280px; border: 1px solid #e2e8f0; border-radius: 6px; }
+        .qr-modal h3 { margin-bottom: 8px; }
+        .qr-modal p { font-size: 12px; color: #64748b; margin-bottom: 14px; }
+        .qr-loading { padding: 40px; color: #64748b; }
+
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; }
+        .modal-overlay.open { display: flex; }
+        .modal-box { background: #fff; border-radius: 12px; max-width: 500px; width: 90%; padding: 20px; }
+        .form-row { margin-bottom: 12px; }
+        .form-row label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 4px; }
+        .form-row input, .form-row select { width: 100%; padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; }
+        .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+        .btn-secondary { padding: 8px 14px; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 6px; cursor: pointer; font-size: 13px; }
+        .btn-primary { padding: 8px 14px; border: none; background: #25d366; color: #fff; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <% const isAdminUI = nivelAcesso === 'administrador'; %>
+    <div class="dashboard">
+        <%- include('partials/sidebar', { activePage: 'instancias', username, role: 'Administrador', isAdmin: isAdminUI, nivelAcesso }) %>
+        <main class="main-content">
+            <div class="topbar">
+                <div class="topbar-title-group">
+                    <button class="menu-toggle" onclick="document.body.classList.toggle('sidebar-open')"><span></span><span></span><span></span></button>
+                    <h2>Instâncias WhatsApp</h2>
+                </div>
+                <div class="topbar-actions">
+                    <button class="btn-primary" onclick="abrirNova()">+ Nova Instância</button>
+                </div>
+            </div>
+            <div class="content">
+                <p style="color:#64748b;font-size:13px;margin-bottom:14px;">Cada instância representa um número WhatsApp conectado. Vincule a uma unidade e a um fluxo para definir o comportamento do bot.</p>
+                <div class="in-grid" id="grid"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal QR -->
+    <div class="qr-modal-bg" id="qrModal">
+        <div class="qr-modal">
+            <h3 id="qrTitle">Conectar WhatsApp</h3>
+            <p>Abra o WhatsApp no celular &gt; Aparelhos conectados &gt; Conectar um aparelho.</p>
+            <div id="qrContent" class="qr-loading">Aguardando QR Code...</div>
+            <div style="margin-top:14px;display:flex;gap:8px;justify-content:center;">
+                <button class="btn-secondary" onclick="fecharQr()">Fechar</button>
+                <button class="btn-primary" onclick="pararQr()">Parar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal nova/editar -->
+    <div class="modal-overlay" id="modalIns">
+        <div class="modal-box">
+            <h3 id="modalTitle">Nova Instância</h3>
+            <form onsubmit="salvar(event)">
+                <input type="hidden" id="inId">
+                <div class="form-row">
+                    <label>Nome *</label>
+                    <input type="text" id="inNome" required>
+                </div>
+                <div class="form-row" id="sessRow">
+                    <label>Identificador da sessão * <small style="color:#94a3b8;">(somente letras, números e -)</small></label>
+                    <input type="text" id="inSession" required pattern="[a-z0-9-]+" placeholder="hospital-x">
+                </div>
+                <div class="form-row">
+                    <label>Unidade</label>
+                    <select id="inUnidade">
+                        <option value="">— Sem unidade —</option>
+                        <% unidades.forEach(u => { %>
+                            <option value="<%= u.id %>"><%= u.nome %> (<%= u.codigo %>)</option>
+                        <% }) %>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>Fluxo do Bot</label>
+                    <select id="inFlow">
+                        <option value="">— Sem fluxo —</option>
+                        <% flows.forEach(f => { %>
+                            <option value="<%= f.id %>"><%= f.nome %></option>
+                        <% }) %>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label><input type="checkbox" id="inAtivo" checked style="width:auto"> Ativa</label>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="fecharModal()">Cancelar</button>
+                    <button type="submit" class="btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const instancias = <%- JSON.stringify(instancias) %>;
+        let pollTimer = null;
+        let pollInstId = null;
+
+        function escapeHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+        const STATUS_LABEL = {
+            disconnected: 'Desconectado',
+            connecting: 'Conectando',
+            qr_ready: 'QR pronto',
+            connected: 'Conectado',
+            error: 'Erro'
+        };
+
+        function render() {
+            const grid = document.getElementById('grid');
+            if (instancias.length === 0) {
+                grid.innerHTML = '<p style="color:#64748b;text-align:center;padding:40px;grid-column:1/-1;">Nenhuma instância cadastrada.</p>';
+                return;
+            }
+            grid.innerHTML = instancias.map(i => {
+                const cor = i.unidade_cor || '#25d366';
+                const isLegacy = !!i.is_legacy;
+                const status = i.status || 'disconnected';
+                return `
+                <div class="in-card" style="--cor:${cor}">
+                    ${isLegacy ? '<div class="legacy-banner">⚙️ Instância legada — gerencie pelo painel principal (Configurações).</div>' : ''}
+                    <div class="in-head">
+                        <div class="in-title">
+                            <h3>${escapeHtml(i.nome)}</h3>
+                            <small>${escapeHtml(i.session_name)}</small>
+                        </div>
+                        <span class="in-status st-${status}">
+                            <span style="width:6px;height:6px;border-radius:50%;background:currentColor;"></span>
+                            ${STATUS_LABEL[status] || status}
+                        </span>
+                    </div>
+                    <div class="in-info"><b>Unidade:</b> ${escapeHtml(i.unidade_nome || '— sem unidade —')}</div>
+                    <div class="in-info"><b>Fluxo:</b> ${escapeHtml(i.flow_nome || '— sem fluxo —')}</div>
+                    ${i.last_connected ? `<div class="in-info"><b>Última conexão:</b> ${new Date(i.last_connected).toLocaleString('pt-BR')}</div>` : ''}
+                    ${i.last_error ? `<div class="in-info" style="color:#dc2626;"><b>Último erro:</b> ${escapeHtml(i.last_error.slice(0,100))}</div>` : ''}
+                    ${isLegacy ? '' : `
+                    <div class="in-actions">
+                        ${status === 'connected' || status === 'connecting' || status === 'qr_ready'
+                            ? `<button class="in-btn" onclick="abrirQr(${i.id},'${escapeHtml(i.nome).replace(/'/g,"\\'")}')">Abrir QR/Status</button>
+                               <button class="in-btn danger" onclick="parar(${i.id})">Parar</button>`
+                            : `<button class="in-btn primary" onclick="iniciar(${i.id},'${escapeHtml(i.nome).replace(/'/g,"\\'")}')">Conectar</button>
+                               <button class="in-btn" onclick="editar(${i.id})">Editar</button>
+                               <button class="in-btn danger" onclick="excluir(${i.id})">×</button>`
+                        }
+                    </div>
+                    `}
+                </div>`;
+            }).join('');
+        }
+
+        function abrirNova() {
+            document.getElementById('modalTitle').textContent = 'Nova Instância';
+            document.getElementById('inId').value = '';
+            document.getElementById('inNome').value = '';
+            document.getElementById('inSession').value = '';
+            document.getElementById('inSession').disabled = false;
+            document.getElementById('inUnidade').value = '';
+            document.getElementById('inFlow').value = '';
+            document.getElementById('inAtivo').checked = true;
+            document.getElementById('modalIns').classList.add('open');
+        }
+
+        function editar(id) {
+            const i = instancias.find(x => x.id === id);
+            if (!i) return;
+            document.getElementById('modalTitle').textContent = 'Editar Instância';
+            document.getElementById('inId').value = i.id;
+            document.getElementById('inNome').value = i.nome;
+            document.getElementById('inSession').value = i.session_name;
+            document.getElementById('inSession').disabled = true; // não permitir editar session_name
+            document.getElementById('inUnidade').value = i.unidade_id || '';
+            document.getElementById('inFlow').value = i.flow_id || '';
+            document.getElementById('inAtivo').checked = !!i.ativo;
+            document.getElementById('modalIns').classList.add('open');
+        }
+
+        function fecharModal() { document.getElementById('modalIns').classList.remove('open'); }
+
+        async function salvar(ev) {
+            ev.preventDefault();
+            const id = document.getElementById('inId').value;
+            const body = {
+                nome: document.getElementById('inNome').value.trim(),
+                session_name: document.getElementById('inSession').value.trim().toLowerCase(),
+                unidade_id: document.getElementById('inUnidade').value || null,
+                flow_id: document.getElementById('inFlow').value || null,
+                ativo: document.getElementById('inAtivo').checked
+            };
+            try {
+                const r = await fetch(id ? `/api/instancias/${id}` : '/api/instancias', {
+                    method: id ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const d = await r.json();
+                if (d.success) location.reload();
+                else alert(d.message);
+            } catch (e) { alert(e.message); }
+        }
+
+        async function iniciar(id, nome) {
+            try {
+                const r = await fetch(`/api/instancias/${id}/iniciar`, { method: 'POST' });
+                const d = await r.json();
+                if (d.success) {
+                    abrirQr(id, nome);
+                } else {
+                    alert(d.message);
+                }
+            } catch (e) { alert(e.message); }
+        }
+
+        async function parar(id) {
+            if (!confirm('Parar esta instância?')) return;
+            try {
+                const r = await fetch(`/api/instancias/${id}/parar`, { method: 'POST' });
+                const d = await r.json();
+                if (d.success) location.reload();
+                else alert(d.message);
+            } catch (e) { alert(e.message); }
+        }
+
+        async function excluir(id) {
+            if (!confirm('Excluir esta instância? A sessão WhatsApp será removida.')) return;
+            try {
+                const r = await fetch(`/api/instancias/${id}`, { method: 'DELETE' });
+                const d = await r.json();
+                if (d.success) location.reload();
+                else alert(d.message);
+            } catch (e) { alert(e.message); }
+        }
+
+        // ── QR / Status modal ──
+        function abrirQr(id, nome) {
+            pollInstId = id;
+            document.getElementById('qrTitle').textContent = nome;
+            document.getElementById('qrModal').classList.add('open');
+            document.getElementById('qrContent').innerHTML = '<div class="qr-loading">Aguardando...</div>';
+            iniciarPoll();
+        }
+
+        function fecharQr() {
+            document.getElementById('qrModal').classList.remove('open');
+            pararPoll();
+            // recarregar lista
+            location.reload();
+        }
+
+        async function pararQr() {
+            if (!pollInstId) { fecharQr(); return; }
+            await parar(pollInstId);
+        }
+
+        function iniciarPoll() {
+            pararPoll();
+            pollTimer = setInterval(atualizarStatus, 2000);
+            atualizarStatus();
+        }
+
+        function pararPoll() {
+            if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        }
+
+        async function atualizarStatus() {
+            if (!pollInstId) return;
+            try {
+                const r = await fetch(`/api/instancias/${pollInstId}/status`);
+                const d = await r.json();
+                if (!d.success) return;
+                const status = d.runtime.status || d.instancia.status;
+                const qr = d.runtime.qr || d.instancia.qr_code;
+                const cont = document.getElementById('qrContent');
+                if (status === 'connected') {
+                    cont.innerHTML = '<p style="color:#16a34a;font-size:14px;font-weight:600;padding:30px 0;">✅ Conectado com sucesso!</p>';
+                    pararPoll();
+                    setTimeout(() => fecharQr(), 1500);
+                } else if (qr) {
+                    cont.innerHTML = `<img src="${qr}" alt="QR Code"><p style="margin-top:10px;font-size:11px;color:#64748b;">Status: ${STATUS_LABEL[status] || status}</p>`;
+                } else if (status === 'error') {
+                    cont.innerHTML = `<p style="color:#dc2626;padding:20px;">❌ Erro: ${escapeHtml(d.instancia.last_error || 'Falha desconhecida')}</p>`;
+                    pararPoll();
+                } else {
+                    cont.innerHTML = `<div class="qr-loading">${STATUS_LABEL[status] || status}...</div>`;
+                }
+            } catch (e) {}
+        }
+
+        render();
+    </script>
+</body>
+</html>

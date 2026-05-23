@@ -11,6 +11,9 @@
         messages: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
         conversas: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>',
         tv: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>',
+        unidades: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9h.01"/><path d="M9 12h.01"/><path d="M9 15h.01"/><path d="M9 18h.01"/></svg>',
+        instancias: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/><line x1="6" y1="7" x2="6.01" y2="7"/><line x1="6" y1="17" x2="6.01" y2="17"/></svg>',
+        flows: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M9 6h6a3 3 0 0 1 3 3v6"/></svg>',
         contacts: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
         usuarios: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
         turnos: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
@@ -45,8 +48,15 @@
                 { key: 'usuarios', href: '/usuarios', label: 'Usuários', visible: isSidebarAdmin },
                 { key: 'turnos', href: '/turnos', label: 'Turnos', visible: isSidebarAdmin },
                 { key: 'escala', href: '/escala', label: 'Escala', visible: isSidebarAdmin },
-                { key: 'fluxo', href: '/fluxo', label: 'Fluxo Bot', visible: isSidebarAdminOnly },
                 { key: 'relatorios', href: '/relatorios', label: 'Relatórios', visible: isSidebarAdmin }
+            ]
+        },
+        {
+            label: 'Multi-Instância',
+            items: [
+                { key: 'unidades',   href: '/unidades',   label: 'Unidades',   visible: isSidebarAdminOnly },
+                { key: 'flows',      href: '/flows',      label: 'Fluxos', visible: isSidebarAdminOnly },
+                { key: 'instancias', href: '/instancias', label: 'Instâncias', visible: isSidebarAdminOnly }
             ]
         },
         {
@@ -58,6 +68,32 @@
         }
     ];
 %>
+
+<style>
+    /* ── Sidebar compactado para evitar scroll ──────────────────────── */
+    .sidebar-header { padding: 6px 8px 4px !important; }
+    .sidebar-header h1 { font-size: 14px !important; }
+    .sidebar-kicker { font-size: 9px !important; }
+    .sidebar-brand-mark { width: 32px !important; height: 32px !important; }
+
+    .sidebar-menu { gap: 0 !important; padding: 0 6px !important; }
+    .menu-section { padding-bottom: 2px !important; margin-bottom: 0 !important; gap: 0 !important; }
+    .menu-section-label { padding: 4px 10px 1px !important; font-size: 8px !important; letter-spacing: 0.12em !important; }
+
+    .menu-item { padding: 4px 28px 4px 8px !important; font-size: 11.5px !important; gap: 6px !important; border-radius: 6px !important; }
+    .menu-item-icon { width: 22px !important; height: 22px !important; border-radius: 5px !important; }
+    .menu-item-icon svg { width: 13px !important; height: 13px !important; }
+
+    .menu-live-badge { right: 8px !important; min-width: 18px !important; height: 18px !important; padding: 0 5px !important; font-size: 10px !important; }
+
+    .sidebar-footer { padding: 4px 6px 6px !important; gap: 4px !important; }
+    .user-info { padding: 6px 8px !important; gap: 8px !important; }
+    .user-avatar { width: 28px !important; height: 28px !important; font-size: 12px !important; }
+    .user-name { font-size: 12px !important; }
+    .user-role { font-size: 10px !important; }
+    .sidebar-version { font-size: 9px !important; padding: 2px 8px !important; }
+    .user-dropdown-item { font-size: 12px !important; padding: 7px 10px !important; }
+</style>
 
 <aside class="sidebar">
     <div class="sidebar-shell">
