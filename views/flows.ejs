@@ -28,10 +28,81 @@
         .form-row input, .form-row textarea { width: 100%; padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; }
         .form-row textarea { resize: vertical; font-family: 'Courier New', monospace; font-size: 12px; }
         .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
-        .btn-secondary { padding: 8px 14px; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 6px; cursor: pointer; font-size: 13px; }
+        .btn-secondary { padding: 8px 14px; border: 1px solid #cbd5e1; background: #fff; color: #334155; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+        .btn-secondary:hover { background: #f1f5f9; }
         .btn-primary { padding: 8px 14px; border: none; background: #25d366; color: #fff; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+        .btn-primary:hover { background: #1ea855; }
         .info-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #1e40af; margin-bottom: 14px; }
         .info-box code { background: #dbeafe; padding: 1px 5px; border-radius: 3px; font-family: monospace; }
+
+        /* ── Simulador do Bot ── */
+        .sim-modal { max-width: 480px; padding: 0; background: #efeae2; }
+        .sim-header { background: #128C7E; color: #fff; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+        .sim-header .sim-avatar { width: 38px; height: 38px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+        .sim-header h3 { font-size: 14px; margin: 0; font-weight: 600; }
+        .sim-header small { font-size: 11px; opacity: 0.85; }
+        .sim-header .sim-close { margin-left: auto; cursor: pointer; font-size: 22px; opacity: 0.8; }
+        .sim-body {
+            height: 460px;
+            overflow-y: auto;
+            padding: 14px;
+            background-image: url("data:image/svg+xml,%3Csvg width='280' height='280' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3Cpattern id='p' width='20' height='20' patternUnits='userSpaceOnUse'%3E%3Ccircle cx='2' cy='2' r='0.5' fill='%23d4cfc4' opacity='0.4'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='280' height='280' fill='url(%23p)'/%3E%3C/svg%3E");
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .sim-msg {
+            max-width: 80%;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            line-height: 1.4;
+            word-break: break-word;
+            white-space: pre-wrap;
+            box-shadow: 0 1px 0.5px rgba(0,0,0,0.06);
+        }
+        .sim-msg-bot { align-self: flex-start; background: #fff; border-top-left-radius: 0; }
+        .sim-msg-user { align-self: flex-end; background: #d9fdd3; border-top-right-radius: 0; }
+        .sim-input-bar {
+            display: flex;
+            gap: 8px;
+            padding: 10px 12px;
+            background: #f0f2f5;
+            border-top: 1px solid #e2e8f0;
+        }
+        .sim-input-bar input {
+            flex: 1;
+            padding: 9px 14px;
+            border: none;
+            border-radius: 20px;
+            background: #fff;
+            font-size: 13px;
+            outline: none;
+        }
+        .sim-input-bar button {
+            width: 38px; height: 38px;
+            border-radius: 50%;
+            background: #25D366;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .sim-foot {
+            padding: 8px 12px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            color: #64748b;
+        }
+        .sim-foot button {
+            font-size: 11px; padding: 4px 10px;
+            border-radius: 6px; border: 1px solid #e2e8f0;
+            background: #fff; cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -74,6 +145,7 @@
                                 <td style="color:#64748b;font-size:12px;"><%= new Date(f.atualizado_em).toLocaleString('pt-BR') %></td>
                                 <td>
                                     <div class="fl-actions">
+                                        <button class="fl-btn primary" onclick="simular(<%= f.id %>, '<%= f.nome.replace(/'/g, '\\\'') %>')" title="Simular bot">▶ Simular</button>
                                         <button class="fl-btn" onclick="editar(<%= f.id %>)">Editar</button>
                                         <button class="fl-btn danger" onclick="excluir(<%= f.id %>)">×</button>
                                     </div>
@@ -112,6 +184,31 @@
                     <button type="submit" class="btn-primary">Salvar</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Modal Simulador do Bot -->
+    <div class="modal-overlay" id="modalSim">
+        <div class="modal-box sim-modal">
+            <div class="sim-header">
+                <div class="sim-avatar">🤖</div>
+                <div>
+                    <h3 id="simNome">Bot</h3>
+                    <small>Simulação — não envia WhatsApp</small>
+                </div>
+                <span class="sim-close" onclick="fecharSim()">×</span>
+            </div>
+            <div class="sim-body" id="simBody"></div>
+            <form class="sim-input-bar" onsubmit="simEnviar(event)">
+                <input type="text" id="simInput" placeholder="Digite a resposta..." autocomplete="off">
+                <button type="submit" title="Enviar">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+            </form>
+            <div class="sim-foot">
+                <span id="simInfo">Aguardando início...</span>
+                <button type="button" onclick="simReiniciar()">↺ Reiniciar</button>
+            </div>
         </div>
     </div>
 
@@ -191,6 +288,217 @@
                 if (d.success) location.reload();
                 else alert(d.message);
             } catch (e) { alert(e.message); }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // SIMULADOR DO BOT
+        // ═══════════════════════════════════════════════════════════════
+        let simFlow = null;
+        let simEstado = null;
+
+        async function simular(id, nome) {
+            try {
+                const r = await fetch('/api/flows/' + id);
+                const d = await r.json();
+                if (!d.success) { alert(d.message); return; }
+                simFlow = d.flow.definicao;
+                document.getElementById('simNome').textContent = nome;
+                document.getElementById('modalSim').classList.add('open');
+                simReiniciar();
+            } catch (e) { alert(e.message); }
+        }
+
+        function fecharSim() {
+            document.getElementById('modalSim').classList.remove('open');
+            simFlow = null;
+            simEstado = null;
+        }
+
+        function simReiniciar() {
+            document.getElementById('simBody').innerHTML = '';
+            document.getElementById('simInput').value = '';
+            simEstado = { step: 'inicio' };
+            document.getElementById('simInfo').textContent = 'Envie qualquer mensagem para começar...';
+            simInputFocus();
+        }
+
+        function simInputFocus() {
+            setTimeout(() => document.getElementById('simInput').focus(), 100);
+        }
+
+        function escMsg(s) {
+            return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+        function simBotMsg(texto) {
+            const body = document.getElementById('simBody');
+            const div = document.createElement('div');
+            div.className = 'sim-msg sim-msg-bot';
+            div.innerHTML = formatarMsg(texto);
+            body.appendChild(div);
+            body.scrollTop = body.scrollHeight;
+        }
+
+        function simUserMsg(texto) {
+            const body = document.getElementById('simBody');
+            const div = document.createElement('div');
+            div.className = 'sim-msg sim-msg-user';
+            div.textContent = texto;
+            body.appendChild(div);
+            body.scrollTop = body.scrollHeight;
+        }
+
+        function formatarMsg(t) {
+            // *negrito* e _itálico_ estilo WhatsApp
+            return escMsg(t)
+                .replace(/\*([^\*]+)\*/g, '<strong>$1</strong>')
+                .replace(/_([^_]+)_/g, '<em>$1</em>');
+        }
+
+        function montarMenuPrincipal() {
+            const m = simFlow.menuPrincipal;
+            const linhas = [m.titulo, ''];
+            for (const o of m.opcoes) linhas.push(`*${o.id}* - ${o.label}`);
+            linhas.push('', '_Digite o número da opção desejada ou CANCELAR para sair._');
+            return linhas.join('\n');
+        }
+
+        function montarSubmenu(key) {
+            const sm = simFlow.submenus?.[key];
+            if (!sm) return null;
+            const linhas = [sm.titulo, ''];
+            for (const o of sm.opcoes) linhas.push(`*${o.id}* - ${o.label}`);
+            linhas.push('', '_Digite o número da opção desejada._');
+            return linhas.join('\n');
+        }
+
+        function obterBloco(key) {
+            return simFlow.blocos?.[key] || simFlow.blocos?.padrao;
+        }
+
+        function montarPromptCampo(c) {
+            const op = c.obrigatorio ? '' : ' _(opcional, envie - para pular)_';
+            return `📝 *${c.label}*${op}`;
+        }
+
+        function validarCampo(v, tipo) {
+            v = String(v||'').trim();
+            if (!v) return false;
+            if (tipo === 'cpf') return v.replace(/\D/g,'').length === 11;
+            if (tipo === 'email') return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+            if (tipo === 'telefone') { const d = v.replace(/\D/g,''); return d.length >= 10 && d.length <= 13; }
+            if (tipo === 'texto_longo') return v.length >= 5;
+            return v.length >= 1;
+        }
+
+        async function simEnviar(ev) {
+            ev.preventDefault();
+            const inp = document.getElementById('simInput');
+            const texto = inp.value.trim();
+            if (!texto) return;
+            inp.value = '';
+            simUserMsg(texto);
+            await new Promise(r => setTimeout(r, 250));
+            await simProcessar(texto);
+            simInputFocus();
+        }
+
+        async function simProcessar(texto) {
+            if (!simFlow || !simEstado) return;
+            if (texto.toUpperCase() === 'CANCELAR') {
+                simBotMsg('✅ Atendimento cancelado. Envie qualquer mensagem para começar de novo.');
+                simEstado = { step: 'inicio' };
+                document.getElementById('simInfo').textContent = 'Cancelado.';
+                return;
+            }
+
+            // Início → menu
+            if (simEstado.step === 'inicio') {
+                simEstado.step = 'menu';
+                simBotMsg(montarMenuPrincipal());
+                document.getElementById('simInfo').textContent = 'Aguardando opção do menu...';
+                return;
+            }
+
+            // Menu principal
+            if (simEstado.step === 'menu') {
+                const opc = simFlow.menuPrincipal.opcoes.find(o => o.id === texto);
+                if (!opc) {
+                    simBotMsg('❌ Opção inválida.\n\n' + montarMenuPrincipal());
+                    return;
+                }
+                simEstado.opcao = opc;
+                simEstado.categoria = opc.categoria;
+
+                if (opc.submenu) {
+                    simEstado.step = 'submenu';
+                    simEstado.submenuKey = opc.submenu;
+                    simBotMsg(montarSubmenu(opc.submenu));
+                    document.getElementById('simInfo').textContent = 'Aguardando opção do submenu...';
+                } else {
+                    simEstado.step = 'preenchimento';
+                    simEstado.bloco = obterBloco(opc.camposBloco);
+                    simEstado.campoIdx = 0;
+                    simEstado.dados = {};
+                    const campo = simEstado.bloco.campos[0];
+                    simBotMsg(`📋 Categoria: *${opc.label}*\n\nVamos coletar seus dados.\n\n` + montarPromptCampo(campo));
+                    document.getElementById('simInfo').textContent = `Coletando ${campo.label}...`;
+                }
+                return;
+            }
+
+            // Submenu
+            if (simEstado.step === 'submenu') {
+                const sm = simFlow.submenus[simEstado.submenuKey];
+                const opc = sm.opcoes.find(o => o.id === texto);
+                if (!opc) {
+                    simBotMsg('❌ Opção inválida.\n\n' + montarSubmenu(simEstado.submenuKey));
+                    return;
+                }
+                simEstado.subcategoria = opc.label;
+                simEstado.step = 'preenchimento';
+                simEstado.bloco = obterBloco(simEstado.opcao.camposBloco);
+                simEstado.campoIdx = 0;
+                simEstado.dados = {};
+                const campo = simEstado.bloco.campos[0];
+                simBotMsg(`📋 Sistema: *${opc.label}*\n\nVamos coletar seus dados.\n\n` + montarPromptCampo(campo));
+                document.getElementById('simInfo').textContent = `Coletando ${campo.label}...`;
+                return;
+            }
+
+            // Preenchimento
+            if (simEstado.step === 'preenchimento') {
+                const campo = simEstado.bloco.campos[simEstado.campoIdx];
+                const pulou = texto === '-' && !campo.obrigatorio;
+                if (!pulou) {
+                    if (!validarCampo(texto, campo.tipo)) {
+                        simBotMsg(`❌ Valor inválido para *${campo.label}*. Por favor, envie novamente.\n\n` + montarPromptCampo(campo));
+                        return;
+                    }
+                    simEstado.dados[campo.key] = texto;
+                } else {
+                    simEstado.dados[campo.key] = null;
+                }
+                simEstado.campoIdx += 1;
+
+                if (simEstado.campoIdx < simEstado.bloco.campos.length) {
+                    const proximo = simEstado.bloco.campos[simEstado.campoIdx];
+                    simBotMsg(montarPromptCampo(proximo));
+                    document.getElementById('simInfo').textContent = `Coletando ${proximo.label}...`;
+                    return;
+                }
+
+                // Final — simular criação
+                const protocolo = 'SIM-' + Math.random().toString(36).substring(2,5).toUpperCase();
+                simBotMsg(`✅ *Chamado simulado!*\n\n📌 Protocolo: *${protocolo}*\n📋 Categoria: ${simEstado.categoria}${simEstado.subcategoria ? '\n📂 Sistema: ' + simEstado.subcategoria : ''}\n\nDados coletados:\n${JSON.stringify(simEstado.dados, null, 2).replace(/[{}",]/g,'').replace(/\n\s*\n/g,'\n')}\n\n_Esta é apenas uma simulação. Nenhum chamado foi criado de verdade._`);
+                document.getElementById('simInfo').textContent = '✓ Simulação concluída';
+                simEstado = { step: 'fim' };
+                return;
+            }
+
+            if (simEstado.step === 'fim') {
+                simBotMsg('Simulação encerrada. Clique em Reiniciar para testar novamente.');
+            }
         }
     </script>
 </body>
