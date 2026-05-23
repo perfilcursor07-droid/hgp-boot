@@ -57,10 +57,28 @@ app.use(async (req, res, next) => {
     // Disponibilizar nivelAcesso em todas as views
     res.locals.nivelAcesso = req.session.nivelAcesso || 'administrador';
 
+    // Garantir que unidadeIds esteja na sessão (sessões antigas não tinham)
+    if (req.session.unidadeIds === undefined) {
+        try {
+            if (req.session.nivelAcesso === 'administrador') {
+                req.session.unidadeIds = null; // null = todas
+            } else {
+                const [unids] = await db.query(
+                    'SELECT unidade_id FROM admin_unidades WHERE admin_id = ?',
+                    [req.session.userId]
+                );
+                req.session.unidadeIds = unids.map(u => u.unidade_id);
+            }
+        } catch (e) {
+            console.error('Erro ao carregar unidades do usuário:', e.message);
+            req.session.unidadeIds = null;
+        }
+    }
+
     try {
         // Filtrar por unidades do usuário (admin = null = todas)
         const ids = req.session.unidadeIds;
-        let whereClause = `WHERE status = 'pendente'`;
+        let whereClause = `WHERE status IN ('pendente', 'aberto')`;
         const params = [];
 
         if (Array.isArray(ids)) {
@@ -159,8 +177,26 @@ const syncDisconnectedSession = async () => {
             'UPDATE whatsapp_sessions SET is_connected = ?, qr_code = NULL WHERE session_name = ?',
             [false, 'admin-session']
         );
+        // Espelhar status na tabela instancias (legacy)
+        await db.query(
+            `UPDATE instancias SET status = 'disconnected', qr_code = NULL WHERE session_name = 'admin-session'`
+        );
     } catch (error) {
         console.error('Erro ao sincronizar sessão desconectada:', error);
+    }
+};
+
+const syncLegacyInstanciaStatus = async (status, qrCode = null) => {
+    try {
+        const dados = { status };
+        if (qrCode !== null) dados.qr_code = qrCode;
+        if (status === 'connected') dados.last_connected = new Date();
+        const fields = Object.keys(dados).map(k => `${k} = ?`).join(', ');
+        const values = Object.values(dados);
+        values.push('admin-session');
+        await db.query(`UPDATE instancias SET ${fields} WHERE session_name = ?`, values);
+    } catch (e) {
+        console.error('Erro syncLegacyInstanciaStatus:', e.message);
     }
 };
 
@@ -557,6 +593,7 @@ app.post('/whatsapp/connect', isAuthenticated, async (req, res) => {
                 'INSERT INTO whatsapp_sessions (session_name, qr_code, is_connected) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE qr_code = ?, is_connected = ?',
                 ['admin-session', currentQR, false, currentQR, false]
             );
+            await syncLegacyInstanciaStatus('qr_ready', currentQR);
         });
 
         whatsappClient.on('ready', async () => {
@@ -568,6 +605,7 @@ app.post('/whatsapp/connect', isAuthenticated, async (req, res) => {
                 'UPDATE whatsapp_sessions SET is_connected = ?, last_connected = NOW(), qr_code = NULL WHERE session_name = ?',
                 [true, 'admin-session']
             );
+            await syncLegacyInstanciaStatus('connected', null);
         });
 
         whatsappClient.on('auth_failure', async (message) => {
@@ -938,6 +976,12 @@ app.delete('/api/flows/:id', isAuthenticated, isAdminOnly, async (req, res) => {
 // ─── INSTÂNCIAS ───────────────────────────────────────────────────
 app.get('/instancias', isAuthenticated, isAdminOnly, async (req, res) => {
     try {
+        // Sincronizar status da instância legada com o estado real do whatsappState
+        await db.query(
+            `UPDATE instancias SET status = ? WHERE session_name = 'admin-session'`,
+            [whatsappState || 'disconnected']
+        );
+
         const [instancias] = await db.query(`
             SELECT i.*, u.nome AS unidade_nome, u.cor AS unidade_cor, f.nome AS flow_nome
             FROM instancias i
@@ -1122,7 +1166,7 @@ app.get('/api/chamados/pending-count', isAuthenticated, async (req, res) => {
         res.set('Expires', '0');
 
         const ids = req.session.unidadeIds;
-        let where = `WHERE status = 'pendente'`;
+        let where = `WHERE status IN ('pendente', 'aberto')`;
         const params = [];
         if (Array.isArray(ids)) {
             if (ids.length === 0) {

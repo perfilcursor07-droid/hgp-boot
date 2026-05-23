@@ -150,7 +150,7 @@
                 const status = i.status || 'disconnected';
                 return `
                 <div class="in-card" style="--cor:${cor}">
-                    ${isLegacy ? '<div class="legacy-banner">⚙️ Instância legada — gerencie pelo painel principal (Configurações).</div>' : ''}
+                    ${isLegacy ? `<div class="legacy-banner">⚙️ Instância principal (legada) — gerenciada pelo painel <a href="/dashboard" style="color:#92400e;font-weight:700;">Dashboard</a>.</div>` : ''}
                     <div class="in-head">
                         <div class="in-title">
                             <h3>${escapeHtml(i.nome)}</h3>
