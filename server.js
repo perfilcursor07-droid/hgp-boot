@@ -1165,7 +1165,37 @@ app.put('/api/flows/:id', isAuthenticated, isAdminOnly, async (req, res) => {
             `UPDATE bot_flows_v2 SET nome = ?, descricao = ?, definicao_json = ?, ativo = ? WHERE id = ?`,
             [nome, descricao || null, json, ativo ? 1 : 0, req.params.id]
         );
-        res.json({ success: true });
+
+        // Reiniciar instâncias que usam este fluxo (para recarregar a definição)
+        const [insts] = await db.query(
+            `SELECT id, status FROM instancias WHERE flow_id = ? AND is_legacy = FALSE AND ativo = TRUE`,
+            [req.params.id]
+        );
+        const reiniciadas = [];
+        for (const inst of insts) {
+            if (inst.status === 'connected') {
+                try {
+                    await instanceManager.pararInstancia(inst.id);
+                    // Aguardar um pouco antes de reiniciar
+                    setTimeout(() => {
+                        instanceManager.iniciarInstancia(inst.id).catch(err => {
+                            console.error(`Erro ao reiniciar instância ${inst.id}:`, err.message);
+                        });
+                    }, 1500);
+                    reiniciadas.push(inst.id);
+                } catch (e) {
+                    console.error(`Erro ao parar instância ${inst.id}:`, e.message);
+                }
+            }
+        }
+
+        res.json({
+            success: true,
+            instanciasReiniciadas: reiniciadas.length,
+            message: reiniciadas.length > 0
+                ? `Fluxo salvo. ${reiniciadas.length} instância(s) sendo reiniciada(s) com a nova definição.`
+                : 'Fluxo salvo.'
+        });
     } catch (e) {
         res.json({ success: false, message: e.message });
     }

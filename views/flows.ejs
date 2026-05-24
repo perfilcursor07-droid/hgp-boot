@@ -275,8 +275,14 @@
                     body: JSON.stringify(body)
                 });
                 const d = await r.json();
-                if (d.success) location.reload();
-                else alert(d.message);
+                if (d.success) {
+                    if (d.instanciasReiniciadas > 0) {
+                        alert('✅ ' + d.message + '\n\nAs instâncias serão reconectadas em alguns segundos.');
+                    }
+                    location.reload();
+                } else {
+                    alert(d.message);
+                }
             } catch (e) { alert(e.message); }
         }
 
