@@ -579,7 +579,7 @@ function attachDynamicFlow(client, options = {}) {
                                 dica = '\n_Informe um e-mail válido. Ex: nome@exemplo.com_';
                                 break;
                             case 'telefone':
-                                dica = '\n_Informe o telefone com DDD. Ex: 6330274488 ou (63) 30274481_';
+                                dica = '\n_Informe o telefone com DDD. Ex: 6330274488 ou (63) 3027-4488_';
                                 break;
                             case 'opcoes':
                                 dica = '\n_Digite o número correspondente à opção desejada._';
