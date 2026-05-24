@@ -384,15 +384,27 @@
 
         function montarPromptCampo(c) {
             const op = c.obrigatorio ? '' : ' _(opcional, envie - para pular)_';
-            return `📝 *${c.label}*${op}`;
+            let prompt = `📝 *${c.label}*${op}`;
+            if (c.tipo === 'opcoes' && Array.isArray(c.opcoes)) {
+                prompt += '\n';
+                for (const opc of c.opcoes) {
+                    prompt += `\n*${opc.id}* - ${opc.label}`;
+                }
+                prompt += '\n\n_Digite o número da opção._';
+            }
+            return prompt;
         }
 
-        function validarCampo(v, tipo) {
+        function validarCampo(v, tipo, opcoes) {
             v = String(v||'').trim();
             if (!v) return false;
             if (tipo === 'cpf') return v.replace(/\D/g,'').length === 11;
             if (tipo === 'email') return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
             if (tipo === 'telefone') { const d = v.replace(/\D/g,''); return d.length >= 10 && d.length <= 13; }
+            if (tipo === 'opcoes') {
+                if (!Array.isArray(opcoes)) return false;
+                return opcoes.some(o => String(o.id) === v);
+            }
             if (tipo === 'texto_longo') return v.length >= 5;
             return v.length >= 1;
         }
@@ -477,11 +489,24 @@
                 const campo = simEstado.bloco.campos[simEstado.campoIdx];
                 const pulou = texto === '-' && !campo.obrigatorio;
                 if (!pulou) {
-                    if (!validarCampo(texto, campo.tipo)) {
-                        simBotMsg(`❌ Valor inválido para *${campo.label}*. Por favor, envie novamente.\n\n` + montarPromptCampo(campo));
+                    if (!validarCampo(texto, campo.tipo, campo.opcoes)) {
+                        let dica = '';
+                        if (campo.tipo === 'cpf') dica = '\n_O CPF deve ter 11 dígitos. Ex: 12345678901_';
+                        else if (campo.tipo === 'email') dica = '\n_Informe um e-mail válido. Ex: nome@exemplo.com_';
+                        else if (campo.tipo === 'telefone') dica = '\n_Informe o telefone com DDD. Ex: 63991234567 ou (63) 99123-4567_';
+                        else if (campo.tipo === 'opcoes') dica = '\n_Digite o número correspondente à opção desejada._';
+                        else if (campo.tipo === 'texto_longo') dica = '\n_Por favor, descreva com mais detalhes (mínimo 5 caracteres)._';
+
+                        simBotMsg(`❌ Valor inválido para *${campo.label}*.${dica}\n\n` + montarPromptCampo(campo));
                         return;
                     }
-                    simEstado.dados[campo.key] = texto;
+                    // Para opcoes, salvar o label da opção escolhida
+                    if (campo.tipo === 'opcoes' && Array.isArray(campo.opcoes)) {
+                        const escolhida = campo.opcoes.find(o => String(o.id) === texto);
+                        simEstado.dados[campo.key] = escolhida ? escolhida.label : texto;
+                    } else {
+                        simEstado.dados[campo.key] = texto;
+                    }
                 } else {
                     simEstado.dados[campo.key] = null;
                 }

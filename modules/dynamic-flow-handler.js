@@ -77,10 +77,10 @@ function validarCampo(valor, tipo, opcoes = null) {
             return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
         case 'telefone': {
             const digits = v.replace(/\D/g, '');
+            // Aceita 10 (fixo com DDD), 11 (celular com DDD) ou 12-13 (com 55)
             return digits.length >= 10 && digits.length <= 13;
         }
         case 'opcoes': {
-            // valida se digitou um número que existe nas opções
             if (!Array.isArray(opcoes)) return false;
             return opcoes.some(o => String(o.id) === v);
         }
@@ -569,9 +569,28 @@ function attachDynamicFlow(client, options = {}) {
 
                 if (!respostaPulou) {
                     if (!validarCampo(texto, campo.tipo, campo.opcoes)) {
+                        // Mensagem de erro específica por tipo
+                        let dica = '';
+                        switch (campo.tipo) {
+                            case 'cpf':
+                                dica = '\n_O CPF deve ter 11 dígitos. Ex: 12345678901_';
+                                break;
+                            case 'email':
+                                dica = '\n_Informe um e-mail válido. Ex: nome@exemplo.com_';
+                                break;
+                            case 'telefone':
+                                dica = '\n_Informe o telefone com DDD. Ex: 6330274488 ou (63) 30274481_';
+                                break;
+                            case 'opcoes':
+                                dica = '\n_Digite o número correspondente à opção desejada._';
+                                break;
+                            case 'texto_longo':
+                                dica = '\n_Por favor, descreva com mais detalhes (mínimo 5 caracteres)._';
+                                break;
+                        }
                         await client.sendMessage(
                             chatId,
-                            `❌ Valor inválido para *${campo.label}*. Por favor, envie novamente.\n\n` + montarPromptCampo(campo)
+                            `❌ Valor inválido para *${campo.label}*.${dica}\n\n` + montarPromptCampo(campo)
                         );
                         resetInactivityTimer(sessionId, chatId);
                         return;
