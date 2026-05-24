@@ -10,9 +10,11 @@ git push -u origin main
 -- PULL  PARA GIT PRODUÇÃO
 cd /home/hgpto/htdocs/hgpto.shop
 git pull origin main
+node scripts/add_bot_user_profiles.js
 npm run migrate
 git log --oneline -5
 pm2 flush hgp-boot
 pm2 restart hgp-boot
 pm2 logs hgp-boot --lines 80
+
 

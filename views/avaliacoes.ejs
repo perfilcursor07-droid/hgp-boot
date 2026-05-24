@@ -6,24 +6,113 @@
     <title>Avaliações - WhatsApp HGP</title>
     <link rel="stylesheet" href="/css/style.css">
     <style>
-        .av-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
-        .av-stat { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; text-align: center; }
-        .av-stat h3 { font-size: 28px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
-        .av-stat p { font-size: 12px; color: #64748b; }
+        .av-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 14px; }
+        .av-stat { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; text-align: center; position: relative; overflow: hidden; }
+        .av-stat::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+        .av-stat.total::before     { background: #64748b; }
+        .av-stat.media::before     { background: #f59e0b; }
+        .av-stat.positivas::before { background: #16a34a; }
+        .av-stat.negativas::before { background: #dc2626; }
+        .av-stat h3 { font-size: 26px; font-weight: 800; color: #1e293b; line-height: 1; }
+        .av-stat p { font-size: 11px; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; }
         .av-stat.media h3 { color: #f59e0b; }
         .av-stat.positivas h3 { color: #16a34a; }
         .av-stat.negativas h3 { color: #dc2626; }
-        .av-stars { color: #f59e0b; font-size: 14px; letter-spacing: 2px; }
-        .av-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        .av-table th { background: #f8fafc; padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; }
-        .av-table td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; color: #334155; }
-        .av-table tr:hover td { background: #f8fafc; }
-        .av-nota { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-weight: 600; font-size: 12px; }
-        .av-nota-5 { background: #dcfce7; color: #16a34a; }
-        .av-nota-4 { background: #d1fae5; color: #059669; }
-        .av-nota-3 { background: #fef3c7; color: #b45309; }
-        .av-nota-2 { background: #fee2e2; color: #dc2626; }
-        .av-nota-1 { background: #fecaca; color: #991b1b; }
+
+        .av-filter { display: flex; gap: 6px; padding: 4px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 12px; flex-wrap: wrap; }
+        .av-filter button { padding: 6px 12px; font-size: 12px; font-weight: 600; border: none; border-radius: 6px; cursor: pointer; background: transparent; color: #64748b; }
+        .av-filter button.active { background: #0f172a; color: #fff; }
+
+        .av-grid { display: flex; flex-direction: column; gap: 10px; }
+        .av-card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 14px;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 14px;
+            align-items: flex-start;
+            position: relative;
+            overflow: hidden;
+        }
+        .av-card::before { content: ''; position: absolute; top: 0; left: 0; bottom: 0; width: 3px; }
+        .av-card.nota-5::before, .av-card.nota-4::before { background: #16a34a; }
+        .av-card.nota-3::before { background: #f59e0b; }
+        .av-card.nota-2::before, .av-card.nota-1::before { background: #dc2626; }
+
+        .av-nota-circle {
+            width: 56px; height: 56px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; font-weight: 800;
+            flex-shrink: 0;
+        }
+        .av-nota-circle.alta { background: #dcfce7; color: #16a34a; border: 2px solid #16a34a; }
+        .av-nota-circle.media { background: #fef3c7; color: #d97706; border: 2px solid #f59e0b; }
+        .av-nota-circle.baixa { background: #fee2e2; color: #dc2626; border: 2px solid #dc2626; }
+
+        .av-info { min-width: 0; }
+        .av-protocolo { font-size: 11px; color: #64748b; font-family: monospace; }
+        .av-solicitante { font-size: 14px; font-weight: 700; color: #0f172a; margin: 2px 0 4px; }
+        .av-detalhes { font-size: 12px; color: #475569; display: flex; flex-wrap: wrap; gap: 10px; }
+        .av-detalhes span { display: inline-flex; gap: 3px; }
+        .av-detalhes b { color: #1e293b; }
+        .av-stars { color: #f59e0b; font-size: 14px; letter-spacing: 2px; margin-top: 4px; }
+
+        .av-motivo {
+            background: #fef3c7;
+            border: 1px solid #fcd34d;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 12px;
+            color: #92400e;
+            margin-top: 10px;
+            grid-column: 2 / 4;
+        }
+        .av-motivo b { color: #78350f; display: block; margin-bottom: 3px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+        .av-resposta {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 12px;
+            color: #1e40af;
+            margin-top: 6px;
+            grid-column: 2 / 4;
+        }
+        .av-resposta b { color: #1e3a8a; display: block; margin-bottom: 3px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+        .av-resposta small { color: #64748b; display: block; margin-top: 4px; font-size: 10px; }
+
+        .av-data { font-size: 11px; color: #94a3b8; text-align: right; white-space: nowrap; }
+
+        .av-action-btn {
+            font-size: 11px;
+            padding: 5px 10px;
+            border: 1px solid #cbd5e1;
+            background: #fff;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            color: #334155;
+            margin-top: 8px;
+        }
+        .av-action-btn:hover { background: #f1f5f9; }
+        .av-action-btn.primary { background: #1e40af; color: #fff; border-color: #1e40af; }
+
+        /* Modal */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; }
+        .modal-overlay.open { display: flex; }
+        .modal-box { background: #fff; border-radius: 12px; max-width: 520px; width: 90%; padding: 20px; }
+        .modal-box h3 { margin-bottom: 14px; }
+        .form-row { margin-bottom: 12px; }
+        .form-row label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 4px; }
+        .form-row textarea { width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; resize: vertical; min-height: 100px; }
+        .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+        .btn-secondary { padding: 8px 14px; border: 1px solid #cbd5e1; background: #fff; color: #334155; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+        .btn-primary { padding: 8px 14px; border: none; background: #25d366; color: #fff; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+        .preview-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; font-size: 12px; color: #475569; margin-bottom: 12px; }
     </style>
 </head>
 <body>
@@ -41,23 +130,10 @@
             </div>
 
             <div class="content">
-                <section class="dashboard-hero">
-                    <div>
-                        <p class="eyebrow">Satisfação do atendimento</p>
-                        <h1>Avaliações dos Chamados</h1>
-                        <p class="hero-text">Acompanhe as notas dadas pelos solicitantes após o encerramento dos chamados.</p>
-                    </div>
-                    <div class="hero-highlight">
-                        <span class="hero-highlight-label">Média geral</span>
-                        <strong><%= stats.media || '0.0' %> / 5</strong>
-                        <small><%= stats.total || 0 %> avaliações recebidas</small>
-                    </div>
-                </section>
-
                 <div class="av-stats">
-                    <div class="av-stat">
+                    <div class="av-stat total">
                         <h3><%= stats.total || 0 %></h3>
-                        <p>Total de Avaliações</p>
+                        <p>Total</p>
                     </div>
                     <div class="av-stat media">
                         <h3><%= stats.media || '0.0' %></h3>
@@ -73,45 +149,141 @@
                     </div>
                 </div>
 
-                <div class="card">
-                    <h2>Histórico de Avaliações</h2>
-                    <% if (avaliacoes.length === 0) { %>
-                        <p style="text-align:center;color:#94a3b8;padding:40px;">Nenhuma avaliação recebida ainda</p>
-                    <% } else { %>
-                        <div style="overflow-x:auto;">
-                            <table class="av-table">
-                                <thead>
-                                    <tr>
-                                        <th>Protocolo</th>
-                                        <th>Solicitante</th>
-                                        <th>Atendente</th>
-                                        <th>Categoria</th>
-                                        <th>Nota</th>
-                                        <th>Data</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <% avaliacoes.forEach(av => { %>
-                                        <tr>
-                                            <td><strong><%= av.protocolo %></strong></td>
-                                            <td><%= av.solicitante_nome || '-' %></td>
-                                            <td><%= av.atendente_nome || '-' %></td>
-                                            <td><%= av.categoria || '-' %></td>
-                                            <td>
-                                                <span class="av-nota av-nota-<%= av.nota %>">
-                                                    <%= '⭐'.repeat(av.nota) %> <%= av.nota %>/5
-                                                </span>
-                                            </td>
-                                            <td><%= new Date(av.criado_em).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) %></td>
-                                        </tr>
-                                    <% }); %>
-                                </tbody>
-                            </table>
-                        </div>
-                    <% } %>
+                <div class="av-filter">
+                    <button class="active" data-filter="todas" onclick="filtrar('todas')">Todas</button>
+                    <button data-filter="baixas" onclick="filtrar('baixas')">⚠️ Baixas (1-3)</button>
+                    <button data-filter="sem-resposta" onclick="filtrar('sem-resposta')">Sem resposta do técnico</button>
+                    <button data-filter="altas" onclick="filtrar('altas')">⭐ Altas (4-5)</button>
                 </div>
+
+                <% if (avaliacoes.length === 0) { %>
+                    <div class="card" style="text-align:center;padding:40px;color:#94a3b8;">Nenhuma avaliação recebida ainda</div>
+                <% } else { %>
+                    <div class="av-grid" id="avGrid">
+                        <% avaliacoes.forEach(av => {
+                            const classe = av.nota >= 4 ? 'alta' : (av.nota === 3 ? 'media' : 'baixa');
+                            const isBaixa = av.nota <= 3;
+                            const temResposta = !!av.resposta_tecnico;
+                        %>
+                            <div class="av-card nota-<%= av.nota %>"
+                                 data-nota="<%= av.nota %>"
+                                 data-resposta="<%= temResposta ? '1' : '0' %>">
+                                <div class="av-nota-circle <%= classe %>"><%= av.nota %></div>
+                                <div class="av-info">
+                                    <div class="av-protocolo"><%= av.protocolo %></div>
+                                    <div class="av-solicitante"><%= av.solicitante_nome || 'Solicitante não identificado' %></div>
+                                    <div class="av-stars"><%= '⭐'.repeat(av.nota) + '☆'.repeat(5 - av.nota) %></div>
+                                    <div class="av-detalhes" style="margin-top:6px;">
+                                        <% if (av.atendente_nome) { %><span><b>Atendente:</b> <%= av.atendente_nome %></span><% } %>
+                                        <% if (av.categoria) { %><span><b>Categoria:</b> <%= av.categoria %></span><% } %>
+                                        <% if (av.setor) { %><span><b>Setor:</b> <%= av.setor %></span><% } %>
+                                    </div>
+                                    <% if (isBaixa && !temResposta) { %>
+                                        <button class="av-action-btn primary" onclick="abrirResposta(<%= av.id %>, '<%= av.protocolo %>', <%= av.nota %>, `<%= (av.motivo_usuario || '').replace(/`/g,'\\`').replace(/\n/g,' ') %>`)">
+                                            ✏️ Responder/Justificar
+                                        </button>
+                                    <% } else if (temResposta) { %>
+                                        <button class="av-action-btn" onclick="abrirResposta(<%= av.id %>, '<%= av.protocolo %>', <%= av.nota %>, `<%= (av.motivo_usuario || '').replace(/`/g,'\\`').replace(/\n/g,' ') %>`, `<%= (av.resposta_tecnico || '').replace(/`/g,'\\`').replace(/\n/g,' ') %>`)">
+                                            ✏️ Editar resposta
+                                        </button>
+                                    <% } %>
+                                </div>
+                                <div class="av-data">
+                                    <%= new Date(av.criado_em).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) %>
+                                </div>
+
+                                <% if (av.motivo_usuario) { %>
+                                    <div class="av-motivo">
+                                        <b>📝 Motivo informado pelo solicitante</b>
+                                        <%= av.motivo_usuario %>
+                                    </div>
+                                <% } %>
+
+                                <% if (temResposta) { %>
+                                    <div class="av-resposta">
+                                        <b>💬 Réplica/justificativa do técnico</b>
+                                        <%= av.resposta_tecnico %>
+                                        <small>Por <%= av.respondido_por || '—' %> em <%= av.respondido_em ? new Date(av.respondido_em).toLocaleString('pt-BR') : '' %></small>
+                                    </div>
+                                <% } %>
+                            </div>
+                        <% }); %>
+                    </div>
+                <% } %>
             </div>
         </main>
     </div>
+
+    <!-- Modal Resposta -->
+    <div class="modal-overlay" id="modalResposta">
+        <div class="modal-box">
+            <h3 id="modalTitle">Responder/Justificar Avaliação</h3>
+            <div id="ctxMotivo" class="preview-box" style="display:none;"></div>
+            <form onsubmit="salvarResposta(event)">
+                <input type="hidden" id="respId">
+                <div class="form-row">
+                    <label>Sua resposta/justificativa *</label>
+                    <textarea id="respTexto" required minlength="3" placeholder="Explique a situação, o que foi feito, motivo da demora ou complemento..."></textarea>
+                    <small style="color:#94a3b8;">Esta resposta fica registrada para acompanhamento da gestão.</small>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="fecharModal()">Cancelar</button>
+                    <button type="submit" class="btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function filtrar(tipo) {
+            document.querySelectorAll('.av-filter button').forEach(b => b.classList.toggle('active', b.dataset.filter === tipo));
+            document.querySelectorAll('.av-card').forEach(card => {
+                const nota = Number(card.dataset.nota);
+                const temResp = card.dataset.resposta === '1';
+                let mostrar = true;
+                if (tipo === 'baixas') mostrar = nota <= 3;
+                else if (tipo === 'altas') mostrar = nota >= 4;
+                else if (tipo === 'sem-resposta') mostrar = nota <= 3 && !temResp;
+                card.style.display = mostrar ? '' : 'none';
+            });
+        }
+
+        function abrirResposta(id, protocolo, nota, motivo, respostaAtual) {
+            document.getElementById('respId').value = id;
+            document.getElementById('modalTitle').textContent = `Avaliação ${protocolo} — Nota ${nota}/5`;
+
+            const ctx = document.getElementById('ctxMotivo');
+            if (motivo && motivo.trim()) {
+                ctx.innerHTML = '<b>Motivo informado pelo solicitante:</b><br>' + motivo;
+                ctx.style.display = 'block';
+            } else {
+                ctx.style.display = 'none';
+            }
+
+            document.getElementById('respTexto').value = respostaAtual || '';
+            document.getElementById('modalResposta').classList.add('open');
+        }
+
+        function fecharModal() {
+            document.getElementById('modalResposta').classList.remove('open');
+        }
+
+        async function salvarResposta(ev) {
+            ev.preventDefault();
+            const id = document.getElementById('respId').value;
+            const resposta = document.getElementById('respTexto').value.trim();
+            if (resposta.length < 3) { alert('Digite uma resposta'); return; }
+            try {
+                const r = await fetch(`/api/avaliacoes/${id}/responder`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ resposta })
+                });
+                const d = await r.json();
+                if (d.success) location.reload();
+                else alert(d.message);
+            } catch (e) { alert(e.message); }
+        }
+    </script>
 </body>
 </html>

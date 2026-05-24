@@ -57,6 +57,7 @@
                     <h2>Instâncias WhatsApp</h2>
                 </div>
                 <div class="topbar-actions">
+                    <button class="btn-primary" style="background:#3b82f6;" onclick="conectarTodas()">⚡ Conectar Todas</button>
                     <button class="btn-primary" onclick="abrirNova()">+ Nova Instância</button>
                 </div>
             </div>
@@ -150,7 +151,7 @@
                 const status = i.status || 'disconnected';
                 return `
                 <div class="in-card" style="--cor:${cor}">
-                    ${isLegacy ? `<div class="legacy-banner">⚙️ Instância principal (legada) — gerenciada pelo painel <a href="/dashboard" style="color:#92400e;font-weight:700;">Dashboard</a>.</div>` : ''}
+                    ${isLegacy ? `<div class="legacy-banner">⚙️ Instância principal (HGP) — pode ser controlada por aqui ou pelo <a href="/dashboard" style="color:#92400e;font-weight:700;">Dashboard</a>.</div>` : ''}
                     <div class="in-head">
                         <div class="in-title">
                             <h3>${escapeHtml(i.nome)}</h3>
@@ -165,17 +166,15 @@
                     <div class="in-info"><b>Fluxo:</b> ${escapeHtml(i.flow_nome || '— sem fluxo —')}</div>
                     ${i.last_connected ? `<div class="in-info"><b>Última conexão:</b> ${new Date(i.last_connected).toLocaleString('pt-BR')}</div>` : ''}
                     ${i.last_error ? `<div class="in-info" style="color:#dc2626;"><b>Último erro:</b> ${escapeHtml(i.last_error.slice(0,100))}</div>` : ''}
-                    ${isLegacy ? '' : `
                     <div class="in-actions">
                         ${status === 'connected' || status === 'connecting' || status === 'qr_ready'
                             ? `<button class="in-btn" onclick="abrirQr(${i.id},'${escapeHtml(i.nome).replace(/'/g,"\\'")}')">Abrir QR/Status</button>
                                <button class="in-btn danger" onclick="parar(${i.id})">Parar</button>`
                             : `<button class="in-btn primary" onclick="iniciar(${i.id},'${escapeHtml(i.nome).replace(/'/g,"\\'")}')">Conectar</button>
-                               <button class="in-btn" onclick="editar(${i.id})">Editar</button>
-                               <button class="in-btn danger" onclick="excluir(${i.id})">×</button>`
+                               ${!isLegacy ? `<button class="in-btn" onclick="editar(${i.id})">Editar</button>
+                               <button class="in-btn danger" onclick="excluir(${i.id})">×</button>` : ''}`
                         }
                     </div>
-                    `}
                 </div>`;
             }).join('');
         }
@@ -236,6 +235,20 @@
                 const d = await r.json();
                 if (d.success) {
                     abrirQr(id, nome);
+                } else {
+                    alert(d.message);
+                }
+            } catch (e) { alert(e.message); }
+        }
+
+        async function conectarTodas() {
+            if (!confirm('Conectar todas as instâncias desconectadas?')) return;
+            try {
+                const r = await fetch('/api/instancias/conectar-todas', { method: 'POST' });
+                const d = await r.json();
+                if (d.success) {
+                    alert(d.message);
+                    setTimeout(() => location.reload(), 2000);
                 } else {
                     alert(d.message);
                 }

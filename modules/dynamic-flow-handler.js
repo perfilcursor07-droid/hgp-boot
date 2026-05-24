@@ -16,6 +16,55 @@ function gerarProtocolo(prefixo = 'HGP') {
     return `${prefixo}-${data}-${random}`;
 }
 
+// Campos que são "pessoais" e devem ser memorizados entre chamados
+const CAMPOS_PESSOAIS = ['nome_completo', 'cpf', 'email', 'telefone'];
+
+function extrairTelefoneDoSession(sessionId) {
+    return String(sessionId || '').replace(/@.*$/, '').replace(/\D/g, '');
+}
+
+async function buscarPerfilPorTelefone(telefone) {
+    if (!telefone) return null;
+    try {
+        const [rows] = await db.query(
+            `SELECT dados_json FROM bot_user_profiles WHERE telefone = ? LIMIT 1`,
+            [telefone]
+        );
+        if (rows.length === 0) return null;
+        const d = rows[0].dados_json;
+        return typeof d === 'string' ? JSON.parse(d) : d;
+    } catch (e) {
+        return null;
+    }
+}
+
+async function salvarPerfilPorTelefone(telefone, dados, unidadeId = null) {
+    if (!telefone) return;
+    try {
+        // Extrair só os campos pessoais
+        const perfil = {};
+        for (const k of CAMPOS_PESSOAIS) {
+            if (dados[k] !== undefined && dados[k] !== null && dados[k] !== '') {
+                perfil[k] = dados[k];
+            }
+        }
+        if (Object.keys(perfil).length === 0) return;
+
+        // Mesclar com perfil existente
+        const existente = await buscarPerfilPorTelefone(telefone);
+        const merged = { ...(existente || {}), ...perfil };
+
+        await db.query(
+            `INSERT INTO bot_user_profiles (telefone, dados_json, ultima_unidade_id)
+             VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE dados_json = ?, ultima_unidade_id = ?`,
+            [telefone, JSON.stringify(merged), unidadeId, JSON.stringify(merged), unidadeId]
+        );
+    } catch (e) {
+        console.error('Erro salvarPerfilPorTelefone:', e.message);
+    }
+}
+
 function validarCampo(valor, tipo) {
     const v = String(valor || '').trim();
     if (!v) return false;
@@ -62,6 +111,33 @@ function attachDynamicFlow(client, options = {}) {
     const COOLDOWN_POS_TICKET = 60 * 1000; // 1 min após criar chamado
 
     const log = (msg) => console.log(`[DynamicFlow:${instanciaNome}] ${msg}`);
+
+    // Cria chamado final + notifica + salva perfil + limpa estado
+    async function criarChamadoFinal(est, sessionId, contato, chatId) {
+        try {
+            const { id, protocolo } = await salvarChamado(est, sessionId, contato);
+            await client.sendMessage(
+                chatId,
+                `✅ *Chamado criado com sucesso!*\n\n📌 Protocolo: *${protocolo}*\n📋 Categoria: ${est.categoria}\n\nNossa equipe entrará em contato em breve. Para acompanhar, guarde seu protocolo.\n\n_Envie CANCELAR a qualquer momento se precisar abrir um novo chamado._`
+            );
+
+            // Salvar/atualizar perfil do usuário
+            const telefone = extrairTelefoneDoSession(sessionId);
+            await salvarPerfilPorTelefone(telefone, est.dados, unidadeId);
+
+            // Notificar técnicos
+            notificarTecnicosDaUnidade({ id, protocolo, categoria: est.categoria }, est.dados).catch(() => {});
+
+            estados.delete(sessionId);
+            bloquearSessao(sessionId);
+            clearTimeout(inactivityTimers.get(sessionId));
+            inactivityTimers.delete(sessionId);
+        } catch (e) {
+            console.error('Erro ao criar chamado:', e);
+            await client.sendMessage(chatId, '❌ Ocorreu um erro ao criar o chamado. Tente novamente mais tarde.');
+            estados.delete(sessionId);
+        }
+    }
 
     function resetInactivityTimer(sessionId, chatId) {
         const existing = inactivityTimers.get(sessionId);
@@ -113,8 +189,51 @@ function attachDynamicFlow(client, options = {}) {
         return `📝 *${campo.label}*${obrig}`;
     }
 
+    // Tem campos pessoais no bloco?
+    function blocoTemCamposPessoais(bloco) {
+        return bloco.campos.some(c => CAMPOS_PESSOAIS.includes(c.key));
+    }
+
+    // Resumo de dados pessoais salvos
+    function montarResumoPerfil(perfil, bloco) {
+        const linhas = ['👋 *Olá novamente!* Já tenho seus dados pessoais salvos:', ''];
+        for (const c of bloco.campos) {
+            if (CAMPOS_PESSOAIS.includes(c.key) && perfil[c.key]) {
+                linhas.push(`• *${c.label}:* ${perfil[c.key]}`);
+            }
+        }
+        linhas.push('', '*1* - Confirmar e seguir');
+        linhas.push('*2* - Editar meus dados');
+        linhas.push('', '_Digite o número da opção._');
+        return linhas.join('\n');
+    }
+
+    // Próximo passo após confirmação do perfil: pular campos pessoais e ir direto pros contextuais
+    function proximoCampoApolsConfirmacao(estado) {
+        const bloco = estado.bloco;
+        // Procurar o primeiro campo NÃO pessoal (ou que não tenha valor preenchido)
+        for (let i = 0; i < bloco.campos.length; i++) {
+            const c = bloco.campos[i];
+            if (estado.dados[c.key] === undefined) {
+                estado.campoIdx = i;
+                return c;
+            }
+        }
+        return null; // todos preenchidos — finalizar
+    }
+
     async function salvarChamado(estado, sessionId, contato) {
-        const protocolo = gerarProtocolo();
+        // Buscar código da unidade para usar como prefixo do protocolo
+        let prefixo = 'HGP';
+        if (unidadeId) {
+            try {
+                const [r] = await db.query('SELECT codigo FROM unidades WHERE id = ? LIMIT 1', [unidadeId]);
+                if (r.length > 0 && r[0].codigo) {
+                    prefixo = String(r[0].codigo).toUpperCase();
+                }
+            } catch (e) {}
+        }
+        const protocolo = gerarProtocolo(prefixo);
         const dados = estado.dados || {};
         const categoria = estado.categoria || 'Outros';
         const subcategoria = estado.subcategoria || null;
@@ -238,6 +357,75 @@ function attachDynamicFlow(client, options = {}) {
 
             const est = estados.get(sessionId);
 
+            // ── Verificar chamado ativo (em atendimento) e salvar mensagem no chat ──
+            // Só verifica se NÃO está dentro de um fluxo (sem estado ou estado terminal)
+            if (!est || est.step === undefined) {
+                try {
+                    const [chamadosAtivos] = await db.query(
+                        `SELECT id, protocolo, status FROM chamados
+                         WHERE chat_origem = ? AND status IN ('aberto', 'em_atendimento')
+                         ORDER BY criado_em DESC LIMIT 1`,
+                        [sessionId]
+                    );
+
+                    const chamadoAtivo = chamadosAtivos[0];
+
+                    if (chamadoAtivo) {
+                        const tipoMsg = String(msg.type || '').toLowerCase();
+                        const ehMidia = msg.hasMedia || ['audio','ptt','video','image','document','sticker'].includes(tipoMsg);
+
+                        // Se for mídia e chamado ainda não está em atendimento, deletar
+                        if (ehMidia && chamadoAtivo.status !== 'em_atendimento') {
+                            try { await msg.delete(true); } catch (e) {}
+                            await client.sendMessage(chatId, '🚫 *Mídia removida.* Você só poderá enviar mídia após um atendente iniciar seu chamado. Aguarde.');
+                            return;
+                        }
+
+                        // Salvar a mensagem do solicitante no chat_messages
+                        const contactName = contato?.pushname || contato?.name || 'Solicitante';
+                        let messageType = 'text';
+                        let mediaUrl = null, mediaMimeType = null, mediaFilename = null;
+                        let mensagemTexto = texto;
+
+                        if (ehMidia) {
+                            messageType = ['audio','ptt'].includes(tipoMsg) ? 'audio' : tipoMsg;
+                            mensagemTexto = msg.body || `[${messageType}]`;
+                            // Salvar mídia em disco (best-effort)
+                            try {
+                                const media = await msg.downloadMedia();
+                                if (media) {
+                                    const fs = require('fs');
+                                    const path = require('path');
+                                    const dir = path.join(__dirname, '..', 'public', 'uploads', 'chat-media');
+                                    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+                                    const ext = (media.mimetype || '').split('/').pop().split(';')[0] || 'bin';
+                                    const filename = `chamado-${chamadoAtivo.id}-${Date.now()}.${ext}`;
+                                    fs.writeFileSync(path.join(dir, filename), Buffer.from(media.data, 'base64'));
+                                    mediaUrl = `/uploads/chat-media/${filename}`;
+                                    mediaMimeType = media.mimetype;
+                                    mediaFilename = media.filename || filename;
+                                }
+                            } catch (e) {
+                                console.error('Erro ao salvar mídia do solicitante:', e.message);
+                            }
+                        }
+
+                        await db.query(
+                            `INSERT INTO chat_messages (
+                                chamado_id, remetente_tipo, remetente_nome,
+                                mensagem, message_type, media_url, media_mime_type, media_filename
+                             ) VALUES (?, 'solicitante', ?, ?, ?, ?, ?, ?)`,
+                            [chamadoAtivo.id, contactName, mensagemTexto, messageType, mediaUrl, mediaMimeType, mediaFilename]
+                        );
+
+                        console.log(`[DynamicFlow:${instanciaNome}] Mensagem do solicitante salva no chamado ${chamadoAtivo.protocolo}`);
+                        return; // não processa como menu/fluxo
+                    }
+                } catch (e) {
+                    console.error(`[DynamicFlow:${instanciaNome}] Erro ao processar mensagem para chamado ativo:`, e.message);
+                }
+            }
+
             // Sem estado: enviar menu
             if (!est) {
                 estados.set(sessionId, { step: 'menu' });
@@ -272,13 +460,24 @@ function attachDynamicFlow(client, options = {}) {
                     est.submenuKey = opcao.submenu;
                     await client.sendMessage(chatId, montarSubmenu(opcao.submenu));
                 } else {
-                    // Iniciar bloco de campos
-                    est.step = 'preenchimento';
-                    est.bloco = obterBloco(opcao.camposBloco);
-                    est.campoIdx = 0;
+                    // Verificar se há perfil salvo antes de iniciar preenchimento
+                    const bloco = obterBloco(opcao.camposBloco);
+                    est.bloco = bloco;
                     est.dados = {};
-                    const primeiroCampo = est.bloco.campos[0];
-                    await client.sendMessage(chatId, `📋 Categoria: *${opcao.label}*\n\nVamos coletar seus dados.\n\n` + montarPromptCampo(primeiroCampo));
+
+                    const telefone = extrairTelefoneDoSession(sessionId);
+                    const perfil = blocoTemCamposPessoais(bloco) ? await buscarPerfilPorTelefone(telefone) : null;
+
+                    if (perfil && Object.keys(perfil).length > 0) {
+                        est.step = 'confirmar_perfil';
+                        est.perfilSalvo = perfil;
+                        await client.sendMessage(chatId, `📋 Categoria: *${opcao.label}*\n\n` + montarResumoPerfil(perfil, bloco));
+                    } else {
+                        est.step = 'preenchimento';
+                        est.campoIdx = 0;
+                        const primeiroCampo = bloco.campos[0];
+                        await client.sendMessage(chatId, `📋 Categoria: *${opcao.label}*\n\nVamos coletar seus dados.\n\n` + montarPromptCampo(primeiroCampo));
+                    }
                 }
                 resetInactivityTimer(sessionId, chatId);
                 return;
@@ -295,12 +494,54 @@ function attachDynamicFlow(client, options = {}) {
                 }
 
                 est.subcategoria = opcao.label;
-                est.step = 'preenchimento';
-                est.bloco = obterBloco(est.opcaoMenu.camposBloco);
-                est.campoIdx = 0;
+                const bloco = obterBloco(est.opcaoMenu.camposBloco);
+                est.bloco = bloco;
                 est.dados = {};
-                const primeiroCampo = est.bloco.campos[0];
-                await client.sendMessage(chatId, `📋 Sistema selecionado: *${opcao.label}*\n\nVamos coletar seus dados.\n\n` + montarPromptCampo(primeiroCampo));
+
+                const telefone = extrairTelefoneDoSession(sessionId);
+                const perfil = blocoTemCamposPessoais(bloco) ? await buscarPerfilPorTelefone(telefone) : null;
+
+                if (perfil && Object.keys(perfil).length > 0) {
+                    est.step = 'confirmar_perfil';
+                    est.perfilSalvo = perfil;
+                    await client.sendMessage(chatId, `📋 Sistema: *${opcao.label}*\n\n` + montarResumoPerfil(perfil, bloco));
+                } else {
+                    est.step = 'preenchimento';
+                    est.campoIdx = 0;
+                    const primeiroCampo = bloco.campos[0];
+                    await client.sendMessage(chatId, `📋 Sistema selecionado: *${opcao.label}*\n\nVamos coletar seus dados.\n\n` + montarPromptCampo(primeiroCampo));
+                }
+                resetInactivityTimer(sessionId, chatId);
+                return;
+            }
+
+            // ── ETAPA: CONFIRMAR PERFIL SALVO ──
+            if (est.step === 'confirmar_perfil') {
+                if (texto === '1') {
+                    // Reaproveitar dados do perfil
+                    est.dados = { ...est.perfilSalvo };
+                    est.step = 'preenchimento';
+                    const proximo = proximoCampoApolsConfirmacao(est);
+                    if (!proximo) {
+                        // Não tem campo contextual — finalizar direto
+                        await criarChamadoFinal(est, sessionId, contato, chatId);
+                        return;
+                    }
+                    await client.sendMessage(chatId, `✅ Dados confirmados!\n\nAgora preciso só dos dados específicos do chamado.\n\n` + montarPromptCampo(proximo));
+                    resetInactivityTimer(sessionId, chatId);
+                    return;
+                }
+                if (texto === '2') {
+                    // Editar — começar do zero
+                    est.dados = {};
+                    est.step = 'preenchimento';
+                    est.campoIdx = 0;
+                    const primeiro = est.bloco.campos[0];
+                    await client.sendMessage(chatId, `✏️ Vamos editar seus dados.\n\n` + montarPromptCampo(primeiro));
+                    resetInactivityTimer(sessionId, chatId);
+                    return;
+                }
+                await client.sendMessage(chatId, '❌ Opção inválida. Digite *1* para confirmar ou *2* para editar.');
                 resetInactivityTimer(sessionId, chatId);
                 return;
             }
@@ -324,7 +565,12 @@ function attachDynamicFlow(client, options = {}) {
                     est.dados[campo.key] = null;
                 }
 
-                est.campoIdx += 1;
+                // Avançar para o próximo campo que ainda não tem valor
+                let proximoIdx = est.campoIdx + 1;
+                while (proximoIdx < est.bloco.campos.length && est.dados[est.bloco.campos[proximoIdx].key] !== undefined) {
+                    proximoIdx += 1;
+                }
+                est.campoIdx = proximoIdx;
 
                 // Próximo campo
                 if (est.campoIdx < est.bloco.campos.length) {
@@ -335,25 +581,7 @@ function attachDynamicFlow(client, options = {}) {
                 }
 
                 // Fim — criar chamado
-                try {
-                    const { id, protocolo } = await salvarChamado(est, sessionId, contato);
-                    await client.sendMessage(
-                        chatId,
-                        `✅ *Chamado criado com sucesso!*\n\n📌 Protocolo: *${protocolo}*\n📋 Categoria: ${est.categoria}\n\nNossa equipe entrará em contato em breve. Para acompanhar, guarde seu protocolo.\n\n_Envie CANCELAR a qualquer momento se precisar abrir um novo chamado._`
-                    );
-
-                    // Notificar técnicos da unidade
-                    notificarTecnicosDaUnidade({ id, protocolo, categoria: est.categoria }, est.dados).catch(() => {});
-
-                    estados.delete(sessionId);
-                    bloquearSessao(sessionId);
-                    clearTimeout(inactivityTimers.get(sessionId));
-                    inactivityTimers.delete(sessionId);
-                } catch (e) {
-                    console.error('Erro ao criar chamado:', e);
-                    await client.sendMessage(chatId, '❌ Ocorreu um erro ao criar o chamado. Tente novamente mais tarde.');
-                    estados.delete(sessionId);
-                }
+                await criarChamadoFinal(est, sessionId, contato, chatId);
                 return;
             }
 
@@ -362,13 +590,26 @@ function attachDynamicFlow(client, options = {}) {
                 const nota = parseInt(texto, 10);
                 if (nota >= 1 && nota <= 5) {
                     try {
-                        await db.query(
+                        const [r] = await db.query(
                             `INSERT INTO avaliacoes (chamado_id, protocolo, nota, atendente_nome, solicitante_nome, chat_origem)
                              VALUES (?, ?, ?, ?, ?, ?)`,
                             [est.chamadoId, est.protocolo, nota, est.atendenteNome, est.solicitanteNome, sessionId]
                         );
                         const emojis = ['', '😞', '😕', '😐', '😊', '🤩'];
                         await client.sendMessage(chatId, `${emojis[nota]} Obrigado pela avaliação! Sua nota: *${nota}/5*`);
+
+                        if (nota <= 3) {
+                            estados.set(sessionId, {
+                                step: 'avaliacao_motivo',
+                                avaliacaoId: r.insertId,
+                                protocolo: est.protocolo
+                            });
+                            await client.sendMessage(
+                                chatId,
+                                '📝 Lamentamos que sua experiência não tenha sido boa. *Você gostaria de nos dizer o motivo?*\n\nDigite o motivo ou envie *NAO* para finalizar sem informar.'
+                            );
+                            return;
+                        }
                     } catch (e) {
                         await client.sendMessage(chatId, '✓ Obrigado pelo feedback!');
                     }
@@ -376,6 +617,28 @@ function attachDynamicFlow(client, options = {}) {
                 } else {
                     await client.sendMessage(chatId, '❌ Envie um número de 1 a 5.');
                 }
+                return;
+            }
+
+            // ── ETAPA: MOTIVO DA AVALIAÇÃO BAIXA ──
+            if (est.step === 'avaliacao_motivo') {
+                const motivo = texto.trim();
+                if (motivo.toUpperCase() === 'NAO' || motivo.toUpperCase() === 'NÃO') {
+                    await client.sendMessage(chatId, '✓ Tudo bem! Obrigado pelo feedback.');
+                    estados.delete(sessionId);
+                    return;
+                }
+                if (motivo.length < 3) {
+                    await client.sendMessage(chatId, '⚠️ Descreva o motivo com mais detalhes ou envie *NAO* para finalizar.');
+                    return;
+                }
+                try {
+                    await db.query(`UPDATE avaliacoes SET motivo_usuario = ? WHERE id = ?`, [motivo, est.avaliacaoId]);
+                    await client.sendMessage(chatId, '✅ Obrigado! Seu feedback foi registrado e será analisado pela equipe.');
+                } catch (e) {
+                    await client.sendMessage(chatId, '✓ Obrigado pelo feedback!');
+                }
+                estados.delete(sessionId);
                 return;
             }
         } catch (e) {
@@ -392,6 +655,13 @@ function attachDynamicFlow(client, options = {}) {
         async reiniciarFluxoPorEncerramento(chatOrigem, dadosChamado) {
             try {
                 const chatId = chatOrigem;
+                if (!chatId) return false;
+
+                // Mensagem de encerramento
+                const msgEnc = `✅ *Chamado encerrado.*\n📌 Protocolo: *${dadosChamado.protocolo}*\n👤 Atendente: ${dadosChamado.atendenteNome}\n\nObrigado por utilizar nosso atendimento.`;
+                await client.sendMessage(chatId, msgEnc);
+
+                // Se avaliação habilitada, perguntar nota
                 if (flowDefinition.avaliacao?.habilitada) {
                     estados.set(chatId, {
                         step: 'avaliacao',
@@ -400,6 +670,8 @@ function attachDynamicFlow(client, options = {}) {
                         atendenteNome: dadosChamado.atendenteNome,
                         solicitanteNome: dadosChamado.nomeExibicao
                     });
+                    // pequeno delay
+                    await new Promise(r => setTimeout(r, 600));
                     await client.sendMessage(chatId, flowDefinition.avaliacao.texto);
                 }
                 return true;

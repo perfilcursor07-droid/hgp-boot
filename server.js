@@ -251,7 +251,11 @@ const buildWhatsAppNumberVariations = (value) => {
 };
 
 const resolveWhatsAppDestination = async (...candidates) => {
-    if (!whatsappClient || whatsappState !== 'connected') {
+    return resolveWhatsAppDestinationWith(whatsappClient, whatsappState === 'connected', ...candidates);
+};
+
+const resolveWhatsAppDestinationWith = async (clientArg, isConnected, ...candidates) => {
+    if (!clientArg || !isConnected) {
         return null;
     }
 
@@ -267,7 +271,7 @@ const resolveWhatsAppDestination = async (...candidates) => {
 
         for (const number of buildWhatsAppNumberVariations(rawValue)) {
             try {
-                const numberId = await whatsappClient.getNumberId(number);
+                const numberId = await clientArg.getNumberId(number);
                 if (numberId?._serialized) {
                     return numberId._serialized;
                 }
@@ -280,25 +284,55 @@ const resolveWhatsAppDestination = async (...candidates) => {
     return null;
 };
 
-const listEscalaUsers = async () => {
+const listEscalaUsers = async (req = null) => {
+    // Filtro por unidades (admin = null = todos)
+    const ids = req?.session?.unidadeIds;
+    let extraSql = '';
+    const extraParams = [];
+    if (Array.isArray(ids)) {
+        if (ids.length === 0) {
+            extraSql = ' AND a.id = ?';
+            extraParams.push(req.session.userId);
+        } else {
+            const ph = ids.map(() => '?').join(',');
+            extraSql = ` AND a.id IN (SELECT au.admin_id FROM admin_unidades au WHERE au.unidade_id IN (${ph}))`;
+            extraParams.push(...ids);
+        }
+    }
+
     const [users] = await db.query(`
         SELECT
-            id,
-            username,
-            COALESCE(NULLIF(nome_completo, ''), username) AS nome_exibicao,
-            telefone,
-            nivel_acesso
-        FROM admins
-        WHERE ativo = TRUE
-          AND telefone IS NOT NULL
-          AND telefone <> ''
+            a.id,
+            a.username,
+            COALESCE(NULLIF(a.nome_completo, ''), a.username) AS nome_exibicao,
+            a.telefone,
+            a.nivel_acesso
+        FROM admins a
+        WHERE a.ativo = TRUE
+          AND a.telefone IS NOT NULL
+          AND a.telefone <> ''
+          ${extraSql}
         ORDER BY nome_exibicao ASC
-    `);
+    `, extraParams);
 
     return users;
 };
 
-const listEscalas = async () => {
+const listEscalas = async (req = null) => {
+    const ids = req?.session?.unidadeIds;
+    let extraSql = '';
+    const extraParams = [];
+    if (Array.isArray(ids)) {
+        if (ids.length === 0) {
+            extraSql = ' AND a.id = ?';
+            extraParams.push(req.session.userId);
+        } else {
+            const ph = ids.map(() => '?').join(',');
+            extraSql = ` AND a.id IN (SELECT au.admin_id FROM admin_unidades au WHERE au.unidade_id IN (${ph}))`;
+            extraParams.push(...ids);
+        }
+    }
+
     const [rows] = await db.query(`
         SELECT
             e.id,
@@ -312,8 +346,9 @@ const listEscalas = async () => {
             e.updated_at
         FROM escalas e
         INNER JOIN admins a ON a.id = e.admin_id
+        WHERE 1=1 ${extraSql}
         ORDER BY e.data_escala DESC, tecnico_nome ASC
-    `);
+    `, extraParams);
 
     return rows;
 };
@@ -407,6 +442,82 @@ const buildFluxoStats = (flows, selectedFlowData) => ({
     etapas: selectedFlowData?.steps?.length || 0
 });
 
+// ─── Helpers para filtrar por unidades do usuário ──────────────────
+// Retorna { sql, params } para usar como cláusula adicional em queries
+// Exemplo: WHERE 1=1 ${unidadeWhere.sql}  → adiciona AND ...
+function buildUnidadeWhere(req, alias = '', columnName = 'unidade_id') {
+    const ids = req?.session?.unidadeIds;
+    // null = administrador, vê tudo
+    if (!Array.isArray(ids)) {
+        return { sql: '', params: [] };
+    }
+    const col = alias ? `${alias}.${columnName}` : columnName;
+    if (ids.length === 0) {
+        // Sem unidade vinculada: ver só registros sem unidade (legado)
+        return { sql: ` AND ${col} IS NULL`, params: [] };
+    }
+    const placeholders = ids.map(() => '?').join(',');
+    return {
+        sql: ` AND (${col} IS NULL OR ${col} IN (${placeholders}))`,
+        params: [...ids]
+    };
+}
+
+// Filtrar admins por unidade (via admin_unidades). Admin sempre vê todos.
+// Retorna { sql, params } para colocar no WHERE da query de admins.
+function buildAdminUnidadeWhere(req, adminAlias = 'a') {
+    const ids = req?.session?.unidadeIds;
+    if (!Array.isArray(ids)) {
+        return { sql: '', params: [] };
+    }
+    if (ids.length === 0) {
+        // Sem unidade vinculada: ver só si mesmo
+        return { sql: ` AND ${adminAlias}.id = ?`, params: [req.session.userId] };
+    }
+    const placeholders = ids.map(() => '?').join(',');
+    return {
+        sql: ` AND ${adminAlias}.id IN (
+            SELECT au.admin_id FROM admin_unidades au WHERE au.unidade_id IN (${placeholders})
+        )`,
+        params: [...ids]
+    };
+}
+
+// Retorna o cliente WhatsApp adequado para enviar mensagem a partir de um chamado
+async function obterClienteWhatsAppParaChamado(chamado) {
+    if (chamado.instancia_id) {
+        const [insts] = await db.query(
+            'SELECT is_legacy, nome, session_name FROM instancias WHERE id = ? LIMIT 1',
+            [chamado.instancia_id]
+        );
+        if (insts.length > 0 && !insts[0].is_legacy) {
+            const cli = instanceManager.obterCliente(chamado.instancia_id);
+            if (!cli) {
+                console.warn(`[obterCliente] Instância "${insts[0].nome}" (id=${chamado.instancia_id}) não está no pool em memória. Tentando reconectar...`);
+                // Tentar reconectar agora
+                try {
+                    await instanceManager.iniciarInstancia(chamado.instancia_id);
+                    // Aguardar até 8 segundos para conectar
+                    for (let i = 0; i < 16; i++) {
+                        await new Promise(r => setTimeout(r, 500));
+                        const cli2 = instanceManager.obterCliente(chamado.instancia_id);
+                        if (cli2) return { client: cli2, isConnected: true };
+                    }
+                } catch (e) {
+                    console.error('[obterCliente] Erro ao tentar reconectar:', e.message);
+                }
+                return { client: null, isConnected: false };
+            }
+            return { client: cli, isConnected: true };
+        }
+    }
+    // Default: legacy (HGP)
+    return {
+        client: whatsappClient,
+        isConnected: whatsappClient && whatsappState === 'connected'
+    };
+}
+
 const listChamadosOverview = async (req = null) => {
     // Filtrar por unidades do usuário (administrador vê tudo)
     let where = '';
@@ -492,7 +603,15 @@ app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     
     try {
-        const [users] = await db.query('SELECT * FROM admins WHERE username = ? AND ativo = TRUE', [username]);
+        // Aceitar login por username OU CPF
+        const cpfLimpo = String(username || '').replace(/\D/g, '');
+        const [users] = await db.query(
+            `SELECT * FROM admins 
+             WHERE ativo = TRUE 
+               AND (username = ? OR REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = ?)
+             LIMIT 1`,
+            [username, cpfLimpo]
+        );
         
         if (users.length === 0) {
             return res.render('login', { error: 'Usuário ou senha inválidos' });
@@ -535,127 +654,164 @@ app.post('/login', async (req, res) => {
 
 app.get('/dashboard', isAuthenticated, isAdmin, async (req, res) => {
     try {
-        const [sessions] = await db.query('SELECT * FROM whatsapp_sessions ORDER BY id DESC LIMIT 1');
-        const session = sessions[0]
-            ? {
-                ...sessions[0],
-                is_connected: whatsappState === 'connected'
+        const ids = req.session.unidadeIds;
+        const isAdminFull = !Array.isArray(ids); // null = administrador
+
+        let session = null;
+        let qrCode = null;
+        let isLegacy = true;
+
+        if (isAdminFull) {
+            // Administrador: mostra a instância legada (HGP) como antes
+            const [sessions] = await db.query('SELECT * FROM whatsapp_sessions ORDER BY id DESC LIMIT 1');
+            session = sessions[0]
+                ? { ...sessions[0], is_connected: whatsappState === 'connected' }
+                : null;
+            qrCode = currentQR;
+        } else if (ids.length > 0) {
+            // Buscar instância(s) das unidades do usuário
+            const ph = ids.map(() => '?').join(',');
+            const [insts] = await db.query(
+                `SELECT i.*, u.nome AS unidade_nome
+                 FROM instancias i
+                 LEFT JOIN unidades u ON u.id = i.unidade_id
+                 WHERE i.unidade_id IN (${ph}) AND i.ativo = TRUE
+                 ORDER BY i.is_legacy DESC, i.atualizado_em DESC
+                 LIMIT 1`,
+                ids
+            );
+            if (insts.length > 0) {
+                const inst = insts[0];
+                isLegacy = !!inst.is_legacy;
+
+                // Sincronizar status real da legada com o whatsappState antes de exibir
+                if (isLegacy) {
+                    inst.status = whatsappState || 'disconnected';
+                }
+
+                session = {
+                    session_name: inst.session_name,
+                    is_connected: inst.status === 'connected',
+                    last_connected: inst.last_connected,
+                    nome: inst.nome,
+                    unidade_nome: inst.unidade_nome,
+                    instancia_id: inst.id,
+                    is_legacy: isLegacy
+                };
+                qrCode = isLegacy ? currentQR : inst.qr_code;
             }
-            : null;
-        
+        }
+
         res.render('dashboard', {
             username: req.session.username,
             session,
-            qrCode: currentQR
+            qrCode,
+            isLegacyInstance: isLegacy
         });
     } catch (error) {
         console.error('Erro ao carregar dashboard:', error);
-        res.render('dashboard', { username: req.session.username, session: null, qrCode: null });
+        res.render('dashboard', { username: req.session.username, session: null, qrCode: null, isLegacyInstance: true });
     }
 });
+
+// Função reutilizável de iniciar WhatsApp legado (HGP)
+async function iniciarWhatsAppLegacy() {
+    if (whatsappState === 'connected') return { ok: true, alreadyConnected: true };
+    if (whatsappState === 'connecting' && whatsappClient) return { ok: true, connecting: true };
+
+    if (whatsappClient) {
+        try { await whatsappClient.destroy(); } catch (e) {}
+        whatsappClient = null;
+    }
+
+    whatsappState = 'connecting';
+    currentQR = null;
+    whatsappLastError = null;
+
+    whatsappClient = new Client({
+        authStrategy: new LocalAuth({ clientId: 'admin-session' }),
+        puppeteer: buildPuppeteerConfig()
+    });
+
+    whatsappChatbotController = attachChatbot(whatsappClient, { managedByServer: true });
+
+    whatsappClient.on('qr', async (qr) => {
+        whatsappState = 'connecting';
+        whatsappLastError = null;
+        currentQR = await qrcode.toDataURL(qr);
+        await db.query(
+            'INSERT INTO whatsapp_sessions (session_name, qr_code, is_connected) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE qr_code = ?, is_connected = ?',
+            ['admin-session', currentQR, false, currentQR, false]
+        );
+        await syncLegacyInstanciaStatus('qr_ready', currentQR);
+    });
+
+    whatsappClient.on('ready', async () => {
+        console.log('WhatsApp HGP conectado!');
+        whatsappState = 'connected';
+        whatsappLastError = null;
+        currentQR = null;
+        await db.query(
+            'UPDATE whatsapp_sessions SET is_connected = ?, last_connected = NOW(), qr_code = NULL WHERE session_name = ?',
+            [true, 'admin-session']
+        );
+        await syncLegacyInstanciaStatus('connected', null);
+    });
+
+    whatsappClient.on('auth_failure', async (message) => {
+        console.error('Falha de autenticação do WhatsApp:', message);
+        whatsappLastError = `Falha de autenticação do WhatsApp: ${message}`;
+        await resetWhatsAppRuntime();
+    });
+
+    whatsappClient.on('disconnected', async (reason) => {
+        console.log('WhatsApp HGP desconectado:', reason);
+        whatsappLastError = `WhatsApp desconectado: ${reason}`;
+        if (whatsappClient) {
+            try { await whatsappClient.destroy(); } catch (e) {}
+        }
+        await resetWhatsAppRuntime();
+    });
+
+    whatsappClient.on('message', async (message) => {
+        try {
+            const [sessions] = await db.query('SELECT id FROM whatsapp_sessions WHERE session_name = ?', ['admin-session']);
+            if (sessions.length > 0) {
+                await db.query(
+                    'INSERT INTO messages (session_id, from_number, to_number, message_body, message_type, is_from_me) VALUES (?, ?, ?, ?, ?, ?)',
+                    [
+                        sessions[0].id,
+                        message.from,
+                        message.to,
+                        message.body || '',
+                        String(message.type || 'text').slice(0, 100),
+                        message.fromMe
+                    ]
+                );
+            }
+        } catch (error) {
+            console.error('Erro ao registrar mensagem do WhatsApp:', error);
+        }
+    });
+
+    whatsappClient.initialize().catch(async (error) => {
+        console.error('Erro ao inicializar cliente WhatsApp:', error);
+        whatsappLastError = formatWhatsAppError(error);
+        await resetWhatsAppRuntime();
+    });
+
+    return { ok: true, started: true };
+}
 
 app.post('/whatsapp/connect', isAuthenticated, async (req, res) => {
     try {
         if (whatsappState === 'connected') {
             return res.json({ success: true, connected: true, message: 'WhatsApp já está conectado' });
         }
-
         if (whatsappState === 'connecting' && whatsappClient) {
             return res.json({ success: true, connected: false, message: 'Conexão com WhatsApp em andamento' });
         }
-
-        if (whatsappClient) {
-            try {
-                await whatsappClient.destroy();
-            } catch (error) {
-                console.error('Erro ao limpar cliente WhatsApp anterior:', error);
-            }
-
-            whatsappClient = null;
-        }
-
-        whatsappState = 'connecting';
-        currentQR = null;
-        whatsappLastError = null;
-
-        whatsappClient = new Client({
-            authStrategy: new LocalAuth({ clientId: 'admin-session' }),
-            puppeteer: buildPuppeteerConfig()
-        });
-
-        whatsappChatbotController = attachChatbot(whatsappClient, { managedByServer: true });
-
-        whatsappClient.on('qr', async (qr) => {
-            whatsappState = 'connecting';
-            whatsappLastError = null;
-            currentQR = await qrcode.toDataURL(qr);
-            await db.query(
-                'INSERT INTO whatsapp_sessions (session_name, qr_code, is_connected) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE qr_code = ?, is_connected = ?',
-                ['admin-session', currentQR, false, currentQR, false]
-            );
-            await syncLegacyInstanciaStatus('qr_ready', currentQR);
-        });
-
-        whatsappClient.on('ready', async () => {
-            console.log('WhatsApp conectado!');
-            whatsappState = 'connected';
-            whatsappLastError = null;
-            currentQR = null;
-            await db.query(
-                'UPDATE whatsapp_sessions SET is_connected = ?, last_connected = NOW(), qr_code = NULL WHERE session_name = ?',
-                [true, 'admin-session']
-            );
-            await syncLegacyInstanciaStatus('connected', null);
-        });
-
-        whatsappClient.on('auth_failure', async (message) => {
-            console.error('Falha de autenticação do WhatsApp:', message);
-            whatsappLastError = `Falha de autenticação do WhatsApp: ${message}`;
-            await resetWhatsAppRuntime();
-        });
-
-        whatsappClient.on('disconnected', async (reason) => {
-            console.log('WhatsApp desconectado:', reason);
-            whatsappLastError = `WhatsApp desconectado: ${reason}`;
-
-            if (whatsappClient) {
-                try {
-                    await whatsappClient.destroy();
-                } catch (error) {
-                    console.error('Erro ao destruir cliente após desconexão:', error);
-                }
-            }
-
-            await resetWhatsAppRuntime();
-        });
-
-        whatsappClient.on('message', async (message) => {
-            try {
-                const [sessions] = await db.query('SELECT id FROM whatsapp_sessions WHERE session_name = ?', ['admin-session']);
-                if (sessions.length > 0) {
-                    await db.query(
-                        'INSERT INTO messages (session_id, from_number, to_number, message_body, message_type, is_from_me) VALUES (?, ?, ?, ?, ?, ?)',
-                        [
-                            sessions[0].id,
-                            message.from,
-                            message.to,
-                            message.body || '',
-                            String(message.type || 'text').slice(0, 100),
-                            message.fromMe
-                        ]
-                    );
-                }
-            } catch (error) {
-                console.error('Erro ao registrar mensagem do WhatsApp:', error);
-            }
-        });
-
-        whatsappClient.initialize().catch(async (error) => {
-            console.error('Erro ao inicializar cliente WhatsApp:', error);
-            whatsappLastError = formatWhatsAppError(error);
-            await resetWhatsAppRuntime();
-        });
-
+        await iniciarWhatsAppLegacy();
         res.json({ success: true, connected: false, message: 'Conectando ao WhatsApp...' });
     } catch (error) {
         console.error('Erro ao conectar:', error);
@@ -666,6 +822,39 @@ app.post('/whatsapp/connect', isAuthenticated, async (req, res) => {
 
 app.get('/whatsapp/status', isAuthenticated, async (req, res) => {
     try {
+        // Para gerenciador/gestor com unidade vinculada não-HGP: usar o status da instância da unidade
+        const ids = req.session.unidadeIds;
+        if (Array.isArray(ids) && ids.length > 0) {
+            const ph = ids.map(() => '?').join(',');
+            const [insts] = await db.query(
+                `SELECT * FROM instancias WHERE unidade_id IN (${ph}) AND ativo = TRUE
+                 ORDER BY is_legacy DESC, atualizado_em DESC LIMIT 1`,
+                ids
+            );
+            if (insts.length > 0) {
+                const inst = insts[0];
+                if (inst.is_legacy) {
+                    // Legada: usa estado em memória
+                    return res.json({
+                        connected: whatsappState === 'connected',
+                        state: whatsappState,
+                        error: whatsappLastError,
+                        qrCode: whatsappState !== 'connected' ? currentQR : null,
+                        session: { session_name: 'admin-session', is_connected: whatsappState === 'connected' }
+                    });
+                }
+                // Nova instância: usa status do banco
+                return res.json({
+                    connected: inst.status === 'connected',
+                    state: inst.status,
+                    error: inst.last_error,
+                    qrCode: inst.status !== 'connected' ? inst.qr_code : null,
+                    session: { session_name: inst.session_name, is_connected: inst.status === 'connected', last_connected: inst.last_connected }
+                });
+            }
+        }
+
+        // Administrador (sem unidade definida) ou sem instância: cai no comportamento padrão (legada)
         const [sessions] = await db.query('SELECT * FROM whatsapp_sessions WHERE session_name = ?', ['admin-session']);
         res.json({
             connected: whatsappState === 'connected',
@@ -711,13 +900,33 @@ app.post('/whatsapp/disconnect', isAuthenticated, async (req, res) => {
 
 app.get('/messages', isAuthenticated, isAdmin, async (req, res) => {
     try {
+        // Filtrar mensagens pelas instâncias das unidades do usuário
+        const ids = req.session.unidadeIds;
+        let extraSql = '';
+        const extraParams = [];
+        if (Array.isArray(ids)) {
+            if (ids.length === 0) {
+                // Sem unidade: ver só mensagens da instância legada (admin-session)
+                extraSql = ` AND ws.session_name = 'admin-session'`;
+            } else {
+                const ph = ids.map(() => '?').join(',');
+                extraSql = ` AND ws.session_name IN (
+                    SELECT i.session_name FROM instancias i WHERE i.unidade_id IN (${ph})
+                    UNION
+                    SELECT 'admin-session' WHERE EXISTS (SELECT 1 FROM instancias WHERE is_legacy = TRUE AND unidade_id IN (${ph}))
+                )`;
+                extraParams.push(...ids, ...ids);
+            }
+        }
+
         const [messages] = await db.query(`
             SELECT m.*, ws.session_name 
             FROM messages m
             JOIN whatsapp_sessions ws ON m.session_id = ws.id
+            WHERE 1=1 ${extraSql}
             ORDER BY m.timestamp DESC
             LIMIT 100
-        `);
+        `, extraParams);
         res.render('messages', { username: req.session.username, messages });
     } catch (error) {
         console.error('Erro ao carregar mensagens:', error);
@@ -1060,7 +1269,15 @@ app.post('/api/instancias/:id/iniciar', isAuthenticated, isAdminOnly, async (req
         const id = Number(req.params.id);
         const [chk] = await db.query('SELECT is_legacy FROM instancias WHERE id = ?', [id]);
         if (chk.length === 0) return res.json({ success: false, message: 'Não encontrada' });
-        if (chk[0].is_legacy) return res.json({ success: false, message: 'Use o painel principal para a instância legada' });
+
+        if (chk[0].is_legacy) {
+            // Iniciar a instância legada usando a função local
+            if (whatsappState === 'connected') {
+                return res.json({ success: true, message: 'HGP já está conectado' });
+            }
+            await iniciarWhatsAppLegacy();
+            return res.json({ success: true, message: 'Conectando HGP — aguarde o QR Code' });
+        }
 
         await instanceManager.iniciarInstancia(id);
         res.json({ success: true, message: 'Instância iniciada — aguarde o QR Code' });
@@ -1075,10 +1292,47 @@ app.post('/api/instancias/:id/parar', isAuthenticated, isAdminOnly, async (req, 
         const id = Number(req.params.id);
         const [chk] = await db.query('SELECT is_legacy FROM instancias WHERE id = ?', [id]);
         if (chk.length === 0) return res.json({ success: false, message: 'Não encontrada' });
-        if (chk[0].is_legacy) return res.json({ success: false, message: 'Use o painel principal para a instância legada' });
+
+        if (chk[0].is_legacy) {
+            // Desconectar a instância legada
+            if (whatsappClient) {
+                try { await whatsappClient.logout(); } catch (e) {}
+                try { await whatsappClient.destroy(); } catch (e) {}
+            }
+            await resetWhatsAppRuntime();
+            return res.json({ success: true });
+        }
 
         await instanceManager.pararInstancia(id);
         res.json({ success: true });
+    } catch (e) {
+        res.json({ success: false, message: e.message });
+    }
+});
+
+// Conectar TODAS as instâncias ativas que estão desconectadas
+app.post('/api/instancias/conectar-todas', isAuthenticated, isAdminOnly, async (req, res) => {
+    try {
+        const [insts] = await db.query(
+            `SELECT id, is_legacy, session_name FROM instancias 
+             WHERE ativo = TRUE AND status NOT IN ('connected', 'connecting', 'qr_ready')`
+        );
+
+        let iniciadas = 0;
+        for (const inst of insts) {
+            try {
+                if (inst.is_legacy) {
+                    if (whatsappState !== 'connected' && whatsappState !== 'connecting') {
+                        iniciarWhatsAppLegacy().catch(() => {});
+                        iniciadas++;
+                    }
+                } else {
+                    instanceManager.iniciarInstancia(inst.id).catch(() => {});
+                    iniciadas++;
+                }
+            } catch (e) {}
+        }
+        res.json({ success: true, message: `${iniciadas} instância(s) sendo conectada(s). Aguarde alguns segundos.` });
     } catch (e) {
         res.json({ success: false, message: e.message });
     }
@@ -1089,7 +1343,21 @@ app.get('/api/instancias/:id/status', isAuthenticated, isAdminOnly, async (req, 
         const id = Number(req.params.id);
         const [rows] = await db.query('SELECT id, nome, session_name, status, qr_code, last_error, last_connected, is_legacy FROM instancias WHERE id = ?', [id]);
         if (rows.length === 0) return res.json({ success: false, message: 'Não encontrada' });
-        const live = instanceManager.obterStatus(id);
+
+        let live;
+        if (rows[0].is_legacy) {
+            // Status real da legacy vem da memória
+            live = {
+                status: whatsappState || 'disconnected',
+                qr: whatsappState !== 'connected' ? currentQR : null,
+                lastError: whatsappLastError
+            };
+            rows[0].status = live.status;
+            rows[0].qr_code = live.qr;
+        } else {
+            live = instanceManager.obterStatus(id);
+        }
+
         res.json({
             success: true,
             instancia: rows[0],
@@ -1385,8 +1653,8 @@ app.post('/api/contacts/sync', isAuthenticated, async (req, res) => {
 app.get('/escala', isAuthenticated, isAdmin, async (req, res) => {
     try {
         const [escalas, usuariosEscala] = await Promise.all([
-            listEscalas(),
-            listEscalaUsers()
+            listEscalas(req),
+            listEscalaUsers(req)
         ]);
 
         res.render('escala', {
@@ -1433,27 +1701,54 @@ app.get('/fluxo', isAuthenticated, isAdminOnly, async (req, res) => {
 
 app.get('/avaliacoes', isAuthenticated, isAdmin, async (req, res) => {
     try {
+        // Filtrar avaliações pelos chamados da unidade do usuário
+        const ids = req.session.unidadeIds;
+        let extraSql = '';
+        const extraParams = [];
+        if (Array.isArray(ids)) {
+            if (ids.length === 0) {
+                extraSql = ' AND c.unidade_id IS NULL';
+            } else {
+                const ph = ids.map(() => '?').join(',');
+                extraSql = ` AND (c.unidade_id IS NULL OR c.unidade_id IN (${ph}))`;
+                extraParams.push(...ids);
+            }
+        }
+
         const [avaliacoes] = await db.query(`
-            SELECT a.*, c.categoria, c.setor
+            SELECT a.*, c.categoria, c.setor, c.unidade_id
             FROM avaliacoes a
             LEFT JOIN chamados c ON c.id = a.chamado_id
+            WHERE 1=1 ${extraSql}
             ORDER BY a.criado_em DESC
             LIMIT 100
-        `);
+        `, extraParams);
 
         const [stats] = await db.query(`
             SELECT 
                 COUNT(*) as total,
-                ROUND(AVG(nota), 1) as media,
-                SUM(CASE WHEN nota >= 4 THEN 1 ELSE 0 END) as positivas,
-                SUM(CASE WHEN nota <= 2 THEN 1 ELSE 0 END) as negativas
-            FROM avaliacoes
-        `);
+                ROUND(AVG(a.nota), 1) as media,
+                SUM(CASE WHEN a.nota >= 4 THEN 1 ELSE 0 END) as positivas,
+                SUM(CASE WHEN a.nota <= 2 THEN 1 ELSE 0 END) as negativas
+            FROM avaliacoes a
+            LEFT JOIN chamados c ON c.id = a.chamado_id
+            WHERE 1=1 ${extraSql}
+        `, extraParams);
 
-        res.render('avaliacoes', { username: req.session.username, avaliacoes, stats: stats[0] });
+        res.render('avaliacoes', {
+            username: req.session.username,
+            nivelAcesso: req.session.nivelAcesso || 'administrador',
+            avaliacoes,
+            stats: stats[0]
+        });
     } catch (error) {
         console.error('Erro ao carregar avaliações:', error);
-        res.render('avaliacoes', { username: req.session.username, avaliacoes: [], stats: { total: 0, media: 0, positivas: 0, negativas: 0 } });
+        res.render('avaliacoes', {
+            username: req.session.username,
+            nivelAcesso: req.session.nivelAcesso || 'administrador',
+            avaliacoes: [],
+            stats: { total: 0, media: 0, positivas: 0, negativas: 0 }
+        });
     }
 });
 
@@ -1503,6 +1798,20 @@ app.get('/api/relatorios/chamados', isAuthenticated, isAdmin, async (req, res) =
             return res.status(400).json({ success: false, message: 'Informe dataInicio e dataFim' });
         }
 
+        // Filtro de unidade do usuário
+        const ids = req.session.unidadeIds;
+        let unidWhere = '';
+        const unidParams = [];
+        if (Array.isArray(ids)) {
+            if (ids.length === 0) {
+                unidWhere = ' AND unidade_id IS NULL';
+            } else {
+                const ph = ids.map(() => '?').join(',');
+                unidWhere = ` AND (unidade_id IS NULL OR unidade_id IN (${ph}))`;
+                unidParams.push(...ids);
+            }
+        }
+
         // Total por período
         const [totalPeriodo] = await db.query(`
             SELECT COUNT(*) as total,
@@ -1511,32 +1820,29 @@ app.get('/api/relatorios/chamados', isAuthenticated, isAdmin, async (req, res) =
                    SUM(CASE WHEN status = 'em_atendimento' THEN 1 ELSE 0 END) as em_atendimento,
                    SUM(CASE WHEN status = 'finalizado' THEN 1 ELSE 0 END) as finalizados
             FROM chamados
-            WHERE DATE(criado_em) BETWEEN ? AND ?
-        `, [dataInicio, dataFim]);
+            WHERE DATE(criado_em) BETWEEN ? AND ? ${unidWhere}
+        `, [dataInicio, dataFim, ...unidParams]);
 
-        // Por setor
         const [porSetor] = await db.query(`
             SELECT setor, COUNT(*) as total,
                    SUM(CASE WHEN status = 'finalizado' THEN 1 ELSE 0 END) as finalizados,
                    SUM(CASE WHEN status != 'finalizado' THEN 1 ELSE 0 END) as abertos
             FROM chamados
-            WHERE DATE(criado_em) BETWEEN ? AND ?
+            WHERE DATE(criado_em) BETWEEN ? AND ? ${unidWhere}
             GROUP BY setor
             ORDER BY total DESC
-        `, [dataInicio, dataFim]);
+        `, [dataInicio, dataFim, ...unidParams]);
 
-        // Por categoria
         const [porCategoria] = await db.query(`
             SELECT categoria, COUNT(*) as total,
                    SUM(CASE WHEN status = 'finalizado' THEN 1 ELSE 0 END) as finalizados,
                    SUM(CASE WHEN status != 'finalizado' THEN 1 ELSE 0 END) as abertos
             FROM chamados
-            WHERE DATE(criado_em) BETWEEN ? AND ?
+            WHERE DATE(criado_em) BETWEEN ? AND ? ${unidWhere}
             GROUP BY categoria
             ORDER BY total DESC
-        `, [dataInicio, dataFim]);
+        `, [dataInicio, dataFim, ...unidParams]);
 
-        // Por atendente
         const [porAtendente] = await db.query(`
             SELECT COALESCE(atendente_nome, tecnico_nome, 'Sem atendente') as atendente,
                    COUNT(*) as total,
@@ -1544,28 +1850,26 @@ app.get('/api/relatorios/chamados', isAuthenticated, isAdmin, async (req, res) =
                    SUM(CASE WHEN status = 'em_atendimento' THEN 1 ELSE 0 END) as em_atendimento,
                    SUM(CASE WHEN status NOT IN ('finalizado','em_atendimento') THEN 1 ELSE 0 END) as pendentes
             FROM chamados
-            WHERE DATE(criado_em) BETWEEN ? AND ?
+            WHERE DATE(criado_em) BETWEEN ? AND ? ${unidWhere}
             GROUP BY atendente
             ORDER BY total DESC
-        `, [dataInicio, dataFim]);
+        `, [dataInicio, dataFim, ...unidParams]);
 
-        // Por dia (para gráfico)
         const [porDia] = await db.query(`
             SELECT DATE_FORMAT(criado_em, '%Y-%m-%d') as dia, COUNT(*) as total
             FROM chamados
-            WHERE DATE(criado_em) BETWEEN ? AND ?
+            WHERE DATE(criado_em) BETWEEN ? AND ? ${unidWhere}
             GROUP BY dia
             ORDER BY dia ASC
-        `, [dataInicio, dataFim]);
+        `, [dataInicio, dataFim, ...unidParams]);
 
-        // Por setor + categoria (breakdown)
         const [porSetorCategoria] = await db.query(`
             SELECT setor, categoria, COUNT(*) as total
             FROM chamados
-            WHERE DATE(criado_em) BETWEEN ? AND ?
+            WHERE DATE(criado_em) BETWEEN ? AND ? ${unidWhere}
             GROUP BY setor, categoria
             ORDER BY setor, total DESC
-        `, [dataInicio, dataFim]);
+        `, [dataInicio, dataFim, ...unidParams]);
 
         res.json({
             success: true,
@@ -1674,7 +1978,7 @@ app.post('/api/settings/chatbot-file', isAuthenticated, isAdminOnly, async (req,
 
 app.get('/api/escala', isAuthenticated, isAdmin, async (req, res) => {
     try {
-        const escalas = await listEscalas();
+        const escalas = await listEscalas(req);
         res.json({ success: true, escalas });
     } catch (error) {
         console.error('Erro ao listar escala:', error);
@@ -2061,6 +2365,8 @@ app.delete('/api/escala/:id', isAuthenticated, isAdmin, async (req, res) => {
 
 app.get('/usuarios', isAuthenticated, isAdmin, async (req, res) => {
     try {
+        const filtro = buildAdminUnidadeWhere(req, 'a');
+
         const [usuarios] = await db.query(`
             SELECT a.id, a.username, a.nome_completo, a.cpf, a.telefone, a.nivel_acesso, a.ativo, a.created_at,
                    GROUP_CONCAT(u.nome ORDER BY u.nome SEPARATOR ', ') AS unidades_nomes,
@@ -2068,11 +2374,21 @@ app.get('/usuarios', isAuthenticated, isAdmin, async (req, res) => {
             FROM admins a
             LEFT JOIN admin_unidades au ON au.admin_id = a.id
             LEFT JOIN unidades u ON u.id = au.unidade_id
+            WHERE 1=1 ${filtro.sql}
             GROUP BY a.id
             ORDER BY a.created_at DESC
-        `);
+        `, filtro.params);
 
-        const [unidades] = await db.query(`SELECT id, nome, codigo FROM unidades WHERE ativo = TRUE ORDER BY nome`);
+        // Listar só unidades às quais o usuário tem acesso (admin = todas)
+        let unidades;
+        if (Array.isArray(req.session.unidadeIds) && req.session.unidadeIds.length > 0) {
+            const ph = req.session.unidadeIds.map(() => '?').join(',');
+            [unidades] = await db.query(`SELECT id, nome, codigo FROM unidades WHERE ativo = TRUE AND id IN (${ph}) ORDER BY nome`, req.session.unidadeIds);
+        } else if (Array.isArray(req.session.unidadeIds) && req.session.unidadeIds.length === 0) {
+            unidades = [];
+        } else {
+            [unidades] = await db.query(`SELECT id, nome, codigo FROM unidades WHERE ativo = TRUE ORDER BY nome`);
+        }
 
         const stats = {
             total: usuarios.length,
@@ -2109,8 +2425,23 @@ app.get('/api/usuarios/gestores', isAuthenticated, async (req, res) => {
         }
 
         const agora = new Date();
-        const diaSemana = agora.getDay(); // 0=Dom, 1=Seg...
-        const horaAtual = agora.toTimeString().slice(0, 5); // "HH:MM"
+        const diaSemana = agora.getDay();
+        const horaAtual = agora.toTimeString().slice(0, 5);
+
+        // Filtro por unidade
+        const ids = req.session.unidadeIds;
+        let unidWhere = '';
+        const unidParams = [];
+        if (Array.isArray(ids)) {
+            if (ids.length === 0) {
+                unidWhere = ' AND a.id = ?';
+                unidParams.push(req.session.userId);
+            } else {
+                const ph = ids.map(() => '?').join(',');
+                unidWhere = ` AND a.id IN (SELECT au.admin_id FROM admin_unidades au WHERE au.unidade_id IN (${ph}))`;
+                unidParams.push(...ids);
+            }
+        }
 
         const [gestores] = await db.query(`
             SELECT DISTINCT a.id, a.username, a.nome_completo, a.telefone
@@ -2123,8 +2454,9 @@ app.get('/api/usuarios/gestores', isAuthenticated, async (req, res) => {
               AND t.dia_semana = ?
               AND t.hora_inicio <= ?
               AND t.hora_fim >= ?
+              ${unidWhere}
             ORDER BY a.nome_completo
-        `, [req.session.userId, diaSemana, horaAtual, horaAtual]);
+        `, [req.session.userId, diaSemana, horaAtual, horaAtual, ...unidParams]);
 
         res.json({ success: true, gestores });
     } catch (error) {
@@ -2140,6 +2472,21 @@ app.get('/api/usuarios/atendentes', isAuthenticated, async (req, res) => {
         const diaSemana = agora.getDay();
         const horaAtual = agora.toTimeString().slice(0, 5);
 
+        // Filtro por unidade
+        const ids = req.session.unidadeIds;
+        let unidWhere = '';
+        const unidParams = [];
+        if (Array.isArray(ids)) {
+            if (ids.length === 0) {
+                unidWhere = ' AND a.id = ?';
+                unidParams.push(req.session.userId);
+            } else {
+                const ph = ids.map(() => '?').join(',');
+                unidWhere = ` AND a.id IN (SELECT au.admin_id FROM admin_unidades au WHERE au.unidade_id IN (${ph}))`;
+                unidParams.push(...ids);
+            }
+        }
+
         const [atendentes] = await db.query(`
             SELECT DISTINCT a.id, a.username, a.nome_completo, a.telefone, a.nivel_acesso
             FROM admins a
@@ -2154,8 +2501,9 @@ app.get('/api/usuarios/atendentes', isAuthenticated, async (req, res) => {
                     AND t2.hora_inicio <= ?
                     AND t2.hora_fim >= ?
               )
+              ${unidWhere}
             ORDER BY a.nome_completo
-        `, [req.session.userId, diaSemana, horaAtual, horaAtual]);
+        `, [req.session.userId, diaSemana, horaAtual, horaAtual, ...unidParams]);
 
         // Buscar os turnos de cada atendente para mostrar horários disponíveis
         for (const atendente of atendentes) {
@@ -2206,6 +2554,15 @@ app.post('/api/usuarios', isAuthenticated, isAdmin, async (req, res) => {
         return res.status(403).json({ success: false, message: 'Você não tem permissão para criar administradores.' });
     }
 
+    // Gerenciador só pode atribuir unidades que ele mesmo tem
+    if (req.session.nivelAcesso !== 'administrador' && Array.isArray(unidade_ids)) {
+        const minhasUnidades = new Set((req.session.unidadeIds || []).map(Number));
+        const invalidas = unidade_ids.map(Number).filter(uid => !minhasUnidades.has(uid));
+        if (invalidas.length > 0) {
+            return res.status(403).json({ success: false, message: 'Você só pode atribuir unidades às quais está vinculado.' });
+        }
+    }
+
     try {
         // Verificar se o usuário já existe
         const [existing] = await db.query('SELECT id FROM admins WHERE username = ? OR cpf = ?', [username, cpf]);
@@ -2220,7 +2577,7 @@ app.post('/api/usuarios', isAuthenticated, isAdmin, async (req, res) => {
         const [result] = await db.query(
             `INSERT INTO admins (username, nome_completo, cpf, telefone, nivel_acesso, password, ativo)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [username, nome_completo, cpf, telefone, nivel_acesso, hashedPassword, ativo]
+            [username, String(nome_completo || '').toUpperCase(), cpf, telefone, nivel_acesso, hashedPassword, ativo]
         );
 
         // Vincular unidades
@@ -2246,6 +2603,15 @@ app.put('/api/usuarios/:id', isAuthenticated, isAdmin, async (req, res) => {
         return res.status(403).json({ success: false, message: 'Você não tem permissão para definir nível administrador.' });
     }
 
+    // Gerenciador só pode atribuir unidades que ele mesmo tem
+    if (req.session.nivelAcesso !== 'administrador' && Array.isArray(unidade_ids)) {
+        const minhasUnidades = new Set((req.session.unidadeIds || []).map(Number));
+        const invalidas = unidade_ids.map(Number).filter(uid => !minhasUnidades.has(uid));
+        if (invalidas.length > 0) {
+            return res.status(403).json({ success: false, message: 'Você só pode atribuir unidades às quais está vinculado.' });
+        }
+    }
+
     try {
         // Verificar se outro usuário já usa o username ou CPF
         const [existing] = await db.query(
@@ -2258,13 +2624,14 @@ app.put('/api/usuarios/:id', isAuthenticated, isAdmin, async (req, res) => {
         }
 
         // Se a senha foi fornecida, atualizar com ela
+        const nomeUpper = String(nome_completo || '').toUpperCase();
         if (password && password.trim() !== '') {
             const hashedPassword = await bcrypt.hash(password, 10);
             await db.query(
                 `UPDATE admins 
                  SET username = ?, nome_completo = ?, cpf = ?, telefone = ?, nivel_acesso = ?, password = ?, ativo = ?
                  WHERE id = ?`,
-                [username, nome_completo, cpf, telefone, nivel_acesso, hashedPassword, ativo, userId]
+                [username, nomeUpper, cpf, telefone, nivel_acesso, hashedPassword, ativo, userId]
             );
         } else {
             // Atualizar sem modificar a senha
@@ -2272,16 +2639,33 @@ app.put('/api/usuarios/:id', isAuthenticated, isAdmin, async (req, res) => {
                 `UPDATE admins 
                  SET username = ?, nome_completo = ?, cpf = ?, telefone = ?, nivel_acesso = ?, ativo = ?
                  WHERE id = ?`,
-                [username, nome_completo, cpf, telefone, nivel_acesso, ativo, userId]
+                [username, nomeUpper, cpf, telefone, nivel_acesso, ativo, userId]
             );
         }
 
         // Sincronizar unidades vinculadas
         if (Array.isArray(unidade_ids)) {
-            await db.query('DELETE FROM admin_unidades WHERE admin_id = ?', [userId]);
-            if (unidade_ids.length > 0) {
-                const values = unidade_ids.map(uid => [Number(userId), Number(uid)]);
-                await db.query('INSERT INTO admin_unidades (admin_id, unidade_id) VALUES ?', [values]);
+            if (req.session.nivelAcesso === 'administrador') {
+                // Admin pode resetar tudo livremente
+                await db.query('DELETE FROM admin_unidades WHERE admin_id = ?', [userId]);
+                if (unidade_ids.length > 0) {
+                    const values = unidade_ids.map(uid => [Number(userId), Number(uid)]);
+                    await db.query('INSERT INTO admin_unidades (admin_id, unidade_id) VALUES ?', [values]);
+                }
+            } else {
+                // Gerenciador: só mexe nas unidades que ele tem
+                const minhas = (req.session.unidadeIds || []).map(Number);
+                if (minhas.length > 0) {
+                    const ph = minhas.map(() => '?').join(',');
+                    await db.query(
+                        `DELETE FROM admin_unidades WHERE admin_id = ? AND unidade_id IN (${ph})`,
+                        [userId, ...minhas]
+                    );
+                }
+                if (unidade_ids.length > 0) {
+                    const values = unidade_ids.map(uid => [Number(userId), Number(uid)]);
+                    await db.query('INSERT IGNORE INTO admin_unidades (admin_id, unidade_id) VALUES ?', [values]);
+                }
             }
         }
 
@@ -2383,20 +2767,24 @@ app.post('/api/usuarios/:id/turnos', isAuthenticated, isAdmin, async (req, res) 
 // Página de turnos
 app.get('/turnos', isAuthenticated, isAdmin, async (req, res) => {
     try {
-        const [usuarios] = await db.query(`
-            SELECT id, username, nome_completo, telefone, nivel_acesso, ativo
-            FROM admins
-            WHERE ativo = TRUE AND telefone IS NOT NULL AND telefone <> '' AND nivel_acesso = 'gestor'
-            ORDER BY nome_completo
-        `);
+        const filtro = buildAdminUnidadeWhere(req, 'a');
 
+        const [usuarios] = await db.query(`
+            SELECT a.id, a.username, a.nome_completo, a.telefone, a.nivel_acesso, a.ativo
+            FROM admins a
+            WHERE a.ativo = TRUE AND a.telefone IS NOT NULL AND a.telefone <> '' AND a.nivel_acesso = 'gestor'
+              ${filtro.sql}
+            ORDER BY a.nome_completo
+        `, filtro.params);
+
+        const filtroTurnos = buildAdminUnidadeWhere(req, 'a');
         const [todosTurnos] = await db.query(`
             SELECT t.*, COALESCE(NULLIF(a.nome_completo,''), a.username) as nome_usuario
             FROM user_turnos t
             JOIN admins a ON a.id = t.admin_id
-            WHERE t.ativo = TRUE
+            WHERE t.ativo = TRUE ${filtroTurnos.sql}
             ORDER BY t.admin_id, t.dia_semana
-        `);
+        `, filtroTurnos.params);
 
         // Agrupar turnos por usuário
         const turnosPorUsuario = {};
@@ -2477,8 +2865,9 @@ app.post('/api/chamados/:id/encaminhar', isAuthenticated, async (req, res) => {
             [gestor[0].id, gestor[0].nome_completo, chamadoId]
         );
 
-        // Enviar WhatsApp para o gestor
-        if (whatsappClient && whatsappState === 'connected' && gestor[0].telefone) {
+        // Enviar WhatsApp para o gestor (usar cliente da instância do chamado)
+        const wppGes = await obterClienteWhatsAppParaChamado(chamado[0]);
+        if (wppGes.isConnected && wppGes.client && gestor[0].telefone) {
             try {
                 const mensagemGestor = `🔔 *NOVO CHAMADO ATRIBUÍDO*\n\n` +
                     `📌 *Protocolo:* ${chamado[0].protocolo}\n` +
@@ -2509,10 +2898,10 @@ app.post('/api/chamados/:id/encaminhar', isAuthenticated, async (req, res) => {
                 let enviado = false;
                 for (const numero of variacoes) {
                     try {
-                        const numberId = await whatsappClient.getNumberId(numero);
+                        const numberId = await wppGes.client.getNumberId(numero);
                         if (numberId && numberId._serialized) {
                             console.log('ID do gestor encontrado:', numberId._serialized);
-                            await whatsappClient.sendMessage(numberId._serialized, mensagemGestor);
+                            await wppGes.client.sendMessage(numberId._serialized, mensagemGestor);
                             console.log('Mensagem enviada com sucesso para o gestor');
                             enviado = true;
                             break;
@@ -2531,7 +2920,8 @@ app.post('/api/chamados/:id/encaminhar', isAuthenticated, async (req, res) => {
         }
 
         // Enviar WhatsApp para o solicitante
-        if (whatsappClient && whatsappState === 'connected' && chamado[0].chat_origem) {
+        const wppEnc = await obterClienteWhatsAppParaChamado(chamado[0]);
+        if (wppEnc.isConnected && wppEnc.client && chamado[0].chat_origem) {
             try {
                 const mensagemSolicitante = `🔔 *ATUALIZAÇÃO DO CHAMADO*\n\n` +
                     `📌 *Protocolo:* ${chamado[0].protocolo}\n` +
@@ -2539,7 +2929,7 @@ app.post('/api/chamados/:id/encaminhar', isAuthenticated, async (req, res) => {
                     `📊 *Status:* Em Atendimento\n\n` +
                     `Seu chamado foi encaminhado e está sendo atendido.`;
 
-                await whatsappClient.sendMessage(chamado[0].chat_origem, mensagemSolicitante);
+                await wppEnc.client.sendMessage(chamado[0].chat_origem, mensagemSolicitante);
             } catch (error) {
                 console.error('Erro ao enviar WhatsApp para solicitante:', error);
             }
@@ -2606,12 +2996,13 @@ app.post('/api/chamados/:id/transferir', isAuthenticated, async (req, res) => {
             [chamadoId, `📤 Chamado transferido de ${nomeAnterior} para ${nomeNovo}.\nMotivo: ${observacao.trim()}`]
         );
 
-        // Notificar novo atendente via WhatsApp
-        if (whatsappClient && whatsappState === 'connected' && novoAtendente[0].telefone) {
+        // Notificar novo atendente via WhatsApp (usar cliente correto da instância do chamado)
+        const wppTr = await obterClienteWhatsAppParaChamado(chamado[0]);
+        if (wppTr.isConnected && wppTr.client && novoAtendente[0].telefone) {
             try {
-                const destino = await resolveWhatsAppDestination(novoAtendente[0].telefone);
+                const destino = await resolveWhatsAppDestinationWith(wppTr.client, wppTr.isConnected, novoAtendente[0].telefone);
                 if (destino) {
-                    await whatsappClient.sendMessage(destino,
+                    await wppTr.client.sendMessage(destino,
                         `📤 *CHAMADO TRANSFERIDO PARA VOCÊ*\n\n` +
                         `📌 *Protocolo:* ${chamado[0].protocolo}\n` +
                         `👤 *Solicitante:* ${chamado[0].solicitante_nome}\n` +
@@ -2675,7 +3066,8 @@ app.post('/api/chamados/:id/atender', isAuthenticated, async (req, res) => {
         );
 
         // Enviar mensagem pelo WhatsApp
-        if (whatsappClient && whatsappState === 'connected' && chamado[0].chat_origem) {
+        const wppAt = await obterClienteWhatsAppParaChamado(chamado[0]);
+        if (wppAt.isConnected && wppAt.client && chamado[0].chat_origem) {
             try {
                 const mensagem = `🔔 *ATUALIZAÇÃO DO CHAMADO*\n\n` +
                     `📌 *Protocolo:* ${chamado[0].protocolo}\n` +
@@ -2683,7 +3075,7 @@ app.post('/api/chamados/:id/atender', isAuthenticated, async (req, res) => {
                     `📊 *Status:* Em Atendimento\n\n` +
                     `Seu chamado está sendo atendido. Em breve entraremos em contato.`;
                 
-                await whatsappClient.sendMessage(chamado[0].chat_origem, mensagem);
+                await wppAt.client.sendMessage(chamado[0].chat_origem, mensagem);
             } catch (error) {
                 console.error('Erro ao enviar mensagem WhatsApp:', error);
             }
@@ -2729,12 +3121,21 @@ app.post('/api/chamados/:id/encerrar', isAuthenticated, async (req, res) => {
         const mensagemEncerramento = `✅ Chamado encerrado.\n📌 Protocolo: ${chamado[0].protocolo}`;
 
         // Enviar mensagem pelo WhatsApp e reabrir o fluxo para o usuário
-        if (whatsappClient && whatsappState === 'connected') {
+        const wppEnc2 = await obterClienteWhatsAppParaChamado(chamado[0]);
+        if (wppEnc2.isConnected && wppEnc2.client) {
             try {
                 let notificacaoEnviada = false;
 
-                if (whatsappChatbotController?.reiniciarFluxoPorEncerramento) {
-                    notificacaoEnviada = await whatsappChatbotController.reiniciarFluxoPorEncerramento(chamado[0].chat_origem, {
+                // Reabertura de fluxo (avaliação): HGP usa controller legacy, instâncias novas usam o controller do instance-manager
+                let controllerParaReabrir = null;
+                if (wppEnc2.client === whatsappClient) {
+                    controllerParaReabrir = whatsappChatbotController;
+                } else if (chamado[0].instancia_id) {
+                    controllerParaReabrir = instanceManager.obterController(chamado[0].instancia_id);
+                }
+
+                if (controllerParaReabrir?.reiniciarFluxoPorEncerramento) {
+                    notificacaoEnviada = await controllerParaReabrir.reiniciarFluxoPorEncerramento(chamado[0].chat_origem, {
                         protocolo: chamado[0].protocolo,
                         chamadoId: chamado[0].id,
                         atendenteNome: chamado[0].atendente_nome || 'Equipe TI',
@@ -2743,14 +3144,16 @@ app.post('/api/chamados/:id/encerrar', isAuthenticated, async (req, res) => {
                 }
 
                 if (!notificacaoEnviada) {
-                    const destinoSolicitante = await resolveWhatsAppDestination(
+                    const destinoSolicitante = await resolveWhatsAppDestinationWith(
+                        wppEnc2.client,
+                        wppEnc2.isConnected,
                         chamado[0].chat_origem,
                         chamado[0].telefone_whatsapp,
                         chamado[0].telefone_contato
                     );
 
                     if (destinoSolicitante) {
-                        await whatsappClient.sendMessage(destinoSolicitante, mensagemEncerramento);
+                        await wppEnc2.client.sendMessage(destinoSolicitante, mensagemEncerramento);
                         notificacaoEnviada = true;
                     }
                 }
@@ -2864,23 +3267,26 @@ app.post('/api/chamados/:id/chat/enviar', isAuthenticated, async (req, res) => {
             [chamadoId, remetenteNome, mensagem.trim()]
         );
 
-        // Enviar mensagem pelo WhatsApp
-        if (whatsappClient && whatsappState === 'connected' && chamado[0].chat_origem) {
+        // Enviar mensagem pelo WhatsApp (escolhendo cliente correto da instância)
+        const wpp = await obterClienteWhatsAppParaChamado(chamado[0]);
+        if (wpp.isConnected && wpp.client && chamado[0].chat_origem) {
             try {
                 const mensagemWhatsApp = `💬 *MENSAGEM DO ATENDIMENTO*\n\n` +
                     `📌 *Protocolo:* ${chamado[0].protocolo}\n` +
                     `👤 *${remetenteNome}:*\n\n` +
                     `${mensagem.trim()}`;
                 
-                await whatsappClient.sendMessage(chamado[0].chat_origem, mensagemWhatsApp);
+                await wpp.client.sendMessage(chamado[0].chat_origem, mensagemWhatsApp);
                 
                 res.json({ success: true, message: 'Mensagem enviada com sucesso' });
             } catch (error) {
                 console.error('Erro ao enviar mensagem WhatsApp:', error);
-                res.status(500).json({ success: false, message: 'Erro ao enviar mensagem pelo WhatsApp' });
+                res.status(500).json({ success: false, message: 'Erro ao enviar mensagem pelo WhatsApp: ' + error.message });
             }
+        } else if (!chamado[0].chat_origem) {
+            res.status(400).json({ success: false, message: 'Chamado sem chat_origem definido (não é possível enviar via WhatsApp)' });
         } else {
-            res.status(400).json({ success: false, message: 'WhatsApp não está conectado' });
+            res.status(400).json({ success: false, message: 'WhatsApp da instância deste chamado não está conectado. Verifique em /instancias' });
         }
     } catch (error) {
         console.error('Erro ao enviar mensagem:', error);
@@ -2935,14 +3341,15 @@ app.post('/api/chamados/:id/chat/enviar-midia', isAuthenticated, uploadChatMedia
             [chamadoId, remetenteNome, legenda || null, messageType, mediaUrl, mimeType, req.file.originalname]
         );
 
-        if (whatsappClient && whatsappState === 'connected' && chamado[0].chat_origem) {
+        const wppMd = await obterClienteWhatsAppParaChamado(chamado[0]);
+        if (wppMd.isConnected && wppMd.client && chamado[0].chat_origem) {
             try {
                 const filePath = path.join(__dirname, 'public', 'uploads', 'chat-media', req.file.filename);
                 const fileData = await fs.readFile(filePath);
                 const base64 = fileData.toString('base64');
                 const media = new MessageMedia(mimeType, base64, req.file.originalname);
                 const caption = legenda ? `📌 ${chamado[0].protocolo}\n\n${legenda}` : `📌 ${chamado[0].protocolo}`;
-                await whatsappClient.sendMessage(chamado[0].chat_origem, media, { caption });
+                await wppMd.client.sendMessage(chamado[0].chat_origem, media, { caption });
             } catch (waError) {
                 console.error('Erro ao enviar mídia pelo WhatsApp:', waError.message);
             }
@@ -3094,6 +3501,19 @@ async function startServer() {
 
         await syncDisconnectedSession();
         await instanceManager.syncOnStartup();
+
+        // Auto-reconectar HGP (legacy) se já existe sessão salva
+        try {
+            const legacySessionPath = path.join(__dirname, '.wwebjs_auth', 'session-admin-session');
+            if (fsSync.existsSync(legacySessionPath)) {
+                console.log('[HGP] Auto-reconectando WhatsApp legado...');
+                iniciarWhatsAppLegacy().catch(err => {
+                    console.error('[HGP] Erro auto-reconnect:', err.message);
+                });
+            }
+        } catch (e) {
+            console.error('[HGP] Erro check auto-reconnect:', e.message);
+        }
 
         app.listen(PORT, () => {
             console.log(`Servidor rodando em http://localhost:${PORT}`);

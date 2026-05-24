@@ -714,13 +714,27 @@ function attachChatbot(client, options = {}) {
                 const nota = parseInt(texto);
                 if (nota >= 1 && nota <= 5) {
                     try {
-                        await db.query(
+                        const [r] = await db.query(
                             `INSERT INTO avaliacoes (chamado_id, protocolo, nota, atendente_nome, solicitante_nome, chat_origem)
                              VALUES (?, ?, ?, ?, ?, ?)`,
                             [est.chamadoId, est.protocolo, nota, est.atendenteNome, est.solicitanteNome, sessionId]
                         );
                         const emojis = ['', '😞', '😕', '😐', '😊', '🤩'];
                         await client.sendMessage(chatId, `${emojis[nota]} Obrigado pela avaliação! Sua nota: *${nota}/5*`);
+
+                        // Se nota baixa (1-3), pedir motivo
+                        if (nota <= 3) {
+                            estados.set(sessionId, {
+                                step: 'avaliacao_motivo',
+                                avaliacaoId: r.insertId,
+                                protocolo: est.protocolo
+                            });
+                            await client.sendMessage(
+                                chatId,
+                                '📝 Lamentamos que sua experiência não tenha sido boa. *Você gostaria de nos dizer o motivo?*\n\nDigite o motivo ou envie *NAO* para finalizar sem informar.'
+                            );
+                            return;
+                        }
                     } catch (erro) {
                         registrarErro(erro, 'Erro ao salvar avaliação');
                         await client.sendMessage(chatId, '✓ Obrigado pelo feedback!');
@@ -731,6 +745,32 @@ function attachChatbot(client, options = {}) {
                     await client.sendMessage(chatId, '⚠️ Por favor, digite um número de *1 a 5* para avaliar.');
                     return;
                 }
+            }
+
+            // Processar motivo da avaliação baixa
+            if (est.step === 'avaliacao_motivo') {
+                const motivo = texto.trim();
+                if (motivo.toUpperCase() === 'NAO' || motivo.toUpperCase() === 'NÃO') {
+                    await client.sendMessage(chatId, '✓ Tudo bem! Obrigado pelo feedback.');
+                    estados.delete(sessionId);
+                    return;
+                }
+                if (motivo.length < 3) {
+                    await client.sendMessage(chatId, '⚠️ Por favor, descreva o motivo com mais detalhes ou envie *NAO* para finalizar.');
+                    return;
+                }
+                try {
+                    await db.query(
+                        `UPDATE avaliacoes SET motivo_usuario = ? WHERE id = ?`,
+                        [motivo, est.avaliacaoId]
+                    );
+                    await client.sendMessage(chatId, '✅ Obrigado! Seu feedback foi registrado e será analisado pela equipe.');
+                } catch (erro) {
+                    registrarErro(erro, 'Erro ao salvar motivo da avaliação');
+                    await client.sendMessage(chatId, '✓ Obrigado pelo feedback!');
+                }
+                estados.delete(sessionId);
+                return;
             }
 
             if (est.step === 0.5) {

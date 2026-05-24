@@ -207,6 +207,19 @@ function obterStatus(instanciaId) {
     return { status: entry.status, qr: entry.qr, lastError: entry.lastError };
 }
 
+function obterCliente(instanciaId) {
+    const entry = pool.get(instanciaId);
+    if (!entry) return null;
+    if (entry.status !== 'connected') return null;
+    return entry.client;
+}
+
+function obterController(instanciaId) {
+    const entry = pool.get(instanciaId);
+    if (!entry) return null;
+    return entry.controller;
+}
+
 function listarInstanciasAtivas() {
     return Array.from(pool.values()).map(e => ({
         instanciaId: e.instanciaId,
@@ -215,15 +228,32 @@ function listarInstanciasAtivas() {
     }));
 }
 
-// Sincroniza ao iniciar — todas instâncias não-legacy ficam disconnected
+// Sincroniza ao iniciar — reconecta automaticamente instâncias ativas
 async function syncOnStartup() {
     try {
+        // Marcar todas como disconnected primeiro
         await db.query(`
             UPDATE instancias 
             SET status = 'disconnected', qr_code = NULL 
             WHERE is_legacy = FALSE
         `);
         console.log('[InstanceManager] Status das instâncias resetado no startup.');
+
+        // Buscar instâncias ativas com sessão WhatsApp já autenticada (pasta existe)
+        const [insts] = await db.query(
+            `SELECT id, session_name, nome FROM instancias WHERE is_legacy = FALSE AND ativo = TRUE`
+        );
+
+        const sessionDir = path.join(__dirname, '..', '.wwebjs_auth_multi');
+        for (const inst of insts) {
+            const sessionPath = path.join(sessionDir, `session-${inst.session_name}`);
+            if (fsSync.existsSync(sessionPath)) {
+                console.log(`[InstanceManager] Auto-reconectando: ${inst.nome}`);
+                iniciarInstancia(inst.id).catch(err => {
+                    console.error(`[InstanceManager] Falha ao auto-reconectar ${inst.nome}:`, err.message);
+                });
+            }
+        }
     } catch (e) {
         console.error('[InstanceManager] Erro syncOnStartup:', e);
     }
@@ -233,6 +263,8 @@ module.exports = {
     iniciarInstancia,
     pararInstancia,
     obterStatus,
+    obterCliente,
+    obterController,
     listarInstanciasAtivas,
     syncOnStartup
 };

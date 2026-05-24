@@ -22,7 +22,7 @@
                     <h2>👤 Gerenciamento de Usuários</h2>
                 </div>
                 <div class="topbar-actions">
-                    <% if (nivelAcesso === 'administrador') { %>
+                    <% if (nivelAcesso === 'administrador' || nivelAcesso === 'gerenciador') { %>
                     <button onclick="abrirModalNovo()" class="btn btn-primary">➕ Novo Usuário</button>
                     <% } %>
                 </div>
@@ -117,14 +117,20 @@
                                                 </span>
                                             </td>
                                             <td>
-                                                <% if (nivelAcesso === 'administrador') { %>
-                                                <button onclick="editarUsuario(<%= usuario.id %>)" class="btn-icon" title="Editar">✏️</button>
-                                                <button onclick="resetarSenha(<%= usuario.id %>, '<%= usuario.username %>')" class="btn-icon" title="Resetar senha">🔑</button>
-                                                <% if (usuario.username !== 'admin') { %>
-                                                    <button onclick="toggleStatus(<%= usuario.id %>, <%= usuario.ativo %>)" class="btn-icon" title="<%= usuario.ativo ? 'Desativar' : 'Ativar' %>">
-                                                        <%= usuario.ativo ? '🔒' : '🔓' %>
-                                                    </button>
-                                                    <button onclick="excluirUsuario(<%= usuario.id %>)" class="btn-icon btn-danger" title="Excluir">🗑️</button>
+                                                <% if (nivelAcesso === 'administrador' || nivelAcesso === 'gerenciador') { %>
+                                                <% const isAdminTarget = usuario.nivel_acesso === 'administrador'; %>
+                                                <% const podeEditar = nivelAcesso === 'administrador' || !isAdminTarget; %>
+                                                <% if (podeEditar) { %>
+                                                    <button onclick="editarUsuario(<%= usuario.id %>)" class="btn-icon" title="Editar">✏️</button>
+                                                    <button onclick="resetarSenha(<%= usuario.id %>, '<%= usuario.username %>')" class="btn-icon" title="Resetar senha">🔑</button>
+                                                    <% if (usuario.username !== 'admin') { %>
+                                                        <button onclick="toggleStatus(<%= usuario.id %>, <%= usuario.ativo %>)" class="btn-icon" title="<%= usuario.ativo ? 'Desativar' : 'Ativar' %>">
+                                                            <%= usuario.ativo ? '🔒' : '🔓' %>
+                                                        </button>
+                                                        <button onclick="excluirUsuario(<%= usuario.id %>)" class="btn-icon btn-danger" title="Excluir">🗑️</button>
+                                                    <% } %>
+                                                <% } else { %>
+                                                    <span style="color:#94a3b8;font-size:11px;">—</span>
                                                 <% } %>
                                                 <% } else { %>
                                                 <span style="color:#94a3b8;font-size:11px;">—</span>
@@ -153,7 +159,7 @@
                 
                 <div class="form-group">
                     <label for="nome_completo">Nome Completo *</label>
-                    <input type="text" id="nome_completo" name="nome_completo" required>
+                    <input type="text" id="nome_completo" name="nome_completo" required style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase(); sugerirUsername()">
                 </div>
 
                 <div class="form-group">
@@ -176,12 +182,12 @@
                 <div class="form-group">
                     <label for="nivel_acesso">Nível de Acesso *</label>
                     <select id="nivel_acesso" name="nivel_acesso" required>
-                        <option value="gestor">📊 Gestor (Acesso apenas a Chamados)</option>
-                        <option value="gerenciador">🛡️ Gerenciador (Tudo exceto Fluxo Bot e Config)</option>
+                        <option value="gestor">Gestor (Acesso apenas a Chamados)</option>
+                        <option value="gerenciador">Gerenciador</option>
                         <% if (nivelAcesso === 'administrador') { %>
-                        <option value="administrador">🔑 Administrador (Acesso Total)</option>
+                        <option value="administrador">Administrador (Acesso Total)</option>
                         <% } %>
-                        <option value="visualizador">👁️ Visualizador (Somente Leitura)</option>
+                        <option value="visualizador">Visualizador (Somente Leitura)</option>
                     </select>
                 </div>
 
@@ -199,7 +205,9 @@
                             <p style="color:#64748b;font-size:12px;padding:10px;text-align:center;">Nenhuma unidade cadastrada. <a href="/unidades">Cadastrar agora</a></p>
                         <% } %>
                     </div>
-                    <small style="color:#94a3b8;display:block;margin-top:4px;">Administradores sempre veem todas as unidades.</small>
+                    <% if (nivelAcesso === 'administrador') { %>
+                        <small style="color:#94a3b8;display:block;margin-top:4px;">Administradores sempre veem todas as unidades.</small>
+                    <% } %>
                 </div>
 
                 <div class="form-group">
@@ -261,6 +269,7 @@
             document.getElementById('password').required = true;
             document.getElementById('senhaOpcional').style.display = 'none';
             document.querySelectorAll('.check-unidade').forEach(cb => cb.checked = false);
+            usernameEditadoManual = false;
             document.getElementById('modalUsuario').style.display = 'flex';
         }
 
@@ -427,12 +436,30 @@
             }
         }
 
-        // Fechar modal ao clicar fora
-        window.onclick = function(event) {
-            const modal = document.getElementById('modalUsuario');
-            if (event.target === modal) {
-                fecharModal();
-            }
+        // Modal NÃO fecha ao clicar fora (evita perda de dados acidentalmente)
+
+        // Sugerir username com primeiro+último nome (só em modo NOVO usuário e quando username está vazio ou ainda não foi editado manualmente)
+        let usernameEditadoManual = false;
+        document.getElementById('username').addEventListener('input', function() {
+            usernameEditadoManual = true;
+        });
+
+        function sugerirUsername() {
+            // Só sugere quando estamos criando NOVO (sem id) e o usuário ainda não editou manualmente
+            const id = document.getElementById('usuarioId').value;
+            if (id) return; // editar — não mexe
+            if (usernameEditadoManual && document.getElementById('username').value.trim() !== '') return;
+
+            const nome = document.getElementById('nome_completo').value.trim();
+            if (!nome) return;
+            const partes = nome.split(/\s+/).filter(p => p.length > 0);
+            if (partes.length === 0) return;
+            const primeiro = partes[0].toLowerCase();
+            const ultimo = partes.length > 1 ? partes[partes.length - 1].toLowerCase() : '';
+            // Remover acentos
+            const removerAcento = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+            const sugestao = ultimo ? `${removerAcento(primeiro)}${removerAcento(ultimo)}` : removerAcento(primeiro);
+            document.getElementById('username').value = sugestao;
         }
     </script>
 </body>

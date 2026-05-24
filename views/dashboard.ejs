@@ -302,24 +302,31 @@
                 <!-- Connection Section -->
                 <div class="conn-section">
                     <div class="conn-card">
-                        <h3>📱 WhatsApp</h3>
+                        <h3>📱 WhatsApp <% if (session && session.unidade_nome) { %><small style="font-size:11px;color:#64748b;font-weight:normal;">— <%= session.unidade_nome %></small><% } %></h3>
                         <div id="status-container">
                             <% if (session && session.is_connected) { %>
                                 <span class="conn-status online"><span class="conn-status-dot"></span> Conectado</span>
-                                <p style="font-size:11px;color:#64748b;margin:6px 0 0;">Última conexão: <%= new Date(session.last_connected).toLocaleString('pt-BR') %></p>
+                                <p style="font-size:11px;color:#64748b;margin:6px 0 0;">Última conexão: <%= session.last_connected ? new Date(session.last_connected).toLocaleString('pt-BR') : '—' %></p>
                             <% } else { %>
                                 <span class="conn-status offline"><span class="conn-status-dot"></span> Desconectado</span>
-                                <p style="font-size:11px;color:#64748b;margin:6px 0 0;">Clique para conectar</p>
+                                <% if (typeof isLegacyInstance !== 'undefined' && isLegacyInstance) { %>
+                                    <p style="font-size:11px;color:#64748b;margin:6px 0 0;">Clique para conectar</p>
+                                <% } else { %>
+                                    <p style="font-size:11px;color:#f59e0b;margin:6px 0 0;">⚠️ Conecte pela tela <a href="/instancias" style="color:#f59e0b;font-weight:600;">Instâncias</a></p>
+                                <% } %>
                             <% } %>
                         </div>
                         <div class="conn-actions">
-                            <% if (!session || !session.is_connected) { %>
-                                <button id="connectBtn" class="btn-connect">🔗 Conectar</button>
-                            <% } %>
-                            <% if (session && session.is_connected) { %>
-                                <button id="disconnectBtn" class="btn-disconnect">⛔ Desconectar</button>
-                            <% } else { %>
-                                <button id="disconnectBtn" class="btn-disconnect" style="display:none;">⛔ Desconectar</button>
+                            <% const ehAdminLegacy = (typeof isLegacyInstance === 'undefined' || isLegacyInstance) && nivelAcesso === 'administrador'; %>
+                            <% if (ehAdminLegacy) { %>
+                                <% if (!session || !session.is_connected) { %>
+                                    <button id="connectBtn" class="btn-connect">🔗 Conectar</button>
+                                <% } %>
+                                <% if (session && session.is_connected) { %>
+                                    <button id="disconnectBtn" class="btn-disconnect">⛔ Desconectar</button>
+                                <% } else { %>
+                                    <button id="disconnectBtn" class="btn-disconnect" style="display:none;">⛔ Desconectar</button>
+                                <% } %>
                             <% } %>
                         </div>
                         <div id="qrcode-container" style="display:none;">
