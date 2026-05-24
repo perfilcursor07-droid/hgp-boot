@@ -65,7 +65,7 @@ async function salvarPerfilPorTelefone(telefone, dados, unidadeId = null) {
     }
 }
 
-function validarCampo(valor, tipo) {
+function validarCampo(valor, tipo, opcoes = null) {
     const v = String(valor || '').trim();
     if (!v) return false;
     switch (tipo) {
@@ -78,6 +78,11 @@ function validarCampo(valor, tipo) {
         case 'telefone': {
             const digits = v.replace(/\D/g, '');
             return digits.length >= 10 && digits.length <= 13;
+        }
+        case 'opcoes': {
+            // valida se digitou um número que existe nas opções
+            if (!Array.isArray(opcoes)) return false;
+            return opcoes.some(o => String(o.id) === v);
         }
         case 'texto_longo':
             return v.length >= 5;
@@ -186,7 +191,18 @@ function attachDynamicFlow(client, options = {}) {
 
     function montarPromptCampo(campo) {
         const obrig = campo.obrigatorio ? '' : ' _(opcional, envie - para pular)_';
-        return `📝 *${campo.label}*${obrig}`;
+        let prompt = `📝 *${campo.label}*${obrig}`;
+
+        // Tipo "opcoes": listar as opções e pedir o número
+        if (campo.tipo === 'opcoes' && Array.isArray(campo.opcoes)) {
+            prompt += '\n';
+            for (const opc of campo.opcoes) {
+                prompt += `\n*${opc.id}* - ${opc.label}`;
+            }
+            prompt += '\n\n_Digite o número da opção._';
+        }
+
+        return prompt;
     }
 
     // Tem campos pessoais no bloco?
@@ -552,7 +568,7 @@ function attachDynamicFlow(client, options = {}) {
                 const respostaPulou = texto === '-' && !campo.obrigatorio;
 
                 if (!respostaPulou) {
-                    if (!validarCampo(texto, campo.tipo)) {
+                    if (!validarCampo(texto, campo.tipo, campo.opcoes)) {
                         await client.sendMessage(
                             chatId,
                             `❌ Valor inválido para *${campo.label}*. Por favor, envie novamente.\n\n` + montarPromptCampo(campo)
@@ -560,7 +576,13 @@ function attachDynamicFlow(client, options = {}) {
                         resetInactivityTimer(sessionId, chatId);
                         return;
                     }
-                    est.dados[campo.key] = texto;
+                    // Para tipo "opcoes", salvar o label da opção escolhida ao invés do número
+                    if (campo.tipo === 'opcoes' && Array.isArray(campo.opcoes)) {
+                        const escolhida = campo.opcoes.find(o => String(o.id) === texto);
+                        est.dados[campo.key] = escolhida ? escolhida.label : texto;
+                    } else {
+                        est.dados[campo.key] = texto;
+                    }
                 } else {
                     est.dados[campo.key] = null;
                 }
