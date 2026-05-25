@@ -286,20 +286,69 @@ function attachDynamicFlow(client, options = {}) {
     async function notificarTecnicosDaUnidade(chamado, dadosForm) {
         if (!unidadeId) return;
         try {
-            // Buscar técnicos vinculados à unidade
+            // Verificar se a notificação está habilitada nas configurações
+            const [configRows] = await db.query(
+                "SELECT setting_value FROM system_settings WHERE setting_key = 'notificar_usuarios_novo_chamado'"
+            );
+            const notificacaoAtiva = configRows.length === 0 || configRows[0].setting_value === 'true';
+            if (!notificacaoAtiva) {
+                log(`Notificação de novo chamado desativada nas configurações.`);
+                return;
+            }
+
+            const agora = dayjs();
+            const diaSemana = agora.day();
+            const horaAtual = agora.format('HH:mm:ss');
+
+            // Buscar técnicos vinculados à unidade QUE ESTÃO EM TURNO AGORA
             const [tecnicos] = await db.query(
-                `SELECT a.id, a.username, a.nome_completo, a.telefone
+                `SELECT DISTINCT a.id, a.username, a.nome_completo, a.telefone
                  FROM admins a
-                 JOIN admin_unidades au ON au.admin_id = a.id
-                 WHERE au.unidade_id = ? AND a.ativo = TRUE
+                 INNER JOIN admin_unidades au ON au.admin_id = a.id
+                 INNER JOIN user_turnos t ON t.admin_id = a.id
+                 WHERE au.unidade_id = ?
+                   AND a.ativo = TRUE
                    AND a.nivel_acesso IN ('administrador', 'gerenciador', 'gestor')
-                   AND a.telefone IS NOT NULL AND a.telefone != ''`,
-                [unidadeId]
+                   AND a.telefone IS NOT NULL AND a.telefone != ''
+                   AND t.ativo = TRUE
+                   AND t.dia_semana = ?
+                   AND ? BETWEEN t.hora_inicio AND t.hora_fim`,
+                [unidadeId, diaSemana, horaAtual]
             );
 
-            if (tecnicos.length === 0) {
-                log(`Nenhum técnico vinculado à unidade ${unidadeId}`);
-                return;
+            let listaFinal = tecnicos;
+
+            // Se ninguém está em turno, verificar se existem turnos no sistema para essa unidade
+            if (listaFinal.length === 0) {
+                const [totalTurnos] = await db.query(
+                    `SELECT COUNT(*) AS total FROM user_turnos t
+                     INNER JOIN admin_unidades au ON au.admin_id = t.admin_id
+                     WHERE t.ativo = TRUE AND au.unidade_id = ?`,
+                    [unidadeId]
+                );
+
+                if (totalTurnos[0].total === 0) {
+                    // Nenhum turno configurado para essa unidade — manda para todos
+                    const [todos] = await db.query(
+                        `SELECT a.id, a.username, a.nome_completo, a.telefone
+                         FROM admins a
+                         INNER JOIN admin_unidades au ON au.admin_id = a.id
+                         WHERE au.unidade_id = ?
+                           AND a.ativo = TRUE
+                           AND a.nivel_acesso IN ('administrador', 'gerenciador', 'gestor')
+                           AND a.telefone IS NOT NULL AND a.telefone != ''`,
+                        [unidadeId]
+                    );
+                    listaFinal = todos;
+                    if (listaFinal.length === 0) {
+                        log(`Nenhum técnico vinculado à unidade ${unidadeId} para notificar.`);
+                        return;
+                    }
+                    log(`Sem turnos configurados — enviando para ${listaFinal.length} técnicos da unidade.`);
+                } else {
+                    log(`Nenhum técnico em turno agora (dia ${diaSemana}, ${horaAtual}) — notificação não enviada.`);
+                    return;
+                }
             }
 
             const mensagem = [
@@ -321,7 +370,7 @@ function attachDynamicFlow(client, options = {}) {
                 `_Acesse o sistema para atender._`
             ].filter(Boolean).join('\n');
 
-            for (const tec of tecnicos) {
+            for (const tec of listaFinal) {
                 const tel = String(tec.telefone || '').replace(/\D/g, '');
                 if (!tel) continue;
                 const numero = tel.startsWith('55') ? tel : `55${tel}`;
