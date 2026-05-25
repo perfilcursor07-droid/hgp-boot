@@ -554,6 +554,10 @@
     // ── Estado
     let prevAbertosIds = new Set(), prevFinalizadosIds = new Set(), firstLoad = true;
 
+    // Unidades do usuário logado (injetadas pelo servidor)
+    const sessionUnidadeIds = <%- JSON.stringify(unidadeIds) %>;
+    const sessionNivelAcesso = <%- JSON.stringify(nivelAcesso) %>;
+
     // Pegar filtro de unidade da URL da TV (ex: /tv?codigo=SESAU ou /tv?unidade_id=2)
     const tvParams = new URLSearchParams(window.location.search);
     const tvUnidadeId = tvParams.get('unidade_id') || '';
@@ -561,8 +565,18 @@
 
     function buildTvApiUrl() {
         const p = new URLSearchParams();
-        if (tvUnidadeId) p.set('unidade_id', tvUnidadeId);
-        else if (tvCodigo) p.set('codigo', tvCodigo);
+
+        // Prioridade: 1) parâmetro na URL, 2) unidades da sessão do usuário logado
+        if (tvUnidadeId) {
+            p.set('unidade_id', tvUnidadeId);
+        } else if (tvCodigo) {
+            p.set('codigo', tvCodigo);
+        } else if (Array.isArray(sessionUnidadeIds) && sessionUnidadeIds.length > 0 && sessionNivelAcesso !== 'administrador') {
+            // Usuário logado com unidade específica: filtrar automaticamente
+            p.set('unidade_id', sessionUnidadeIds[0]);
+        }
+        // Se administrador ou sem filtro: mostra tudo
+
         const qs = p.toString();
         return '/api/tv/chamados' + (qs ? '?' + qs : '');
     }

@@ -458,7 +458,9 @@ function buildUnidadeWhere(req, alias = '', columnName = 'unidade_id') {
     }
     const placeholders = ids.map(() => '?').join(',');
     return {
-        sql: ` AND (${col} IS NULL OR ${col} IN (${placeholders}))`,
+        // Usuário com unidade vinculada: ver APENAS chamados da sua unidade
+        // Não inclui NULL para não vazar chamados de outras unidades
+        sql: ` AND ${col} IN (${placeholders})`,
         params: [...ids]
     };
 }
@@ -910,8 +912,8 @@ app.get('/messages', isAuthenticated, isAdmin, async (req, res) => {
                 extraSql = ` AND ws.session_name = 'admin-session'`;
             } else {
                 const ph = ids.map(() => '?').join(',');
-                extraSql = ` AND ws.session_name IN (
-                    SELECT i.session_name FROM instancias i WHERE i.unidade_id IN (${ph})
+                extraSql = ` AND ws.session_name COLLATE utf8mb4_unicode_ci IN (
+                    SELECT i.session_name COLLATE utf8mb4_unicode_ci FROM instancias i WHERE i.unidade_id IN (${ph})
                     UNION
                     SELECT 'admin-session' WHERE EXISTS (SELECT 1 FROM instancias WHERE is_legacy = TRUE AND unidade_id IN (${ph}))
                 )`;
@@ -936,7 +938,10 @@ app.get('/messages', isAuthenticated, isAdmin, async (req, res) => {
 
 // ─── TV Dashboard (sem autenticação — para exibir na TV) ───────────────────
 app.get('/tv', (req, res) => {
-    res.render('tv');
+    // Se o usuário está logado, passar as unidades dele para a TV
+    const unidadeIds = req.session?.unidadeIds || null;
+    const nivelAcesso = req.session?.nivelAcesso || null;
+    res.render('tv', { unidadeIds, nivelAcesso });
 });
 
 app.get('/api/tv/chamados', async (req, res) => {
