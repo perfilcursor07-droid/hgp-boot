@@ -8,7 +8,7 @@
     <style>
         .turnos-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
             gap: 16px;
         }
         .turno-card {
@@ -35,6 +35,28 @@
         }
         .turno-user-info h3 { font-size: 14px; color: #1e293b; margin-bottom: 2px; }
         .turno-user-info p { font-size: 11px; color: #94a3b8; }
+        .turno-unidade-selector {
+            padding: 10px 16px;
+            background: #fef9c3;
+            border-bottom: 1px solid #fde68a;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+        }
+        .turno-unidade-selector label {
+            font-weight: 600;
+            color: #713f12;
+        }
+        .turno-unidade-selector select {
+            flex: 1;
+            padding: 5px 8px;
+            border: 1px solid #fde68a;
+            border-radius: 6px;
+            font-size: 12px;
+            background: white;
+            cursor: pointer;
+        }
         .turno-dias {
             padding: 14px 16px;
         }
@@ -56,23 +78,6 @@
             font-weight: 600;
             color: #334155;
             min-width: 40px;
-        }
-        .turno-hora {
-            padding: 5px 8px;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            font-size: 12px;
-            color: #334155;
-            width: 80px;
-            text-align: center;
-        }
-        .turno-hora:focus {
-            outline: none;
-            border-color: #25D366;
-        }
-        .turno-hora-sep {
-            font-size: 12px;
-            color: #94a3b8;
         }
         .turno-card-footer {
             padding: 12px 16px;
@@ -111,28 +116,6 @@
             color: #166534;
             line-height: 1.5;
         }
-        .turnos-legenda {
-            display: flex;
-            gap: 16px;
-            flex-wrap: wrap;
-            margin-bottom: 20px;
-            padding: 12px 16px;
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-        }
-        .turnos-legenda-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            color: #475569;
-        }
-        .turnos-legenda-dot {
-            width: 10px; height: 10px;
-            border-radius: 3px;
-            flex-shrink: 0;
-        }
         .turno-select {
             padding: 5px 8px;
             border: 1px solid #e2e8f0;
@@ -141,11 +124,26 @@
             color: #334155;
             background: white;
             cursor: pointer;
+            flex: 1;
         }
         .turno-select:focus {
             outline: none;
             border-color: #25D366;
         }
+        .turno-no-presets {
+            padding: 14px;
+            text-align: center;
+            font-size: 12px;
+            color: #94a3b8;
+            font-style: italic;
+        }
+        .turno-presets-link {
+            font-size: 11px;
+            color: #2563eb;
+            text-decoration: none;
+            margin-left: auto;
+        }
+        .turno-presets-link:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -164,23 +162,17 @@
 
             <div class="content">
                 <div class="turno-info-box">
-                    Configure os dias e horários de trabalho de cada usuário. Quando um novo chamado é aberto, 
-                    apenas os usuários que estão em turno naquele momento recebem a notificação pelo WhatsApp.
-                    Se nenhum turno estiver configurado, todos os usuários com telefone serão notificados.
-                </div>
-
-                <div class="turnos-legenda">
-                    <div class="turnos-legenda-item"><span class="turnos-legenda-dot" style="background:#f59e0b"></span> Dia (07:00 às 19:00)</div>
-                    <div class="turnos-legenda-item"><span class="turnos-legenda-dot" style="background:#22c55e"></span> Manhã: 07:00 às 11:59</div>
-                    <div class="turnos-legenda-item"><span class="turnos-legenda-dot" style="background:#3b82f6"></span> Tarde: 12:00 às 18:00</div>
-                    <div class="turnos-legenda-item"><span class="turnos-legenda-dot" style="background:#8b5cf6"></span> Noite: 18:01 às 23:00</div>
-                    <div class="turnos-legenda-item"><span class="turnos-legenda-dot" style="background:#ef4444"></span> 23:01 às 06:59 = Fora do expediente</div>
+                    Configure os dias e horários de trabalho de cada usuário. Os horários disponíveis dependem da unidade selecionada (cada unidade tem seus próprios turnos).
+                    Quando um novo chamado é aberto, apenas os usuários que estão em turno naquele momento recebem a notificação pelo WhatsApp.
                 </div>
 
                 <div class="turnos-grid">
                     <% usuarios.forEach(user => { %>
                         <% const turnos = turnosPorUsuario[user.id] || []; %>
-                        <div class="turno-card" id="card-<%= user.id %>">
+                        <% const unidadesUser = unidadesPorUsuario[user.id] || []; %>
+                        <% const primeiraUnidade = unidadesUser[0] || null; %>
+                        <% const presetsIniciais = primeiraUnidade ? (presetsPorUnidade[primeiraUnidade.id] || []) : []; %>
+                        <div class="turno-card" id="card-<%= user.id %>" data-unidades='<%= JSON.stringify(unidadesUser) %>'>
                             <div class="turno-card-header">
                                 <div class="turno-avatar"><%= (user.nome_completo || user.username).charAt(0).toUpperCase() %></div>
                                 <div class="turno-user-info">
@@ -191,38 +183,64 @@
                                     <%= turnos.length > 0 ? turnos.length + ' dia(s)' : 'Sem turno' %>
                                 </span>
                             </div>
-                            <div class="turno-dias">
-                                <% const dias = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']; %>
-                                <% dias.forEach((dia, idx) => { %>
-                                    <% const turnoExistente = turnos.find(t => t.dia_semana === idx); %>
-                                    <% 
-                                        let turnoSelecionado = 'manha';
-                                        if (turnoExistente) {
-                                            const hi = turnoExistente.hora_inicio.slice(0,5);
-                                            const hf = turnoExistente.hora_fim.slice(0,5);
-                                            if (hi === '07:00' && hf === '19:00') turnoSelecionado = 'dia';
-                                            else if (hi === '12:00') turnoSelecionado = 'tarde';
-                                            else if (hi === '18:01') turnoSelecionado = 'noite';
-                                            else turnoSelecionado = 'manha';
-                                        }
-                                    %>
-                                    <div class="turno-dia-row">
-                                        <input type="checkbox" class="turno-dia-check"
-                                            data-user="<%= user.id %>" data-dia="<%= idx %>"
-                                            <%= turnoExistente ? 'checked' : '' %>>
-                                        <span class="turno-dia-label"><%= dia %></span>
-                                        <select class="turno-select turno-periodo" data-user="<%= user.id %>" data-dia="<%= idx %>">
-                                            <option value="dia" <%= turnoSelecionado === 'dia' ? 'selected' : '' %>>🌅 Dia (07:00-19:00)</option>
-                                            <option value="manha" <%= turnoSelecionado === 'manha' ? 'selected' : '' %>>☀️ Manhã (07:00-11:59)</option>
-                                            <option value="tarde" <%= turnoSelecionado === 'tarde' ? 'selected' : '' %>>🌤️ Tarde (12:00-18:00)</option>
-                                            <option value="noite" <%= turnoSelecionado === 'noite' ? 'selected' : '' %>>🌙 Noite (18:01-23:00)</option>
-                                        </select>
+
+                            <% if (unidadesUser.length === 0) { %>
+                                <div class="turno-no-presets">
+                                    Este usuário não possui unidades vinculadas. <a href="/usuarios">Vincular unidades</a>.
+                                </div>
+                            <% } else { %>
+                                <div class="turno-unidade-selector">
+                                    <label>Unidade:</label>
+                                    <select class="turno-unidade-select" data-user="<%= user.id %>" onchange="trocarUnidade(<%= user.id %>)">
+                                        <% unidadesUser.forEach(u => { %>
+                                            <option value="<%= u.id %>"><%= u.codigo %> — <%= u.nome %></option>
+                                        <% }) %>
+                                    </select>
+                                    <a href="/unidades" class="turno-presets-link" title="Editar presets">⚙️ Presets</a>
+                                </div>
+
+                                <div class="turno-dias" id="turno-dias-<%= user.id %>">
+                                    <% if (presetsIniciais.length === 0) { %>
+                                        <div class="turno-no-presets">
+                                            Nenhum preset cadastrado para a unidade <strong><%= primeiraUnidade.codigo %></strong>.<br>
+                                            <a href="/unidades">Configurar presets agora</a>.
+                                        </div>
+                                    <% } else { %>
+                                        <% const dias = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']; %>
+                                        <% dias.forEach((dia, idx) => { %>
+                                            <% const turnoExistente = turnos.find(t => t.dia_semana === idx); %>
+                                            <%
+                                                let chaveSelecionada = presetsIniciais[0]?.chave || '';
+                                                if (turnoExistente) {
+                                                    const hi = turnoExistente.hora_inicio.slice(0,5);
+                                                    const hf = turnoExistente.hora_fim.slice(0,5);
+                                                    const match = presetsIniciais.find(p => p.hora_inicio === hi && p.hora_fim === hf);
+                                                    if (match) chaveSelecionada = match.chave;
+                                                }
+                                            %>
+                                            <div class="turno-dia-row">
+                                                <input type="checkbox" class="turno-dia-check"
+                                                    data-user="<%= user.id %>" data-dia="<%= idx %>"
+                                                    <%= turnoExistente ? 'checked' : '' %>>
+                                                <span class="turno-dia-label"><%= dia %></span>
+                                                <select class="turno-select turno-periodo" data-user="<%= user.id %>" data-dia="<%= idx %>">
+                                                    <% presetsIniciais.forEach(p => { %>
+                                                        <option value="<%= p.chave %>" data-inicio="<%= p.hora_inicio %>" data-fim="<%= p.hora_fim %>" <%= chaveSelecionada === p.chave ? 'selected' : '' %>>
+                                                            <%= p.icone %> <%= p.label %>
+                                                        </option>
+                                                    <% }) %>
+                                                </select>
+                                            </div>
+                                        <% }); %>
+                                    <% } %>
+                                </div>
+
+                                <% if (presetsIniciais.length > 0) { %>
+                                    <div class="turno-card-footer">
+                                        <button class="btn-salvar-turno" onclick="salvarTurnos(<%= user.id %>)">Salvar</button>
                                     </div>
-                                <% }); %>
-                            </div>
-                            <div class="turno-card-footer">
-                                <button class="btn-salvar-turno" onclick="salvarTurnos(<%= user.id %>)">Salvar</button>
-                            </div>
+                                <% } %>
+                            <% } %>
                         </div>
                     <% }); %>
                 </div>
@@ -238,6 +256,9 @@
     </div>
 
     <script>
+        const PRESETS_POR_UNIDADE = <%- JSON.stringify(presetsPorUnidade || {}) %>;
+        const TURNOS_POR_USUARIO = <%- JSON.stringify(turnosPorUsuario || {}) %>;
+
         function mostrarToast(msg, tipo) {
             const t = document.createElement('div');
             t.textContent = msg;
@@ -246,12 +267,63 @@
             setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 3000);
         }
 
-        const TURNOS_HORARIOS = {
-            dia:   { inicio: '07:00', fim: '19:00' },
-            manha: { inicio: '07:00', fim: '11:59' },
-            tarde: { inicio: '12:00', fim: '18:00' },
-            noite: { inicio: '18:01', fim: '23:00' }
-        };
+        function trocarUnidade(userId) {
+            const card = document.getElementById(`card-${userId}`);
+            const select = card.querySelector('.turno-unidade-select');
+            const unidadeId = Number(select.value);
+            const presets = PRESETS_POR_UNIDADE[unidadeId] || [];
+            const turnos = TURNOS_POR_USUARIO[userId] || [];
+            const container = document.getElementById(`turno-dias-${userId}`);
+
+            if (presets.length === 0) {
+                container.innerHTML = `
+                    <div class="turno-no-presets">
+                        Nenhum preset cadastrado para esta unidade.<br>
+                        <a href="/unidades">Configurar presets agora</a>.
+                    </div>`;
+                const footer = card.querySelector('.turno-card-footer');
+                if (footer) footer.style.display = 'none';
+                return;
+            }
+
+            const dias = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+            let html = '';
+            dias.forEach((dia, idx) => {
+                const turnoExistente = turnos.find(t => t.dia_semana === idx);
+                let chaveSelecionada = presets[0].chave;
+                if (turnoExistente) {
+                    const hi = String(turnoExistente.hora_inicio).slice(0, 5);
+                    const hf = String(turnoExistente.hora_fim).slice(0, 5);
+                    const match = presets.find(p => p.hora_inicio === hi && p.hora_fim === hf);
+                    if (match) chaveSelecionada = match.chave;
+                }
+
+                html += `
+                    <div class="turno-dia-row">
+                        <input type="checkbox" class="turno-dia-check"
+                            data-user="${userId}" data-dia="${idx}"
+                            ${turnoExistente ? 'checked' : ''}>
+                        <span class="turno-dia-label">${dia}</span>
+                        <select class="turno-select turno-periodo" data-user="${userId}" data-dia="${idx}">
+                            ${presets.map(p => `
+                                <option value="${p.chave}" data-inicio="${p.hora_inicio}" data-fim="${p.hora_fim}" ${chaveSelecionada === p.chave ? 'selected' : ''}>
+                                    ${p.icone || '🕐'} ${p.label}
+                                </option>
+                            `).join('')}
+                        </select>
+                    </div>`;
+            });
+            container.innerHTML = html;
+
+            let footer = card.querySelector('.turno-card-footer');
+            if (!footer) {
+                footer = document.createElement('div');
+                footer.className = 'turno-card-footer';
+                footer.innerHTML = `<button class="btn-salvar-turno" onclick="salvarTurnos(${userId})">Salvar</button>`;
+                card.appendChild(footer);
+            }
+            footer.style.display = 'flex';
+        }
 
         async function salvarTurnos(userId) {
             const card = document.getElementById(`card-${userId}`);
@@ -263,12 +335,16 @@
             for (let dia = 0; dia < 7; dia++) {
                 const check = card.querySelector(`.turno-dia-check[data-dia="${dia}"]`);
                 const periodo = card.querySelector(`.turno-periodo[data-dia="${dia}"]`);
-                const horario = TURNOS_HORARIOS[periodo.value];
+                if (!check || !periodo) continue;
+
+                const opt = periodo.options[periodo.selectedIndex];
+                const inicio = opt.dataset.inicio;
+                const fim = opt.dataset.fim;
 
                 turnos.push({
                     dia_semana: dia,
-                    hora_inicio: horario.inicio,
-                    hora_fim: horario.fim,
+                    hora_inicio: inicio,
+                    hora_fim: fim,
                     ativo: check.checked
                 });
             }
@@ -286,6 +362,11 @@
                     const badge = card.querySelector('.turno-status');
                     badge.className = `turno-status ${diasAtivos > 0 ? 'configurado' : 'pendente'}`;
                     badge.textContent = diasAtivos > 0 ? `${diasAtivos} dia(s)` : 'Sem turno';
+
+                    // Atualizar cache local
+                    TURNOS_POR_USUARIO[userId] = turnos
+                        .filter(t => t.ativo)
+                        .map(t => ({ dia_semana: t.dia_semana, hora_inicio: t.hora_inicio, hora_fim: t.hora_fim }));
                 } else {
                     mostrarToast(data.message || 'Erro ao salvar', 'error');
                 }

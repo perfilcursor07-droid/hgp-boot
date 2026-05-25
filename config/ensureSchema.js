@@ -517,6 +517,68 @@ async function ensureSchema(connection) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     `);
 
+    // Tabela de presets de turnos por unidade (cada unidade pode ter seus próprios horários)
+    await connection.query(`
+        CREATE TABLE IF NOT EXISTS unidade_turnos_presets (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            unidade_id INT NOT NULL,
+            chave VARCHAR(50) NOT NULL,
+            label VARCHAR(100) NOT NULL,
+            icone VARCHAR(20) DEFAULT '🕐',
+            hora_inicio TIME NOT NULL,
+            hora_fim TIME NOT NULL,
+            ordem INT DEFAULT 0,
+            ativo BOOLEAN DEFAULT TRUE,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_unidade_chave (unidade_id, chave),
+            INDEX idx_presets_unidade (unidade_id),
+            FOREIGN KEY (unidade_id) REFERENCES unidades(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+    `);
+
+    // Popular presets default para unidades existentes que ainda não têm
+    try {
+        const [unidades] = await connection.query('SELECT id, codigo FROM unidades');
+        for (const u of unidades) {
+            const [existing] = await connection.query(
+                'SELECT COUNT(*) as total FROM unidade_turnos_presets WHERE unidade_id = ?',
+                [u.id]
+            );
+            if (existing[0].total > 0) continue;
+
+            const codigo = String(u.codigo || '').toUpperCase();
+            let presets;
+
+            if (codigo === 'SESAU') {
+                presets = [
+                    { chave: 'manha',    label: 'Manhã (08:00-14:00)',    icone: '☀️', hora_inicio: '08:00:00', hora_fim: '14:00:00', ordem: 1 },
+                    { chave: 'tarde',    label: 'Tarde (13:00-18:00)',    icone: '🌤️', hora_inicio: '13:00:00', hora_fim: '18:00:00', ordem: 2 },
+                    { chave: 'integral', label: 'Integral (08:00-18:00)', icone: '🌅', hora_inicio: '08:00:00', hora_fim: '18:00:00', ordem: 3 }
+                ];
+            } else {
+                // Default (HGP e demais)
+                presets = [
+                    { chave: 'dia',   label: 'Dia (07:00-19:00)',     icone: '🌅', hora_inicio: '07:00:00', hora_fim: '19:00:00', ordem: 1 },
+                    { chave: 'manha', label: 'Manhã (07:00-11:59)',   icone: '☀️', hora_inicio: '07:00:00', hora_fim: '11:59:00', ordem: 2 },
+                    { chave: 'tarde', label: 'Tarde (12:00-18:00)',   icone: '🌤️', hora_inicio: '12:00:00', hora_fim: '18:00:00', ordem: 3 },
+                    { chave: 'noite', label: 'Noite (18:01-23:00)',   icone: '🌙', hora_inicio: '18:01:00', hora_fim: '23:00:00', ordem: 4 }
+                ];
+            }
+
+            for (const p of presets) {
+                await connection.query(
+                    `INSERT IGNORE INTO unidade_turnos_presets
+                     (unidade_id, chave, label, icone, hora_inicio, hora_fim, ordem, ativo)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, TRUE)`,
+                    [u.id, p.chave, p.label, p.icone, p.hora_inicio, p.hora_fim, p.ordem]
+                );
+            }
+        }
+    } catch (err) {
+        console.error('Erro ao popular presets de turnos:', err.message);
+    }
+
     await connection.query(`
         CREATE TABLE IF NOT EXISTS avaliacoes (
             id INT AUTO_INCREMENT PRIMARY KEY,

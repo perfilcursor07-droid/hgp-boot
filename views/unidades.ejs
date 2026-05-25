@@ -103,6 +103,20 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="modalPresets">
+        <div class="modal-box" style="max-width:640px;">
+            <h3>Turnos — <span id="presetsUnidadeNome"></span></h3>
+            <p style="font-size:12px;color:#64748b;margin-bottom:10px;">Configure os horários disponíveis para esta unidade. Eles aparecerão como opções na tela de turnos dos usuários.</p>
+            <input type="hidden" id="presetsUnidadeId">
+            <div id="presetsContainer" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;"></div>
+            <button type="button" class="btn-secondary" onclick="adicionarPreset()" style="width:100%;">+ Adicionar turno</button>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="fecharModal('modalPresets')">Cancelar</button>
+                <button type="button" class="btn-primary" onclick="salvarPresets()">Salvar Turnos</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let unidades = <%- JSON.stringify(unidades) %>;
 
@@ -126,6 +140,7 @@
                     <div class="un-actions">
                         <button class="un-btn" onclick="editarUnidade(${u.id})">Editar</button>
                         <button class="un-btn primary" onclick="abrirAdmins(${u.id},'${escapeHtml(u.nome).replace(/'/g,"\\'")}')">Técnicos</button>
+                        <button class="un-btn" onclick="abrirPresets(${u.id},'${escapeHtml(u.nome).replace(/'/g,"\\'")}')" title="Configurar turnos">🕐 Turnos</button>
                         <button class="un-btn danger" onclick="excluir(${u.id})">×</button>
                     </div>
                 </div>
@@ -234,6 +249,83 @@
                 if (d.success) {
                     fecharModal('modalAdmins');
                     location.reload();
+                } else alert(d.message);
+            } catch (e) { alert(e.message); }
+        }
+
+        // Presets de turnos por unidade
+        async function abrirPresets(id, nome) {
+            document.getElementById('presetsUnidadeId').value = id;
+            document.getElementById('presetsUnidadeNome').textContent = nome;
+            document.getElementById('modalPresets').classList.add('open');
+            document.getElementById('presetsContainer').innerHTML = '<p style="color:#64748b;padding:14px;text-align:center;">Carregando...</p>';
+
+            try {
+                const r = await fetch(`/api/unidades/${id}/turno-presets`);
+                const d = await r.json();
+                if (!d.success) { alert(d.message); return; }
+                renderPresets(d.presets || []);
+            } catch (e) { alert(e.message); }
+        }
+
+        function renderPresets(presets) {
+            const container = document.getElementById('presetsContainer');
+            if (presets.length === 0) {
+                container.innerHTML = '<p style="color:#94a3b8;padding:14px;text-align:center;font-size:12px;">Nenhum turno cadastrado. Clique em "Adicionar turno".</p>';
+                return;
+            }
+            container.innerHTML = presets.map((p, idx) => presetRowHtml(p, idx)).join('');
+        }
+
+        function presetRowHtml(p, idx) {
+            return `
+                <div class="preset-row" data-idx="${idx}" style="display:grid;grid-template-columns:50px 1fr 90px 90px 32px;gap:6px;align-items:center;padding:8px;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;">
+                    <input type="text" value="${escapeHtml(p.icone || '🕐')}" maxlength="2" style="text-align:center;font-size:18px;padding:4px;" placeholder="🕐">
+                    <input type="text" value="${escapeHtml(p.label || '')}" placeholder="Ex: Manhã (08:00-14:00)" style="font-size:12px;">
+                    <input type="time" value="${p.hora_inicio || '08:00'}" style="font-size:12px;">
+                    <input type="time" value="${p.hora_fim || '18:00'}" style="font-size:12px;">
+                    <button type="button" onclick="this.closest('.preset-row').remove()" title="Remover" style="background:#fee2e2;color:#dc2626;border:none;border-radius:4px;cursor:pointer;font-weight:700;">×</button>
+                </div>`;
+        }
+
+        function adicionarPreset() {
+            const container = document.getElementById('presetsContainer');
+            // Limpar mensagem de "nenhum"
+            if (container.querySelector('p')) container.innerHTML = '';
+            const div = document.createElement('div');
+            div.innerHTML = presetRowHtml({ icone: '🕐', label: '', hora_inicio: '08:00', hora_fim: '18:00' }, container.children.length);
+            container.appendChild(div.firstElementChild);
+        }
+
+        async function salvarPresets() {
+            const id = document.getElementById('presetsUnidadeId').value;
+            const rows = document.querySelectorAll('#presetsContainer .preset-row');
+            const presets = [];
+            for (const row of rows) {
+                const inputs = row.querySelectorAll('input');
+                const icone = inputs[0].value.trim() || '🕐';
+                const label = inputs[1].value.trim();
+                const inicio = inputs[2].value;
+                const fim = inputs[3].value;
+                if (!label || !inicio || !fim) continue;
+                const chave = label.toLowerCase()
+                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                    .replace(/[^a-z0-9]+/g, '_')
+                    .replace(/^_|_$/g, '')
+                    .slice(0, 40) || `t${presets.length + 1}`;
+                presets.push({ chave, label, icone, hora_inicio: inicio, hora_fim: fim });
+            }
+
+            try {
+                const r = await fetch(`/api/unidades/${id}/turno-presets`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ presets })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    fecharModal('modalPresets');
+                    alert('Turnos atualizados!');
                 } else alert(d.message);
             } catch (e) { alert(e.message); }
         }

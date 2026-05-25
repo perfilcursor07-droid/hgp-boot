@@ -2823,14 +2823,115 @@ app.get('/turnos', isAuthenticated, isAdmin, async (req, res) => {
             turnosPorUsuario[t.admin_id].push(t);
         });
 
+        // Buscar unidades vinculadas de cada usuário
+        const userIds = usuarios.map(u => u.id);
+        const unidadesPorUsuario = {};
+        if (userIds.length > 0) {
+            const [vincs] = await db.query(`
+                SELECT au.admin_id, u.id, u.nome, u.codigo
+                FROM admin_unidades au
+                JOIN unidades u ON u.id = au.unidade_id
+                WHERE au.admin_id IN (?) AND u.ativo = TRUE
+                ORDER BY u.nome
+            `, [userIds]);
+
+            vincs.forEach(v => {
+                if (!unidadesPorUsuario[v.admin_id]) unidadesPorUsuario[v.admin_id] = [];
+                unidadesPorUsuario[v.admin_id].push({ id: v.id, nome: v.nome, codigo: v.codigo });
+            });
+        }
+
+        // Buscar todos os presets de turnos por unidade
+        const [presetsRows] = await db.query(`
+            SELECT id, unidade_id, chave, label, icone, hora_inicio, hora_fim, ordem
+            FROM unidade_turnos_presets
+            WHERE ativo = TRUE
+            ORDER BY unidade_id, ordem ASC, chave ASC
+        `);
+
+        const presetsPorUnidade = {};
+        presetsRows.forEach(p => {
+            if (!presetsPorUnidade[p.unidade_id]) presetsPorUnidade[p.unidade_id] = [];
+            presetsPorUnidade[p.unidade_id].push({
+                chave: p.chave,
+                label: p.label,
+                icone: p.icone,
+                hora_inicio: String(p.hora_inicio).slice(0, 5),
+                hora_fim: String(p.hora_fim).slice(0, 5)
+            });
+        });
+
         res.render('turnos', {
             username: req.session.username,
             usuarios,
-            turnosPorUsuario
+            turnosPorUsuario,
+            unidadesPorUsuario,
+            presetsPorUnidade
         });
     } catch (error) {
         console.error('Erro ao carregar turnos:', error);
-        res.render('turnos', { username: req.session.username, usuarios: [], turnosPorUsuario: {} });
+        res.render('turnos', {
+            username: req.session.username,
+            usuarios: [],
+            turnosPorUsuario: {},
+            unidadesPorUsuario: {},
+            presetsPorUnidade: {}
+        });
+    }
+});
+
+// API - Listar presets de turnos por unidade
+app.get('/api/unidades/:id/turno-presets', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const [presets] = await db.query(`
+            SELECT id, chave, label, icone, hora_inicio, hora_fim, ordem, ativo
+            FROM unidade_turnos_presets
+            WHERE unidade_id = ?
+            ORDER BY ordem ASC, chave ASC
+        `, [req.params.id]);
+
+        res.json({
+            success: true,
+            presets: presets.map(p => ({
+                ...p,
+                hora_inicio: String(p.hora_inicio).slice(0, 5),
+                hora_fim: String(p.hora_fim).slice(0, 5)
+            }))
+        });
+    } catch (error) {
+        console.error('Erro ao listar presets:', error);
+        res.status(500).json({ success: false, message: 'Erro ao listar presets' });
+    }
+});
+
+// API - Salvar/atualizar presets de uma unidade (admin only)
+app.post('/api/unidades/:id/turno-presets', isAuthenticated, isAdminOnly, async (req, res) => {
+    try {
+        const unidadeId = Number(req.params.id);
+        const { presets } = req.body;
+
+        if (!Array.isArray(presets)) {
+            return res.status(400).json({ success: false, message: 'Lista de presets inválida' });
+        }
+
+        // Apagar todos e inserir novos
+        await db.query('DELETE FROM unidade_turnos_presets WHERE unidade_id = ?', [unidadeId]);
+
+        for (let i = 0; i < presets.length; i++) {
+            const p = presets[i];
+            if (!p.chave || !p.label || !p.hora_inicio || !p.hora_fim) continue;
+            await db.query(
+                `INSERT INTO unidade_turnos_presets
+                 (unidade_id, chave, label, icone, hora_inicio, hora_fim, ordem, ativo)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, TRUE)`,
+                [unidadeId, p.chave, p.label, p.icone || '🕐', p.hora_inicio, p.hora_fim, i + 1]
+            );
+        }
+
+        res.json({ success: true, message: 'Presets atualizados' });
+    } catch (error) {
+        console.error('Erro ao salvar presets:', error);
+        res.status(500).json({ success: false, message: 'Erro ao salvar presets' });
     }
 });
 
