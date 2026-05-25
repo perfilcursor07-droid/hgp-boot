@@ -1519,16 +1519,31 @@ app.get('/api/stats', isAuthenticated, async (req, res) => {
         today.setHours(0, 0, 0, 0);
 
         // Filtro de unidade do usuário logado
-        const unidWhere = buildUnidadeWhere(req, 'c', 'unidade_id');
         const unidWhereSimple = buildUnidadeWhere(req, '', 'unidade_id');
 
+        // Filtro de sessão por unidade (para tabela messages)
+        const ids = req.session.unidadeIds;
+        let msgSessionSql = '';
+        let msgSessionParams = [];
+        if (Array.isArray(ids) && ids.length > 0) {
+            const ph = ids.map(() => '?').join(',');
+            msgSessionSql = ` AND session_id IN (
+                SELECT ws.id FROM whatsapp_sessions ws
+                JOIN instancias i ON i.session_name COLLATE utf8mb4_unicode_ci = ws.session_name COLLATE utf8mb4_unicode_ci
+                WHERE i.unidade_id IN (${ph})
+            )`;
+            msgSessionParams = [...ids];
+        }
+        // Se ids === null (admin) ou ids.length === 0: sem filtro, vê tudo
+
         const [messagesToday] = await db.query(
-            'SELECT COUNT(*) as count FROM messages WHERE timestamp >= ?',
-            [today]
+            `SELECT COUNT(*) as count FROM messages WHERE timestamp >= ? ${msgSessionSql}`,
+            [today, ...msgSessionParams]
         );
         
         const [activeContacts] = await db.query(
-            'SELECT COUNT(DISTINCT from_number) as count FROM messages WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 7 DAY)'
+            `SELECT COUNT(DISTINCT from_number) as count FROM messages WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 7 DAY) ${msgSessionSql}`,
+            msgSessionParams
         );
 
         // Dados das últimas 24h para o dashboard — filtrado por unidade
@@ -1552,14 +1567,15 @@ app.get('/api/stats', isAuthenticated, async (req, res) => {
             ${unidWhereSimple.sql}
         `, [today, ...unidWhereSimple.params]);
 
-        // Mensagens por hora (últimas 12h) para gráfico
+        // Mensagens por hora (últimas 12h) — filtrado por unidade/sessão
         const [msgsPorHora] = await db.query(`
             SELECT HOUR(timestamp) as hora, COUNT(*) as total
             FROM messages
             WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 12 HOUR)
+            ${msgSessionSql}
             GROUP BY HOUR(timestamp)
             ORDER BY hora
-        `);
+        `, msgSessionParams);
 
         // Chamados por categoria (últimas 24h) — filtrado por unidade
         const [chamadosPorCategoria] = await db.query(`
