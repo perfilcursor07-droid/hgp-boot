@@ -941,6 +941,23 @@ app.get('/tv', (req, res) => {
 
 app.get('/api/tv/chamados', async (req, res) => {
     try {
+        // Filtro por unidade via query param (ex: /api/tv/chamados?unidade_id=2 ou ?codigo=SESAU)
+        let unidWhere = '';
+        const unidParams = [];
+
+        const unidadeId = req.query.unidade_id ? Number(req.query.unidade_id) : null;
+        const codigoUnidade = req.query.codigo ? String(req.query.codigo).toUpperCase() : null;
+
+        if (unidadeId) {
+            unidWhere = ' AND (c.unidade_id IS NULL OR c.unidade_id = ?)';
+            unidParams.push(unidadeId);
+        } else if (codigoUnidade) {
+            unidWhere = ` AND (c.unidade_id IS NULL OR c.unidade_id IN (
+                SELECT id FROM unidades WHERE codigo = ? AND ativo = TRUE
+            ))`;
+            unidParams.push(codigoUnidade);
+        }
+
         const [abertos] = await db.query(`
             SELECT
                 c.id,
@@ -957,9 +974,10 @@ app.get('/api/tv/chamados', async (req, res) => {
                 TIMESTAMPDIFF(MINUTE, c.criado_em, NOW()) AS minutos_total
             FROM chamados c
             WHERE c.status IN ('pendente', 'aberto', 'em_atendimento')
+            ${unidWhere}
             ORDER BY c.criado_em DESC
             LIMIT 50
-        `);
+        `, unidParams);
 
         const [finalizados] = await db.query(`
             SELECT
@@ -978,9 +996,10 @@ app.get('/api/tv/chamados', async (req, res) => {
             FROM chamados c
             WHERE c.status = 'finalizado'
               AND c.encerrado_em >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+            ${unidWhere}
             ORDER BY c.encerrado_em DESC
             LIMIT 50
-        `);
+        `, unidParams);
 
         const [stats] = await db.query(`
             SELECT
@@ -993,7 +1012,9 @@ app.get('/api/tv/chamados', async (req, res) => {
                 ROUND(AVG(CASE WHEN status = 'finalizado' AND encerrado_em >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
                     THEN TIMESTAMPDIFF(MINUTE, criado_em, encerrado_em) END), 0)                                             AS media_minutos_24h
             FROM chamados
-        `);
+            WHERE 1=1
+            ${unidWhere.replace(/c\./g, '')}
+        `, unidParams);
 
         res.json({
             success: true,
@@ -1491,7 +1512,11 @@ app.get('/api/stats', isAuthenticated, async (req, res) => {
     try {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        
+
+        // Filtro de unidade do usuário logado
+        const unidWhere = buildUnidadeWhere(req, 'c', 'unidade_id');
+        const unidWhereSimple = buildUnidadeWhere(req, '', 'unidade_id');
+
         const [messagesToday] = await db.query(
             'SELECT COUNT(*) as count FROM messages WHERE timestamp >= ?',
             [today]
@@ -1501,7 +1526,7 @@ app.get('/api/stats', isAuthenticated, async (req, res) => {
             'SELECT COUNT(DISTINCT from_number) as count FROM messages WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 7 DAY)'
         );
 
-        // Dados das últimas 24h para o dashboard
+        // Dados das últimas 24h para o dashboard — filtrado por unidade
         const [chamados24h] = await db.query(`
             SELECT 
                 COUNT(*) as total,
@@ -1510,7 +1535,8 @@ app.get('/api/stats', isAuthenticated, async (req, res) => {
                 SUM(CASE WHEN status = 'finalizado' THEN 1 ELSE 0 END) as finalizados
             FROM chamados
             WHERE criado_em >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-        `);
+            ${unidWhereSimple.sql}
+        `, unidWhereSimple.params);
 
         const [chamadosHoje] = await db.query(`
             SELECT 
@@ -1518,7 +1544,8 @@ app.get('/api/stats', isAuthenticated, async (req, res) => {
                 SUM(CASE WHEN status = 'finalizado' THEN 1 ELSE 0 END) as finalizados
             FROM chamados
             WHERE criado_em >= ?
-        `, [today]);
+            ${unidWhereSimple.sql}
+        `, [today, ...unidWhereSimple.params]);
 
         // Mensagens por hora (últimas 12h) para gráfico
         const [msgsPorHora] = await db.query(`
@@ -1529,26 +1556,28 @@ app.get('/api/stats', isAuthenticated, async (req, res) => {
             ORDER BY hora
         `);
 
-        // Chamados por categoria (últimas 24h)
+        // Chamados por categoria (últimas 24h) — filtrado por unidade
         const [chamadosPorCategoria] = await db.query(`
             SELECT categoria, COUNT(*) as total
             FROM chamados
             WHERE criado_em >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+            ${unidWhereSimple.sql}
             GROUP BY categoria
             ORDER BY total DESC
             LIMIT 5
-        `);
+        `, unidWhereSimple.params);
 
-        // Atendentes mais ativos (últimas 24h)
+        // Atendentes mais ativos (últimas 24h) — filtrado por unidade
         const [atendentesAtivos] = await db.query(`
             SELECT atendente_nome, COUNT(*) as total
             FROM chamados
             WHERE atendente_nome IS NOT NULL
               AND criado_em >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+            ${unidWhereSimple.sql}
             GROUP BY atendente_nome
             ORDER BY total DESC
             LIMIT 5
-        `);
+        `, unidWhereSimple.params);
 
         res.json({
             messagesToday: messagesToday[0].count,
@@ -2312,9 +2341,12 @@ app.post('/api/escala', isAuthenticated, isAdmin, async (req, res) => {
             return res.status(400).json({ success: false, message: 'O técnico selecionado precisa estar ativo e ter telefone cadastrado' });
         }
 
-        const [existente] = await db.query('SELECT id FROM escalas WHERE data_escala = ?', [data_escala]);
+        const [existente] = await db.query(
+            'SELECT id FROM escalas WHERE data_escala = ? AND admin_id = ?',
+            [data_escala, admin_id]
+        );
         if (existente.length > 0) {
-            return res.status(400).json({ success: false, message: 'Já existe uma escala cadastrada para esta data' });
+            return res.status(400).json({ success: false, message: 'Este técnico já possui escala cadastrada para esta data' });
         }
 
         await db.query(
@@ -2358,12 +2390,12 @@ app.put('/api/escala/:id', isAuthenticated, isAdmin, async (req, res) => {
         }
 
         const [existente] = await db.query(
-            'SELECT id FROM escalas WHERE data_escala = ? AND id <> ?',
-            [data_escala, req.params.id]
+            'SELECT id FROM escalas WHERE data_escala = ? AND admin_id = ? AND id <> ?',
+            [data_escala, admin_id, req.params.id]
         );
 
         if (existente.length > 0) {
-            return res.status(400).json({ success: false, message: 'Já existe uma escala cadastrada para esta data' });
+            return res.status(400).json({ success: false, message: 'Este técnico já possui escala cadastrada para esta data' });
         }
 
         await db.query(

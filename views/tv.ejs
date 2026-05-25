@@ -554,10 +554,23 @@
     // ── Estado
     let prevAbertosIds = new Set(), prevFinalizadosIds = new Set(), firstLoad = true;
 
+    // Pegar filtro de unidade da URL da TV (ex: /tv?codigo=SESAU ou /tv?unidade_id=2)
+    const tvParams = new URLSearchParams(window.location.search);
+    const tvUnidadeId = tvParams.get('unidade_id') || '';
+    const tvCodigo = tvParams.get('codigo') || '';
+
+    function buildTvApiUrl() {
+        const p = new URLSearchParams();
+        if (tvUnidadeId) p.set('unidade_id', tvUnidadeId);
+        else if (tvCodigo) p.set('codigo', tvCodigo);
+        const qs = p.toString();
+        return '/api/tv/chamados' + (qs ? '?' + qs : '');
+    }
+
     // ── Atualizar
     async function atualizar() {
         try {
-            const r = await fetch('/api/tv/chamados');
+            const r = await fetch(buildTvApiUrl());
             const d = await r.json();
             if (!d.success) return;
 
