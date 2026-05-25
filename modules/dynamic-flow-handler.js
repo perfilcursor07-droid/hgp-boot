@@ -283,6 +283,31 @@ function attachDynamicFlow(client, options = {}) {
         return { id: result.insertId, protocolo };
     }
 
+    function gerarVariacoesNumero(numeroBruto) {
+        let numero = String(numeroBruto || '').replace(/\D/g, '');
+        if (!numero) return [];
+        if (!numero.startsWith('55')) numero = `55${numero}`;
+        const variacoes = [numero];
+        // 13 dígitos (com 9): tentar versão sem 9
+        if (numero.length === 13) variacoes.push(numero.slice(0, 4) + numero.slice(5));
+        // 12 dígitos (sem 9): tentar versão com 9
+        if (numero.length === 12) variacoes.push(numero.slice(0, 4) + '9' + numero.slice(4));
+        return [...new Set(variacoes)];
+    }
+
+    async function resolverIdChat(telefone) {
+        const variacoes = gerarVariacoesNumero(telefone);
+        for (const numero of variacoes) {
+            try {
+                const res = await client.getNumberId(numero);
+                if (res?._serialized) return res._serialized;
+            } catch (e) {
+                // continua tentando outras variações
+            }
+        }
+        return null;
+    }
+
     async function notificarTecnicosDaUnidade(chamado, dadosForm) {
         if (!unidadeId) return;
         try {
@@ -371,11 +396,13 @@ function attachDynamicFlow(client, options = {}) {
             ].filter(Boolean).join('\n');
 
             for (const tec of listaFinal) {
-                const tel = String(tec.telefone || '').replace(/\D/g, '');
-                if (!tel) continue;
-                const numero = tel.startsWith('55') ? tel : `55${tel}`;
+                const destino = await resolverIdChat(tec.telefone);
+                if (!destino) {
+                    log(`Não foi possível resolver número de ${tec.nome_completo || tec.username} (${tec.telefone})`);
+                    continue;
+                }
                 try {
-                    await client.sendMessage(`${numero}@c.us`, mensagem);
+                    await client.sendMessage(destino, mensagem);
                     log(`Notificação enviada para ${tec.nome_completo || tec.username}`);
                 } catch (e) {
                     log(`Falha ao notificar ${tec.username}: ${e.message}`);
