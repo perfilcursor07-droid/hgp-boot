@@ -257,17 +257,27 @@ function attachChatbot(client, options = {}) {
         try {
             const hojeISO = dayjs().format('YYYY-MM-DD');
 
-            const [rows] = await db.query(
-                `SELECT
+            // Filtrar pela unidade HGP (já que esse handler é do HGP)
+            const [legadaRows] = await db.query(
+                `SELECT unidade_id FROM instancias WHERE is_legacy = TRUE LIMIT 1`
+            );
+            const unidadeHgpId = legadaRows[0]?.unidade_id;
+
+            let query = `SELECT
                     COALESCE(NULLIF(a.nome_completo, ''), a.username) AS nome,
                     a.telefone AS telefone
                  FROM escalas e
                  INNER JOIN admins a ON a.id = e.admin_id
                  WHERE e.data_escala = ?
-                   AND a.ativo = TRUE
-                 LIMIT 1`,
-                [hojeISO]
-            );
+                   AND a.ativo = TRUE`;
+            const params = [hojeISO];
+            if (unidadeHgpId) {
+                query += ` AND a.id IN (SELECT au.admin_id FROM admin_unidades au WHERE au.unidade_id = ?)`;
+                params.push(unidadeHgpId);
+            }
+            query += ` LIMIT 1`;
+
+            const [rows] = await db.query(query, params);
 
             if (rows.length > 0) {
                 return {
@@ -343,11 +353,26 @@ function attachChatbot(client, options = {}) {
             const ativo = configRows.length > 0 && configRows[0].setting_value === 'true';
             if (!ativo) return;
 
+            // Descobrir a unidade da instância legada (HGP) para filtrar
+            // Como esse handler é exclusivo do HGP, só notifica gestores vinculados à unidade HGP
+            const [legadaRows] = await db.query(
+                `SELECT unidade_id FROM instancias WHERE is_legacy = TRUE LIMIT 1`
+            );
+            const unidadeHgpId = legadaRows[0]?.unidade_id;
+
             const agora = dayjs();
-            const diaSemana = agora.day(); // 0=Dom, 1=Seg...6=Sab
+            const diaSemana = agora.day();
             const horaAtual = agora.format('HH:mm:ss');
 
-            // Buscar usuários que estão em turno agora
+            // Construir filtro de unidade
+            let filtroUnidade = '';
+            const params = [diaSemana, horaAtual];
+            if (unidadeHgpId) {
+                filtroUnidade = ` AND a.id IN (SELECT au.admin_id FROM admin_unidades au WHERE au.unidade_id = ?)`;
+                params.push(unidadeHgpId);
+            }
+
+            // Buscar usuários que estão em turno agora E pertencem à unidade HGP
             const [usuarios] = await db.query(`
                 SELECT DISTINCT a.id, a.nome_completo, a.telefone
                 FROM admins a
@@ -358,23 +383,28 @@ function attachChatbot(client, options = {}) {
                   AND t.ativo = TRUE
                   AND t.dia_semana = ?
                   AND ? BETWEEN t.hora_inicio AND t.hora_fim
-            `, [diaSemana, horaAtual]);
+                  ${filtroUnidade}
+            `, params);
 
             // Se ninguém tem turno configurado, verificar se existem turnos no sistema
             if (usuarios.length === 0) {
                 const [totalTurnos] = await db.query('SELECT COUNT(*) as total FROM user_turnos WHERE ativo = TRUE');
                 if (totalTurnos[0].total === 0) {
-                    // Nenhum turno configurado, enviar para todos gestores com telefone
-                    const [todosUsuarios] = await db.query(`
-                        SELECT id, nome_completo, telefone FROM admins
-                        WHERE ativo = TRUE AND nivel_acesso = 'gestor' AND telefone IS NOT NULL AND telefone <> ''
-                    `);
+                    // Nenhum turno configurado: enviar para todos os gestores HGP com telefone
+                    let queryTodos = `SELECT id, nome_completo, telefone FROM admins
+                        WHERE ativo = TRUE AND nivel_acesso = 'gestor'
+                          AND telefone IS NOT NULL AND telefone <> ''`;
+                    const paramsTodos = [];
+                    if (unidadeHgpId) {
+                        queryTodos += ` AND id IN (SELECT au.admin_id FROM admin_unidades au WHERE au.unidade_id = ?)`;
+                        paramsTodos.push(unidadeHgpId);
+                    }
+                    const [todosUsuarios] = await db.query(queryTodos, paramsTodos);
                     if (todosUsuarios.length === 0) return;
                     await _dispararNotificacoes(todosUsuarios, dadosChamado);
                     return;
                 }
-                // Turnos existem mas ninguém está trabalhando agora
-                console.log(`📢 Nenhum usuário em turno agora (dia ${diaSemana}, ${horaAtual}) - notificação não enviada`);
+                console.log(`📢 Nenhum gestor HGP em turno agora (dia ${diaSemana}, ${horaAtual}) - notificação não enviada`);
                 return;
             }
 
