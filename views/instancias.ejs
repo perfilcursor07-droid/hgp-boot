@@ -47,9 +47,9 @@
     </style>
 </head>
 <body>
-    <% const isAdminUI = nivelAcesso === 'administrador'; %>
+    <% const isAdminUI = nivelAcesso === 'administrador' || nivelAcesso === 'gerenciador'; %>
     <div class="dashboard">
-        <%- include('partials/sidebar', { activePage: 'instancias', username, role: 'Administrador', isAdmin: isAdminUI, nivelAcesso }) %>
+        <%- include('partials/sidebar', { activePage: 'instancias', username, role: nivelAcesso === 'administrador' ? 'Administrador' : (nivelAcesso === 'gerenciador' ? 'Gerenciador' : 'Gestor'), isAdmin: isAdminUI, nivelAcesso }) %>
         <main class="main-content">
             <div class="topbar">
                 <div class="topbar-title-group">
