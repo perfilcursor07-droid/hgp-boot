@@ -345,7 +345,7 @@ async function ensureSchema(connection) {
             admin_id INT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY uniq_escalas_data (data_escala),
+            UNIQUE KEY uniq_escalas_data_admin (data_escala, admin_id),
             INDEX idx_escalas_admin_id (admin_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     `);
