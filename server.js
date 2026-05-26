@@ -3357,6 +3357,27 @@ app.post('/api/chamados/:id/encerrar', isAuthenticated, async (req, res) => {
     }
 });
 
+// API - Excluir chamado (somente administrador)
+app.delete('/api/chamados/:id', isAuthenticated, isAdminOnly, async (req, res) => {
+    try {
+        const chamadoId = req.params.id;
+
+        const [chamado] = await db.query('SELECT id, protocolo FROM chamados WHERE id = ?', [chamadoId]);
+        if (chamado.length === 0) {
+            return res.status(404).json({ success: false, message: 'Chamado não encontrado' });
+        }
+
+        // Excluir chamado (chat_messages tem ON DELETE CASCADE, então cai junto)
+        await db.query('DELETE FROM chamados WHERE id = ?', [chamadoId]);
+
+        console.log(`[ADMIN] Chamado ${chamado[0].protocolo} excluído por ${req.session.username}`);
+        res.json({ success: true, message: `Chamado ${chamado[0].protocolo} excluído com sucesso` });
+    } catch (error) {
+        console.error('Erro ao excluir chamado:', error);
+        res.status(500).json({ success: false, message: 'Erro ao excluir chamado: ' + error.message });
+    }
+});
+
 // API - Reabrir chamado finalizado
 app.post('/api/chamados/:id/reabrir', isAuthenticated, async (req, res) => {
     try {

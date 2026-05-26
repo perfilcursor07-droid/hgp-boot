@@ -331,6 +331,38 @@ function attachChatbot(client, options = {}) {
                 ]
             );
             console.log(`✅ Chamado ${dadosChamado.protocolo} salvo com sucesso no banco`);
+
+            // Salvar/atualizar perfil do usuário pelo telefone para reuso futuro
+            try {
+                const tel = String(dadosChamado.chatOrigem || '').replace(/@.*$/, '').replace(/\D/g, '');
+                if (tel) {
+                    const perfil = {};
+                    if (dadosChamado.solicitanteNome) perfil.nome_completo = dadosChamado.solicitanteNome;
+                    if (dadosChamado.telefoneContato) perfil.telefone = dadosChamado.telefoneContato;
+                    if (Object.keys(perfil).length > 0) {
+                        // Mesclar com o existente
+                        const [existente] = await db.query(
+                            'SELECT dados_json FROM bot_user_profiles WHERE telefone = ? LIMIT 1',
+                            [tel]
+                        );
+                        let merged = perfil;
+                        if (existente.length > 0) {
+                            try {
+                                const raw = existente[0].dados_json;
+                                const ant = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                                merged = { ...(ant || {}), ...perfil };
+                            } catch (e) {}
+                        }
+                        await db.query(
+                            `INSERT INTO bot_user_profiles (telefone, dados_json) VALUES (?, ?)
+                             ON DUPLICATE KEY UPDATE dados_json = ?`,
+                            [tel, JSON.stringify(merged), JSON.stringify(merged)]
+                        );
+                    }
+                }
+            } catch (erroPerfil) {
+                console.error('Erro ao salvar perfil do usuário (não-crítico):', erroPerfil.message);
+            }
         } catch (erro) {
             registrarErro(erro, `Falha ao salvar chamado ${dadosChamado.protocolo}`);
             console.error(`❌ FALHA AO SALVAR CHAMADO ${dadosChamado.protocolo}:`, erro.message);
@@ -819,9 +851,76 @@ function attachChatbot(client, options = {}) {
                 }
                 est.opcao = texto;
                 est.step = 1;
+
+                // Verificar se há perfil salvo pelo telefone do usuário
+                const telefoneUsuario = String(sessionId || '').replace(/@.*$/, '').replace(/\D/g, '');
+                if (telefoneUsuario) {
+                    try {
+                        const [perfilRows] = await db.query(
+                            'SELECT dados_json FROM bot_user_profiles WHERE telefone = ? LIMIT 1',
+                            [telefoneUsuario]
+                        );
+                        if (perfilRows.length > 0) {
+                            let perfil;
+                            try {
+                                const raw = perfilRows[0].dados_json;
+                                perfil = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                            } catch (e) { perfil = null; }
+
+                            if (perfil && (perfil.nome_completo || perfil.telefone)) {
+                                est.step = 'confirmar_perfil';
+                                est.perfilSalvo = perfil;
+                                const linhas = [
+                                    `📋 Categoria: *${categoriasMap[est.opcao]}*`,
+                                    '',
+                                    '👋 *Olá novamente!* Já tenho seus dados pessoais salvos:',
+                                    ''
+                                ];
+                                if (perfil.nome_completo) linhas.push(`• *NOME COMPLETO:* ${perfil.nome_completo}`);
+                                if (perfil.telefone) linhas.push(`• *TELEFONE:* ${perfil.telefone}`);
+                                linhas.push('', '*1* - Confirmar e seguir');
+                                linhas.push('*2* - Editar meus dados');
+                                linhas.push('', '_Digite o número da opção._');
+                                await client.sendMessage(chatId, linhas.join('\n'));
+                                resetInactivityTimer(sessionId, chatId);
+                                return;
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Erro ao buscar perfil do usuário:', e.message);
+                    }
+                }
+
                 await client.sendMessage(chatId, 'Para garantir a precisão e agilidade no seu atendimento, solicitamos o preenchimento detalhado dos campos abaixo de acordo com a sua necessidade.');
                 await delay(500);
                 await client.sendMessage(chatId, '👤 Seu *Nome Completo*:');
+                resetInactivityTimer(sessionId, chatId);
+                return;
+            }
+
+            // Confirmação do perfil salvo
+            if (est.step === 'confirmar_perfil') {
+                if (texto === '1') {
+                    // Reaproveitar dados pessoais e pular para o setor
+                    est.nome = est.perfilSalvo.nome_completo || '';
+                    est.tel = est.perfilSalvo.telefone || '';
+                    est.step = 2;
+                    await client.sendMessage(chatId, '✅ Dados confirmados!');
+                    await delay(400);
+                    await client.sendMessage(chatId, '🏢 Seu *Setor e Ala*:');
+                    resetInactivityTimer(sessionId, chatId);
+                    return;
+                }
+                if (texto === '2') {
+                    // Editar — começar do zero
+                    est.step = 1;
+                    await client.sendMessage(chatId, '✏️ Vamos atualizar seus dados.');
+                    await delay(400);
+                    await client.sendMessage(chatId, '👤 Seu *Nome Completo*:');
+                    resetInactivityTimer(sessionId, chatId);
+                    return;
+                }
+                await client.sendMessage(chatId, '❌ Opção inválida. Digite *1* para confirmar ou *2* para editar.');
                 resetInactivityTimer(sessionId, chatId);
                 return;
             }
