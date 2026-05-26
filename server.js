@@ -1238,8 +1238,42 @@ app.delete('/api/flows/:id', isAuthenticated, isAdminOnly, async (req, res) => {
     }
 });
 
+// Helper: verifica se o usuário tem acesso para controlar uma instância
+async function verificarAcessoInstancia(req, instanciaId) {
+    // Administrador acessa tudo
+    if (req.session.nivelAcesso === 'administrador') {
+        return { ok: true };
+    }
+
+    const ids = req.session.unidadeIds;
+    if (!Array.isArray(ids) || ids.length === 0) {
+        return { ok: false, message: 'Sem permissão para esta instância' };
+    }
+
+    const [rows] = await db.query(
+        'SELECT unidade_id, is_legacy FROM instancias WHERE id = ? LIMIT 1',
+        [instanciaId]
+    );
+    if (rows.length === 0) {
+        return { ok: false, message: 'Instância não encontrada' };
+    }
+
+    const inst = rows[0];
+
+    // Não permite controle da legacy a quem não é admin (a legacy é HGP/admin)
+    if (inst.is_legacy) {
+        return { ok: false, message: 'Apenas administradores podem controlar a instância principal' };
+    }
+
+    if (!inst.unidade_id || !ids.includes(inst.unidade_id)) {
+        return { ok: false, message: 'Você não tem acesso a esta instância' };
+    }
+
+    return { ok: true };
+}
+
 // ─── INSTÂNCIAS ───────────────────────────────────────────────────
-app.get('/instancias', isAuthenticated, isAdminOnly, async (req, res) => {
+app.get('/instancias', isAuthenticated, async (req, res) => {
     try {
         // Sincronizar status da instância legada com o estado real do whatsappState
         await db.query(
@@ -1247,15 +1281,39 @@ app.get('/instancias', isAuthenticated, isAdminOnly, async (req, res) => {
             [whatsappState || 'disconnected']
         );
 
+        // Filtro por unidade do usuário
+        const ids = req.session.unidadeIds;
+        let unidWhere = '';
+        const unidParams = [];
+        if (Array.isArray(ids)) {
+            if (ids.length === 0) {
+                // Sem unidade vinculada e não é administrador: ver só legacy
+                unidWhere = ' WHERE i.is_legacy = TRUE';
+            } else {
+                const ph = ids.map(() => '?').join(',');
+                unidWhere = ` WHERE i.unidade_id IN (${ph})`;
+                unidParams.push(...ids);
+            }
+        }
+
         const [instancias] = await db.query(`
             SELECT i.*, u.nome AS unidade_nome, u.cor AS unidade_cor, f.nome AS flow_nome
             FROM instancias i
             LEFT JOIN unidades u ON u.id = i.unidade_id
             LEFT JOIN bot_flows_v2 f ON f.id = i.flow_id
+            ${unidWhere}
             ORDER BY i.is_legacy DESC, i.nome
-        `);
-        const [unidades] = await db.query('SELECT id, nome, codigo FROM unidades WHERE ativo = TRUE ORDER BY nome');
-        const [flows] = await db.query('SELECT id, nome FROM bot_flows_v2 WHERE ativo = TRUE ORDER BY nome');
+        `, unidParams);
+
+        // Listas auxiliares apenas para administrador (formulário de criação)
+        const isAdminFull = req.session.nivelAcesso === 'administrador';
+        let unidades = [];
+        let flows = [];
+        if (isAdminFull) {
+            [unidades] = await db.query('SELECT id, nome, codigo FROM unidades WHERE ativo = TRUE ORDER BY nome');
+            [flows] = await db.query('SELECT id, nome FROM bot_flows_v2 WHERE ativo = TRUE ORDER BY nome');
+        }
+
         res.render('instancias', {
             username: req.session.username,
             nivelAcesso: req.session.nivelAcesso,
@@ -1320,9 +1378,14 @@ app.delete('/api/instancias/:id', isAuthenticated, isAdminOnly, async (req, res)
     }
 });
 
-app.post('/api/instancias/:id/iniciar', isAuthenticated, isAdminOnly, async (req, res) => {
+app.post('/api/instancias/:id/iniciar', isAuthenticated, async (req, res) => {
     try {
         const id = Number(req.params.id);
+
+        // Verificar acesso (gestor/gerenciador só pode iniciar instância de sua unidade)
+        const acesso = await verificarAcessoInstancia(req, id);
+        if (!acesso.ok) return res.status(403).json({ success: false, message: acesso.message });
+
         const [chk] = await db.query('SELECT is_legacy FROM instancias WHERE id = ?', [id]);
         if (chk.length === 0) return res.json({ success: false, message: 'Não encontrada' });
 
@@ -1343,9 +1406,14 @@ app.post('/api/instancias/:id/iniciar', isAuthenticated, isAdminOnly, async (req
     }
 });
 
-app.post('/api/instancias/:id/parar', isAuthenticated, isAdminOnly, async (req, res) => {
+app.post('/api/instancias/:id/parar', isAuthenticated, async (req, res) => {
     try {
         const id = Number(req.params.id);
+
+        // Verificar acesso (gestor/gerenciador só pode parar instância de sua unidade)
+        const acesso = await verificarAcessoInstancia(req, id);
+        if (!acesso.ok) return res.status(403).json({ success: false, message: acesso.message });
+
         const [chk] = await db.query('SELECT is_legacy FROM instancias WHERE id = ?', [id]);
         if (chk.length === 0) return res.json({ success: false, message: 'Não encontrada' });
 
@@ -1394,9 +1462,14 @@ app.post('/api/instancias/conectar-todas', isAuthenticated, isAdminOnly, async (
     }
 });
 
-app.get('/api/instancias/:id/status', isAuthenticated, isAdminOnly, async (req, res) => {
+app.get('/api/instancias/:id/status', isAuthenticated, async (req, res) => {
     try {
         const id = Number(req.params.id);
+
+        // Verificar acesso (gestor/gerenciador só pode ver status de instância de sua unidade)
+        const acesso = await verificarAcessoInstancia(req, id);
+        if (!acesso.ok) return res.status(403).json({ success: false, message: acesso.message });
+
         const [rows] = await db.query('SELECT id, nome, session_name, status, qr_code, last_error, last_connected, is_legacy FROM instancias WHERE id = ?', [id]);
         if (rows.length === 0) return res.json({ success: false, message: 'Não encontrada' });
 

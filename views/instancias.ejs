@@ -57,8 +57,10 @@
                     <h2>Instâncias WhatsApp</h2>
                 </div>
                 <div class="topbar-actions">
+                    <% if (nivelAcesso === 'administrador') { %>
                     <button class="btn-primary" style="background:#3b82f6;" onclick="conectarTodas()">⚡ Conectar Todas</button>
                     <button class="btn-primary" onclick="abrirNova()">+ Nova Instância</button>
+                    <% } %>
                 </div>
             </div>
             <div class="content">
@@ -126,6 +128,7 @@
 
     <script>
         const instancias = <%- JSON.stringify(instancias) %>;
+        const isAdminUser = <%- JSON.stringify(nivelAcesso === 'administrador') %>;
         let pollTimer = null;
         let pollInstId = null;
 
@@ -171,7 +174,7 @@
                             ? `<button class="in-btn" onclick="abrirQr(${i.id},'${escapeHtml(i.nome).replace(/'/g,"\\'")}')">Abrir QR/Status</button>
                                <button class="in-btn danger" onclick="parar(${i.id})">Parar</button>`
                             : `<button class="in-btn primary" onclick="iniciar(${i.id},'${escapeHtml(i.nome).replace(/'/g,"\\'")}')">Conectar</button>
-                               ${!isLegacy ? `<button class="in-btn" onclick="editar(${i.id})">Editar</button>
+                               ${(!isLegacy && isAdminUser) ? `<button class="in-btn" onclick="editar(${i.id})">Editar</button>
                                <button class="in-btn danger" onclick="excluir(${i.id})">×</button>` : ''}`
                         }
                     </div>
