@@ -149,7 +149,46 @@ async function iniciarInstancia(instanciaId) {
             last_connected: new Date(),
             last_error: null
         });
+
+        // Garantir que existe registro em whatsapp_sessions para esta instância
+        // (necessário para a tabela messages — chave estrangeira)
+        try {
+            await db.query(
+                `INSERT INTO whatsapp_sessions (session_name, is_connected, last_connected)
+                 VALUES (?, TRUE, NOW())
+                 ON DUPLICATE KEY UPDATE is_connected = TRUE, last_connected = NOW()`,
+                [inst.session_name]
+            );
+        } catch (e) {
+            console.error(`[Instance:${inst.nome}] Erro ao registrar whatsapp_session:`, e.message);
+        }
+
         console.log(`[Instance:${inst.nome}] CONECTADO ✓`);
+    });
+
+    // Listener de mensagens para salvar em `messages` (igual HGP)
+    client.on('message', async (message) => {
+        try {
+            const [sessions] = await db.query(
+                'SELECT id FROM whatsapp_sessions WHERE session_name = ?',
+                [inst.session_name]
+            );
+            if (sessions.length > 0) {
+                await db.query(
+                    'INSERT INTO messages (session_id, from_number, to_number, message_body, message_type, is_from_me) VALUES (?, ?, ?, ?, ?, ?)',
+                    [
+                        sessions[0].id,
+                        message.from,
+                        message.to,
+                        message.body || '',
+                        String(message.type || 'text').slice(0, 100),
+                        message.fromMe
+                    ]
+                );
+            }
+        } catch (error) {
+            console.error(`[Instance:${inst.nome}] Erro ao registrar mensagem:`, error.message);
+        }
     });
 
     client.on('authenticated', () => {
