@@ -304,7 +304,8 @@
 
         async function simular(id, nome) {
             try {
-                const r = await fetch('/api/flows/' + id);
+                // Cache-busting: garantir que pega a versão mais recente do fluxo do banco
+                const r = await fetch('/api/flows/' + id + '?t=' + Date.now(), { cache: 'no-store' });
                 const d = await r.json();
                 if (!d.success) { alert(d.message); return; }
                 simFlow = d.flow.definicao;
@@ -385,6 +386,9 @@
         function montarPromptCampo(c) {
             const op = c.obrigatorio ? '' : ' _(opcional, envie - para pular)_';
             let prompt = `📝 *${c.label}*${op}`;
+            if (c.ajuda) {
+                prompt += `\n\n_${c.ajuda}_`;
+            }
             if (c.tipo === 'opcoes' && Array.isArray(c.opcoes)) {
                 prompt += '\n';
                 for (const opc of c.opcoes) {

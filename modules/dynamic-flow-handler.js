@@ -193,6 +193,11 @@ function attachDynamicFlow(client, options = {}) {
         const obrig = campo.obrigatorio ? '' : ' _(opcional, envie - para pular)_';
         let prompt = `📝 *${campo.label}*${obrig}`;
 
+        // Texto de ajuda/dica do campo (mostrado após o label)
+        if (campo.ajuda) {
+            prompt += `\n\n_${campo.ajuda}_`;
+        }
+
         // Tipo "opcoes": listar as opções e pedir o número
         if (campo.tipo === 'opcoes' && Array.isArray(campo.opcoes)) {
             prompt += '\n';
