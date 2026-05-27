@@ -320,7 +320,7 @@ function attachChatbot(client, options = {}) {
                     dadosChamado.nomeWhats,
                     dadosChamado.telefoneWhats,
                     dadosChamado.setor,
-                    dadosChamado.ipMaquina,
+                    (dadosChamado.ipMaquina || '').slice(0, 50) || null,
                     dadosChamado.telefoneContato,
                     dadosChamado.descricao,
                     dadosChamado.status,
@@ -597,7 +597,7 @@ function attachChatbot(client, options = {}) {
 
     client.on('message', async (msg) => {
         try {
-            if (msg.fromMe || msg.from.endsWith('@g.us') || msg.from === 'status@broadcast') return;
+            if (msg.fromMe || msg.from.endsWith('@g.us') || msg.from === 'status@broadcast' || msg.from.endsWith('@newsletter')) return;
             if (String(msg.type || '').includes('notification')) return;
             if (String(msg.type || '').includes('call_log')) return;
             if (mensagemJaProcessada(msg)) return;
