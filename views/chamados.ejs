@@ -1524,6 +1524,8 @@
                 <p style="margin-bottom: 10px;"><strong>🏢 Setor:</strong> <span id="detSetor"></span></p>
                 <p style="margin-bottom: 10px;"><strong>💻 IP:</strong> <span id="detIP"></span></p>
                 <p style="margin-bottom: 10px;"><strong>📱 Telefone:</strong> <span id="detTelefone"></span></p>
+                <p id="detEmailRow" style="margin-bottom: 10px; display:none;"><strong>📧 E-mail:</strong> <span id="detEmail"></span></p>
+                <p id="detCpfRow" style="margin-bottom: 10px; display:none;"><strong>🪪 CPF:</strong> <span id="detCpf"></span></p>
                 <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-top: 15px;">
                     <h3 style="margin: 0 0 10px 0;">📝 Descrição do Problema:</h3>
                     <p id="detDescricao" style="white-space: pre-wrap; margin: 0;"></p>
@@ -1887,6 +1889,26 @@
             document.getElementById('detIP').textContent = chamado.ip_maquina || 'Não informado';
             document.getElementById('detTelefone').textContent = chamado.telefone_contato || 'Não informado';
             document.getElementById('detDescricao').textContent = chamado.descricao || 'Sem descrição';
+
+            // Email
+            const emailRow = document.getElementById('detEmailRow');
+            const emailVal = chamado.email || '';
+            if (emailVal) {
+                document.getElementById('detEmail').textContent = emailVal;
+                emailRow.style.display = 'block';
+            } else {
+                emailRow.style.display = 'none';
+            }
+
+            // CPF
+            const cpfRow = document.getElementById('detCpfRow');
+            const cpfVal = chamado.cpf_solicitante || '';
+            if (cpfVal) {
+                document.getElementById('detCpf').textContent = cpfVal;
+                cpfRow.style.display = 'block';
+            } else {
+                cpfRow.style.display = 'none';
+            }
         }
 
         function fecharModalDetalhes() {

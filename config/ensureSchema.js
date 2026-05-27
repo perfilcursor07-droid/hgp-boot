@@ -323,6 +323,14 @@ async function ensureSchema(connection) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     `);
 
+    // Adicionar colunas email e cpf_solicitante se não existirem
+    try {
+        await connection.query(`ALTER TABLE chamados ADD COLUMN email VARCHAR(150) NULL AFTER telefone_contato`);
+    } catch (e) { /* coluna já existe */ }
+    try {
+        await connection.query(`ALTER TABLE chamados ADD COLUMN cpf_solicitante VARCHAR(20) NULL AFTER email`);
+    } catch (e) { /* coluna já existe */ }
+
     await connection.query(`
         CREATE TABLE IF NOT EXISTS contacts (
             id INT AUTO_INCREMENT PRIMARY KEY,

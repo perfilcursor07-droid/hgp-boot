@@ -266,9 +266,9 @@ function attachDynamicFlow(client, options = {}) {
         const [result] = await db.query(
             `INSERT INTO chamados (
                 protocolo, categoria, solicitante_nome, nome_whatsapp, telefone_whatsapp,
-                setor, ip_maquina, telefone_contato, descricao, status, chat_origem,
+                setor, ip_maquina, telefone_contato, email, cpf_solicitante, descricao, status, chat_origem,
                 unidade_id, instancia_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?, ?, ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?, ?, ?)`,
             [
                 protocolo,
                 categoria,
@@ -278,6 +278,8 @@ function attachDynamicFlow(client, options = {}) {
                 `${dados.unidade || ''} - ${dados.setor || ''}`.trim().replace(/^- |-$/, ''),
                 dados.ip || null,
                 dados.telefone || null,
+                dados.email || null,
+                dados.cpf || null,
                 descricaoFinal,
                 sessionId,
                 unidadeId,
