@@ -656,6 +656,8 @@ async function ensureSchema(connection) {
             chamado_id INT NOT NULL,
             protocolo VARCHAR(50) NOT NULL,
             nota TINYINT NOT NULL COMMENT '1 a 5',
+            motivo_usuario TEXT NULL,
+            resposta_tecnico TEXT NULL,
             atendente_nome VARCHAR(255) NULL,
             solicitante_nome VARCHAR(150) NULL,
             chat_origem VARCHAR(100) NULL,
@@ -665,6 +667,14 @@ async function ensureSchema(connection) {
             FOREIGN KEY (chamado_id) REFERENCES chamados(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     `);
+
+    // Garantir colunas de motivo/resposta nas avaliações (tabelas existentes)
+    if (await ensureColumn(connection, 'avaliacoes', 'motivo_usuario', 'TEXT NULL AFTER nota')) {
+        changes.push('avaliacoes.motivo_usuario');
+    }
+    if (await ensureColumn(connection, 'avaliacoes', 'resposta_tecnico', 'TEXT NULL AFTER motivo_usuario')) {
+        changes.push('avaliacoes.resposta_tecnico');
+    }
 
     return changes;
 }
