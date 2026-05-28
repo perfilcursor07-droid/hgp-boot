@@ -498,6 +498,68 @@ async function ensureSchema(connection) {
         WHERE username = 'admin'
     `);
 
+    // ── Tabelas multi-instância (unidades, fluxos, instâncias) ──
+    await connection.query(`
+        CREATE TABLE IF NOT EXISTS unidades (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nome VARCHAR(150) NOT NULL,
+            codigo VARCHAR(50) NOT NULL UNIQUE,
+            descricao TEXT NULL,
+            cor VARCHAR(20) DEFAULT '#25d366',
+            ativo BOOLEAN DEFAULT TRUE,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_unidades_codigo (codigo),
+            INDEX idx_unidades_ativo (ativo)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+    `);
+
+    await connection.query(`
+        CREATE TABLE IF NOT EXISTS bot_flows_v2 (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nome VARCHAR(150) NOT NULL,
+            descricao TEXT NULL,
+            definicao_json LONGTEXT NOT NULL,
+            is_default BOOLEAN DEFAULT FALSE,
+            ativo BOOLEAN DEFAULT TRUE,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_flows_v2_ativo (ativo)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+    `);
+
+    await connection.query(`
+        CREATE TABLE IF NOT EXISTS instancias (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nome VARCHAR(150) NOT NULL,
+            session_name VARCHAR(100) NOT NULL UNIQUE,
+            unidade_id INT NULL,
+            flow_id INT NULL,
+            status ENUM('disconnected','connecting','qr_ready','connected','error') DEFAULT 'disconnected',
+            qr_code TEXT NULL,
+            last_error TEXT NULL,
+            last_connected TIMESTAMP NULL,
+            is_legacy BOOLEAN DEFAULT FALSE,
+            ativo BOOLEAN DEFAULT TRUE,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (unidade_id) REFERENCES unidades(id) ON DELETE SET NULL,
+            FOREIGN KEY (flow_id) REFERENCES bot_flows_v2(id) ON DELETE SET NULL,
+            INDEX idx_instancias_status (status),
+            INDEX idx_instancias_session (session_name)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+    `);
+
+    await connection.query(`
+        CREATE TABLE IF NOT EXISTS admin_unidades (
+            admin_id INT NOT NULL,
+            unidade_id INT NOT NULL,
+            PRIMARY KEY (admin_id, unidade_id),
+            FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE,
+            FOREIGN KEY (unidade_id) REFERENCES unidades(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+    `);
+
     await connection.query(`
         CREATE TABLE IF NOT EXISTS system_settings (
             setting_key VARCHAR(100) PRIMARY KEY,

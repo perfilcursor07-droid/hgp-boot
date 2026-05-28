@@ -17,6 +17,7 @@ const db = require('./config/database');
 const { ensureSchema } = require('./config/ensureSchema');
 const { attachChatbot } = require('./chatbot-handler');
 const instanceManager = require('./modules/instance-manager');
+const mediaManager = require('./modules/media-manager');
 
 const uploadChatMedia = multer({
     storage: multer.diskStorage({
@@ -749,7 +750,7 @@ async function iniciarWhatsAppLegacy() {
     });
 
     whatsappClient.on('ready', async () => {
-        console.log('WhatsApp HGP conectado!');
+        console.log('WhatsApp SESAU conectado!');
         whatsappState = 'connected';
         whatsappLastError = null;
         currentQR = null;
@@ -767,7 +768,7 @@ async function iniciarWhatsAppLegacy() {
     });
 
     whatsappClient.on('disconnected', async (reason) => {
-        console.log('WhatsApp HGP desconectado:', reason);
+        console.log('WhatsApp SESAU desconectado:', reason);
         whatsappLastError = `WhatsApp desconectado: ${reason}`;
         if (whatsappClient) {
             try { await whatsappClient.destroy(); } catch (e) {}
@@ -2621,12 +2622,12 @@ app.get('/api/usuarios/gestores', isAuthenticated, async (req, res) => {
     }
 });
 
-// API - Listar atendentes disponíveis para transferência (quem NÃO está no turno atual, mas tem turno configurado)
+// API - Listar atendentes disponíveis para transferência (próximo turno)
 app.get('/api/usuarios/atendentes', isAuthenticated, async (req, res) => {
     try {
-        const agora = new Date();
-        const diaSemana = agora.getDay();
-        const horaAtual = agora.toTimeString().slice(0, 5);
+        const agora = dayjs();
+        const diaSemana = agora.day();
+        const horaAtual = agora.format('HH:mm:ss');
 
         // Filtro por unidade
         const ids = req.session.unidadeIds;
@@ -2643,36 +2644,63 @@ app.get('/api/usuarios/atendentes', isAuthenticated, async (req, res) => {
             }
         }
 
-        const [atendentes] = await db.query(`
-            SELECT DISTINCT a.id, a.username, a.nome_completo, a.telefone, a.nivel_acesso
+        // Determinar o próximo turno: turnos que começam DEPOIS do horário atual (hoje)
+        // ou se não houver mais turno hoje, o primeiro turno do dia seguinte
+        const proximoDia = (diaSemana + 1) % 7;
+
+        // Buscar técnicos que têm turno INICIANDO DEPOIS do horário atual (hoje)
+        // OU que tenham turno no dia seguinte (se não houver mais turnos hoje)
+        const [atendentesHoje] = await db.query(`
+            SELECT DISTINCT a.id, a.username, a.nome_completo, a.telefone, a.nivel_acesso,
+                   MIN(t.hora_inicio) AS proximo_inicio, t.hora_fim AS proximo_fim
             FROM admins a
             INNER JOIN user_turnos t ON t.admin_id = a.id AND t.ativo = TRUE
             WHERE a.ativo = TRUE
               AND a.nivel_acesso IN ('administrador', 'gerenciador', 'gestor')
               AND a.id != ?
-              AND a.id NOT IN (
-                  SELECT t2.admin_id FROM user_turnos t2
-                  WHERE t2.ativo = TRUE
-                    AND t2.dia_semana = ?
-                    AND t2.hora_inicio <= ?
-                    AND t2.hora_fim >= ?
-              )
+              AND t.dia_semana = ?
+              AND t.hora_inicio > ?
               ${unidWhere}
-            ORDER BY a.nome_completo
-        `, [req.session.userId, diaSemana, horaAtual, horaAtual, ...unidParams]);
+            GROUP BY a.id
+            ORDER BY proximo_inicio, a.nome_completo
+        `, [req.session.userId, diaSemana, horaAtual, ...unidParams]);
 
-        // Buscar os turnos de cada atendente para mostrar horários disponíveis
+        let atendentes = atendentesHoje;
+        let labelTurno = 'próximo turno (hoje)';
+
+        // Se ninguém tem turno posterior hoje, buscar primeiro turno do dia seguinte
+        if (atendentes.length === 0) {
+            const [atendenteAmanha] = await db.query(`
+                SELECT DISTINCT a.id, a.username, a.nome_completo, a.telefone, a.nivel_acesso,
+                       MIN(t.hora_inicio) AS proximo_inicio, t.hora_fim AS proximo_fim
+                FROM admins a
+                INNER JOIN user_turnos t ON t.admin_id = a.id AND t.ativo = TRUE
+                WHERE a.ativo = TRUE
+                  AND a.nivel_acesso IN ('administrador', 'gerenciador', 'gestor')
+                  AND a.id != ?
+                  AND t.dia_semana = ?
+                  ${unidWhere}
+                GROUP BY a.id
+                ORDER BY proximo_inicio, a.nome_completo
+            `, [req.session.userId, proximoDia, ...unidParams]);
+            atendentes = atendenteAmanha;
+            const dias = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+            labelTurno = `primeiro turno de amanhã (${dias[proximoDia]})`;
+        }
+
+        // Buscar os turnos de cada atendente (só do dia relevante) para mostrar horário
         for (const atendente of atendentes) {
+            const diaRelevante = atendentes === atendentesHoje ? diaSemana : proximoDia;
             const [turnos] = await db.query(`
                 SELECT dia_semana, hora_inicio, hora_fim
                 FROM user_turnos
-                WHERE admin_id = ? AND ativo = TRUE
-                ORDER BY dia_semana, hora_inicio
-            `, [atendente.id]);
+                WHERE admin_id = ? AND ativo = TRUE AND dia_semana = ?
+                ORDER BY hora_inicio
+            `, [atendente.id, diaRelevante]);
             atendente.turnos = turnos;
         }
 
-        res.json({ success: true, atendentes });
+        res.json({ success: true, atendentes, labelTurno });
     } catch (error) {
         console.error('Erro ao buscar atendentes:', error);
         res.status(500).json({ success: false, message: 'Erro ao buscar atendentes' });
@@ -3591,7 +3619,15 @@ app.get('/api/chamados/:id/chat/nao-lidas', isAuthenticated, async (req, res) =>
 });
 
 // API - Enviar mídia (imagem, vídeo, áudio) no chat
-app.post('/api/chamados/:id/chat/enviar-midia', isAuthenticated, uploadChatMedia.single('midia'), async (req, res) => {
+app.post('/api/chamados/:id/chat/enviar-midia', isAuthenticated, (req, res, next) => {
+    uploadChatMedia.single('midia')(req, res, (err) => {
+        if (err) {
+            console.error('Erro multer no upload de mídia:', err);
+            return res.status(400).json({ success: false, message: err.message || 'Erro ao processar arquivo' });
+        }
+        next();
+    });
+}, async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ success: false, message: 'Nenhum arquivo enviado' });
@@ -3608,6 +3644,19 @@ app.post('/api/chamados/:id/chat/enviar-midia', isAuthenticated, uploadChatMedia
         else if (mimeType.startsWith('video/')) messageType = 'video';
         else if (mimeType.startsWith('audio/')) messageType = 'audio';
 
+        // Comprimir imagem para economizar espaço (mantém qualidade visual)
+        if (messageType === 'image') {
+            try {
+                const compResult = await mediaManager.comprimirImagem(req.file.path, mimeType);
+                if (compResult && compResult.ratio > 0) {
+                    const economia = (compResult.ratio * 100).toFixed(0);
+                    console.log(`[Upload] Imagem comprimida: ${economia}% de redução (${(compResult.originalSize/1024).toFixed(0)}KB → ${(compResult.newSize/1024).toFixed(0)}KB)`);
+                }
+            } catch (e) {
+                console.warn('[Upload] Falha ao comprimir imagem:', e.message);
+            }
+        }
+
         const [chamado] = await db.query('SELECT * FROM chamados WHERE id = ?', [chamadoId]);
         if (chamado.length === 0) {
             return res.status(404).json({ success: false, message: 'Chamado não encontrado' });
@@ -3616,7 +3665,7 @@ app.post('/api/chamados/:id/chat/enviar-midia', isAuthenticated, uploadChatMedia
         await db.query(
             `INSERT INTO chat_messages (chamado_id, remetente_tipo, remetente_nome, mensagem, message_type, media_url, media_mime_type, media_filename)
              VALUES (?, 'tecnico', ?, ?, ?, ?, ?, ?)`,
-            [chamadoId, remetenteNome, legenda || null, messageType, mediaUrl, mimeType, req.file.originalname]
+            [chamadoId, remetenteNome, legenda || `[${messageType}]`, messageType, mediaUrl, mimeType, req.file.originalname]
         );
 
         const wppMd = await obterClienteWhatsAppParaChamado(chamado[0]);
@@ -3635,8 +3684,14 @@ app.post('/api/chamados/:id/chat/enviar-midia', isAuthenticated, uploadChatMedia
 
         res.json({ success: true, message: 'Mídia enviada com sucesso' });
     } catch (error) {
-        console.error('Erro ao enviar mídia:', error);
-        res.status(500).json({ success: false, message: 'Erro ao enviar mídia' });
+        console.error('Erro ao enviar mídia (detalhe):', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erro ao enviar mídia',
+            error: error.message,
+            code: error.code,
+            sqlMessage: error.sqlMessage
+        });
     }
 });
 
@@ -3796,6 +3851,9 @@ async function startServer() {
         app.listen(PORT, () => {
             console.log(`Servidor rodando em http://localhost:${PORT}`);
         });
+
+        // Inicia limpeza automática de mídia (executa após 30s e a cada 24h)
+        mediaManager.iniciarLimpezaAutomatica(db);
 
         // Auto-encerramento de chamados pendentes às 23:59
         setInterval(async () => {

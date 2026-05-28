@@ -7,6 +7,7 @@
 
 const dayjs = require('dayjs');
 const db = require('../config/database');
+const { validarDescricao } = require('./ai-description-validator');
 
 const ATTACH_FLAG = Symbol.for('hgp.dynamicFlow.attached');
 
@@ -499,10 +500,21 @@ function attachDynamicFlow(client, options = {}) {
                                     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
                                     const ext = (media.mimetype || '').split('/').pop().split(';')[0] || 'bin';
                                     const filename = `chamado-${chamadoAtivo.id}-${Date.now()}.${ext}`;
-                                    fs.writeFileSync(path.join(dir, filename), Buffer.from(media.data, 'base64'));
+                                    const filePath = path.join(dir, filename);
+                                    fs.writeFileSync(filePath, Buffer.from(media.data, 'base64'));
                                     mediaUrl = `/uploads/chat-media/${filename}`;
                                     mediaMimeType = media.mimetype;
                                     mediaFilename = media.filename || filename;
+
+                                    // Comprimir se for imagem (best-effort, async)
+                                    if (messageType === 'image' && media.mimetype) {
+                                        try {
+                                            const mediaManager = require('./media-manager');
+                                            await mediaManager.comprimirImagem(filePath, media.mimetype);
+                                        } catch (e) {
+                                            // ignora — mantém o arquivo original
+                                        }
+                                    }
                                 }
                             } catch (e) {
                                 console.error('Erro ao salvar mídia do solicitante:', e.message);
@@ -683,6 +695,15 @@ function attachDynamicFlow(client, options = {}) {
                         const escolhida = campo.opcoes.find(o => String(o.id) === texto);
                         est.dados[campo.key] = escolhida ? escolhida.label : texto;
                     } else {
+                        // Validação IA para campos de descrição (texto_longo ou key 'descricao')
+                        if (campo.tipo === 'texto_longo' || campo.key === 'descricao') {
+                            const validacao = await validarDescricao(texto, est.categoria || '');
+                            if (!validacao.aprovado) {
+                                await client.sendMessage(chatId, validacao.mensagem);
+                                resetInactivityTimer(sessionId, chatId);
+                                return; // Fica no mesmo campo esperando nova descrição
+                            }
+                        }
                         est.dados[campo.key] = texto;
                     }
                 } else {

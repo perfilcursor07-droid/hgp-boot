@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require("fs");
 const qrcode = require('qrcode-terminal');
 const db = require('./config/database');
+const { validarDescricao } = require('./modules/ai-description-validator');
 
 // ================= CONFIG =================
 const CONFIG = {
@@ -194,6 +195,15 @@ const steps = {
   },
 
   5: async (msg, est, chatId) => {
+    // Validar descrição com IA antes de aceitar
+    const categoria = categoriasMap[est.opcao] || '';
+    const validacao = await validarDescricao(msg.body, categoria);
+    
+    if (!validacao.aprovado) {
+      await client.sendMessage(chatId, validacao.mensagem);
+      return; // Fica no step 5 esperando nova descrição
+    }
+    
     est.desc = msg.body;
 
     const protocolo = gerarProtocolo();

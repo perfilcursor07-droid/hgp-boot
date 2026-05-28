@@ -5,6 +5,7 @@ const fs = require('fs');
 const fsPromises = require('fs/promises');
 const { MessageMedia } = require('whatsapp-web.js');
 const db = require('./config/database');
+const { validarDescricao } = require('./modules/ai-description-validator');
 
 const GATILHO_TESTE = 'JOHNTESTE';
 const MEU_NUMERO_SIMULACAO = '5563984425197';
@@ -569,6 +570,17 @@ function attachChatbot(client, options = {}) {
 
         await fsPromises.writeFile(caminhoArquivo, media.data, 'base64');
 
+        // Comprimir imagens recebidas (best-effort)
+        const tipoMsg = String(msg.type || '').toLowerCase();
+        if (tipoMsg === 'image' && media.mimetype?.startsWith('image/')) {
+            try {
+                const mediaManager = require('./modules/media-manager');
+                await mediaManager.comprimirImagem(caminhoArquivo, media.mimetype);
+            } catch (e) {
+                // ignora — mantém o arquivo original
+            }
+        }
+
         return {
             messageType: String(msg.type || 'media'),
             mediaUrl: `/uploads/chat-media/${nomeArquivo}`,
@@ -974,6 +986,18 @@ function attachChatbot(client, options = {}) {
 
             if (est.step === 5) {
                 clearInactivityTimer(sessionId);
+                
+                // Validar descrição com IA antes de aceitar
+                const categoria = categoriasMap[est.opcao] || '';
+                const validacao = await validarDescricao(msg.body, categoria);
+                
+                if (!validacao.aprovado) {
+                    // Descrição insuficiente — pedir mais detalhes
+                    await client.sendMessage(chatId, validacao.mensagem);
+                    resetInactivityTimer(sessionId, chatId);
+                    return; // Não avança, fica no step 5 esperando nova descrição
+                }
+                
                 est.desc = msg.body;
                 const protocolo = `HGP-${dayjs().format('DDMM')}-${Math.random().toString(36).substring(2, 5).toUpperCase()}`;
                 

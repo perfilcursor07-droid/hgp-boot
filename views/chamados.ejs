@@ -3,66 +3,178 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chamados - WhatsApp HGP</title>
+    <title>Chamados - WhatsApp SESAU</title>
     <link rel="stylesheet" href="/css/style.css">
     <style>
-        /* ── Detalhes do chamado no chat ── */
-        .chat-detalhes-bar {
-            background: #f0fdf4;
-            border-bottom: 1px solid #d1fae5;
-            font-size: 12px;
-        }
-        .chat-detalhes-toggle {
-            width: 100%;
+        /* ── Layout split do chat modal ── */
+        .chat-split-layout {
             display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 8px 14px;
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            font-size: 12px;
-            color: #16a34a;
-            font-weight: 600;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
         }
-        .chat-detalhes-toggle:hover { background: rgba(34,197,94,0.08); }
-        .chat-detalhes-toggle.open #chatDetalhesArrow { transform: rotate(180deg); }
-        .chat-detalhes-body {
-            padding: 4px 14px 12px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 6px 16px;
-            border-top: 1px solid #d1fae5;
-            background: #fff;
-        }
-        .cd-row {
+
+        /* Painel esquerdo: informações */
+        .chat-sidebar-info {
+            width: 300px;
+            min-width: 280px;
+            max-width: 340px;
+            background: #ffffff;
+            border-right: 1px solid #e2e8f0;
+            overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 1px;
-            font-size: 12px;
-            color: #1e293b;
+            gap: 0;
         }
-        .cd-row .cd-label {
-            font-size: 10px;
+
+        .chat-sidebar-section {
+            padding: 16px 18px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .chat-sidebar-section:last-child {
+            border-bottom: none;
+            flex: 1;
+        }
+
+        .chat-sidebar-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #16a34a;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 0 0 12px;
+        }
+
+        .chat-sidebar-fields {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .csf-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .csf-label {
+            font-size: 10.5px;
             color: #64748b;
             text-transform: uppercase;
-            letter-spacing: 0.4px;
+            letter-spacing: 0.3px;
             font-weight: 600;
         }
-        .cd-row.cd-desc {
-            grid-column: 1 / -1;
+
+        .csf-value {
+            font-size: 13.5px;
+            color: #1e293b;
+            font-weight: 500;
+            word-break: break-word;
         }
-        .cd-row.cd-desc div {
+
+        .csf-descricao {
             background: #f8fafc;
             border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            padding: 6px 10px;
-            font-size: 12px;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 13px;
             color: #334155;
-            margin-top: 2px;
-            max-height: 80px;
-            overflow-y: auto;
+            line-height: 1.5;
             white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        /* Painel direito: chat */
+        .chat-main-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            background: #e5ddd5;
+        }
+
+        /* Botão toggle de info (visível apenas no mobile) */
+        .chat-toggle-info-btn {
+            display: none;
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: rgba(255,255,255,0.15);
+            color: rgba(255,255,255,0.9);
+            border-radius: 50%;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: background 0.2s;
+        }
+        .chat-toggle-info-btn:hover { background: rgba(255,255,255,0.25); }
+
+        /* Botão Encerrar no header do chat */
+        .chat-encerrar-btn {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 6px 14px;
+            border: 1px solid rgba(255,255,255,0.3);
+            background: rgba(239,68,68,0.15);
+            color: #fecaca;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            flex-shrink: 0;
+            transition: background 0.2s, color 0.2s;
+        }
+        .chat-encerrar-btn:hover {
+            background: rgba(239,68,68,0.35);
+            color: #fff;
+        }
+        .chat-encerrar-btn[style*="display: none"] { display: none !important; }
+
+        /* Mobile: sidebar vira painel superior compacto */
+        @media (max-width: 768px) {
+            .chat-split-layout {
+                flex-direction: column;
+            }
+
+            .chat-sidebar-info {
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                max-height: 0;
+                border-right: none;
+                border-bottom: 1px solid #e2e8f0;
+                overflow: hidden;
+                transition: max-height 0.3s ease;
+            }
+
+            .chat-sidebar-info.expanded {
+                max-height: 50vh;
+                overflow-y: auto;
+            }
+
+            .chat-sidebar-section {
+                padding: 12px 14px;
+            }
+
+            .chat-sidebar-fields {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+            }
+
+            .chat-main-panel {
+                flex: 1;
+                min-height: 0;
+            }
+
+            .chat-toggle-info-btn {
+                display: flex;
+            }
         }
 
         .chat-badge {
@@ -80,6 +192,44 @@
             align-items: center;
             justify-content: center;
             border: 2px solid white;
+        }
+
+        /* ── Transfer card (lista de técnicos) ── */
+        .transfer-card {
+            padding: 10px 14px;
+            border-bottom: 1px solid #f1f5f9;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .transfer-card:last-child { border-bottom: none; }
+        .transfer-card:hover { background: #eff6ff; }
+        .transfer-card.selected {
+            background: #dbeafe;
+            border-left: 3px solid #2563eb;
+        }
+        .transfer-card-name {
+            font-size: 13.5px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 2px;
+        }
+        .transfer-card-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .transfer-card-nivel {
+            font-size: 11px;
+            background: #f1f5f9;
+            color: #64748b;
+            padding: 1px 6px;
+            border-radius: 4px;
+            text-transform: capitalize;
+        }
+        .transfer-card-horario {
+            font-size: 11.5px;
+            color: #6b7280;
         }
 
         /* ═══ CHAMADOS PAGE OVERRIDES ═══════════════════════════════════ */
@@ -586,24 +736,24 @@
 
     <!-- Modal Encaminhar Chamado -->
     <div id="modalEncaminhar" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 480px;">
             <div class="modal-header">
                 <h2>📤 Encaminhar Chamado</h2>
                 <span class="modal-close" onclick="fecharModalEncaminhar()">&times;</span>
             </div>
-            <form id="formEncaminhar" onsubmit="encaminharChamado(event)">
+            <form id="formEncaminhar" onsubmit="encaminharChamado(event)" style="padding: 20px;">
                 <input type="hidden" id="encaminharChamadoId" name="chamadoId">
-                <p>Protocolo: <strong id="encaminharProtocolo"></strong></p>
+                <input type="hidden" id="gestorId" name="gestorId">
+                <p style="margin-bottom:16px;">Protocolo: <strong id="encaminharProtocolo"></strong></p>
                 
                 <div class="form-group">
-                    <label for="gestorId">Encaminhar para (técnicos no turno atual) *</label>
-                    <select id="gestorId" name="gestorId" required style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
-                        <option value="">Carregando técnicos...</option>
-                    </select>
-                    <small style="color: #64748b;">Apenas técnicos que estão no turno agora.</small>
+                    <label style="font-size:13px;color:#64748b;margin-bottom:8px;">Encaminhar para (técnicos no turno atual):</label>
+                    <div id="listaGestoresEncaminhar" style="max-height:280px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;">
+                        <div style="padding:14px;text-align:center;color:#94a3b8;font-size:13px;">Carregando...</div>
+                    </div>
                 </div>
 
-                <div class="modal-actions">
+                <div class="modal-actions" style="margin-top:16px;">
                     <button type="button" onclick="fecharModalEncaminhar()" class="btn btn-secondary">Cancelar</button>
                     <button type="submit" class="btn btn-primary">Encaminhar</button>
                 </div>
@@ -677,30 +827,30 @@
 
     <!-- Modal Transferir Chamado -->
     <div id="modalTransferir" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 520px;">
             <div class="modal-header">
                 <h2>🔄 Transferir Chamado</h2>
                 <span class="modal-close" onclick="fecharModalTransferir()">&times;</span>
             </div>
-            <form id="formTransferir" onsubmit="transferirChamado(event)">
+            <form id="formTransferir" onsubmit="transferirChamado(event)" style="padding: 20px;">
                 <input type="hidden" id="transferirChamadoId" name="chamadoId">
-                <p>Protocolo: <strong id="transferirProtocolo"></strong></p>
+                <input type="hidden" id="novoAtendenteId" name="novoAtendenteId">
+                <p style="margin-bottom:16px;">Protocolo: <strong id="transferirProtocolo"></strong></p>
                 
                 <div class="form-group">
-                    <label for="novoAtendenteId">Transferir para (técnicos de outro turno) *</label>
-                    <select id="novoAtendenteId" name="novoAtendenteId" required style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
-                        <option value="">Carregando atendentes...</option>
-                    </select>
-                    <small style="color: #64748b;">Técnicos que não estão no turno atual.</small>
+                    <label id="transferirTurnoLabel" style="font-size:13px;color:#64748b;margin-bottom:8px;">Transferir para (próximo turno):</label>
+                    <div id="listaAtendentesTransferir" style="max-height:260px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;">
+                        <div style="padding:14px;text-align:center;color:#94a3b8;font-size:13px;">Carregando...</div>
+                    </div>
                 </div>
 
-                <div class="form-group">
+                <div class="form-group" style="margin-top:14px;">
                     <label for="obsTransferencia">Observação (obrigatória) *</label>
-                    <textarea id="obsTransferencia" name="obsTransferencia" rows="4" required minlength="5" placeholder="Informe o status atual do caso e o motivo da transferência..." style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;"></textarea>
-                    <small style="color: #64748b;">Mínimo 5 caracteres. Descreva o que já foi feito e por que está transferindo.</small>
+                    <textarea id="obsTransferencia" name="obsTransferencia" rows="3" required minlength="5" placeholder="O que já foi feito e por que está transferindo..." style="width: 100%; padding: 10px 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 13.5px; resize: vertical;"></textarea>
+                    <small style="color: #64748b; font-size: 11px;">Mínimo 5 caracteres.</small>
                 </div>
 
-                <div class="modal-actions">
+                <div class="modal-actions" style="margin-top:16px;">
                     <button type="button" onclick="fecharModalTransferir()" class="btn btn-secondary">Cancelar</button>
                     <button type="submit" class="btn btn-primary">Transferir</button>
                 </div>
@@ -1062,32 +1212,43 @@
             } catch (e) {}
         }
 
-        function popularSelectGestores(select, gestores) {
+        function popularListaGestores(lista, gestores) {
             if (gestores.length === 0) {
-                select.innerHTML = '<option value="" disabled>Nenhum técnico no turno agora</option>';
+                lista.innerHTML = '<div style="padding:16px;text-align:center;color:#94a3b8;font-size:13px;">😕 Nenhum técnico no turno agora.</div>';
                 return;
             }
-            select.innerHTML = '<option value="" disabled selected>Selecione o técnico...</option>';
-            gestores.forEach(gestor => {
-                const option = document.createElement('option');
-                option.value = gestor.id;
-                option.textContent = `${gestor.nome_completo || gestor.username}`;
-                select.appendChild(option);
+            let html = '';
+            gestores.forEach(g => {
+                html += `
+                    <div class="transfer-card" data-id="${g.id}" onclick="selecionarGestor(this, ${g.id})">
+                        <div class="transfer-card-name">${escapeHtml(g.nome_completo || g.username)}</div>
+                        <div class="transfer-card-info">
+                            <span class="transfer-card-nivel">${g.nivel_acesso}</span>
+                        </div>
+                    </div>`;
             });
+            lista.innerHTML = html;
+        }
+
+        function selecionarGestor(el, id) {
+            document.querySelectorAll('#listaGestoresEncaminhar .transfer-card.selected').forEach(c => c.classList.remove('selected'));
+            el.classList.add('selected');
+            document.getElementById('gestorId').value = id;
         }
 
         async function abrirModalEncaminhar(id, protocolo) {
             document.getElementById('encaminharChamadoId').value = id;
             document.getElementById('encaminharProtocolo').textContent = protocolo;
+            document.getElementById('gestorId').value = '';
             document.getElementById('modalEncaminhar').style.display = 'flex';
 
-            const select = document.getElementById('gestorId');
-            select.innerHTML = '<option value="" disabled selected>Carregando técnicos...</option>';
+            const lista = document.getElementById('listaGestoresEncaminhar');
+            lista.innerHTML = '<div style="padding:14px;text-align:center;color:#94a3b8;font-size:13px;">Carregando...</div>';
 
             try {
                 const response = await fetch('/api/usuarios/gestores');
                 if (!response.ok) {
-                    select.innerHTML = '<option value="" disabled>Erro ao carregar</option>';
+                    lista.innerHTML = '<div style="padding:14px;text-align:center;color:#ef4444;font-size:13px;">Erro ao carregar.</div>';
                     mostrarToast('✗ Erro ao carregar técnicos do turno.', 'error');
                     return;
                 }
@@ -1095,10 +1256,10 @@
                 if (result.success) {
                     gestoresCache = result.gestores || [];
                 }
-                popularSelectGestores(select, gestoresCache);
+                popularListaGestores(lista, gestoresCache);
             } catch (error) {
                 console.error('Erro ao buscar técnicos:', error);
-                select.innerHTML = '<option value="" disabled>Erro ao carregar</option>';
+                lista.innerHTML = '<div style="padding:14px;text-align:center;color:#ef4444;font-size:13px;">Erro ao carregar.</div>';
                 mostrarToast('✗ Erro ao carregar técnicos', 'error');
             }
         }
@@ -1152,6 +1313,8 @@
                 if (result.success) {
                     mostrarToast('✓ ' + result.message, 'success');
                     await atualizarOverviewChamados();
+                    // Abrir o chat automaticamente após iniciar atendimento
+                    abrirChat(id, protocolo);
                 } else {
                     mostrarToast('✗ ' + result.message, 'error');
                 }
@@ -1179,44 +1342,67 @@
             document.getElementById('transferirChamadoId').value = id;
             document.getElementById('transferirProtocolo').textContent = protocolo;
             document.getElementById('obsTransferencia').value = '';
+            document.getElementById('novoAtendenteId').value = '';
             document.getElementById('modalTransferir').style.display = 'flex';
 
-            const select = document.getElementById('novoAtendenteId');
-            select.innerHTML = '<option value="" disabled selected>Carregando...</option>';
+            const lista = document.getElementById('listaAtendentesTransferir');
+            lista.innerHTML = '<div style="padding:14px;text-align:center;color:#94a3b8;font-size:13px;">Carregando...</div>';
 
             try {
                 const response = await fetch('/api/usuarios/atendentes');
                 const result = await response.json();
                 if (result.success) {
                     atendentesCache = result.atendentes || [];
-                    select.innerHTML = '<option value="" disabled selected>Selecione o atendente...</option>';
+
+                    // Atualizar label
+                    const label = document.getElementById('transferirTurnoLabel');
+                    if (result.labelTurno) {
+                        label.textContent = `Transferir para (${result.labelTurno}):`;
+                    }
+
+                    if (atendentesCache.length === 0) {
+                        lista.innerHTML = '<div style="padding:16px;text-align:center;color:#94a3b8;font-size:13px;">Nenhum técnico disponível no próximo turno.</div>';
+                        return;
+                    }
 
                     const diasNomes = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+                    let html = '';
 
                     atendentesCache.forEach(a => {
-                        const opt = document.createElement('option');
-                        opt.value = a.id;
-
-                        // Montar info dos turnos
-                        let turnoInfo = '';
+                        // Montar horário resumido (só do dia relevante)
+                        let horario = '';
                         if (a.turnos && a.turnos.length > 0) {
-                            const turnosPorDia = {};
-                            a.turnos.forEach(t => {
-                                const dia = diasNomes[t.dia_semana] || `Dia${t.dia_semana}`;
-                                if (!turnosPorDia[dia]) turnosPorDia[dia] = [];
-                                turnosPorDia[dia].push(`${t.hora_inicio}-${t.hora_fim}`);
+                            const hrs = a.turnos.map(t => {
+                                const ini = String(t.hora_inicio).slice(0,5);
+                                const fim = String(t.hora_fim).slice(0,5);
+                                return `${ini} - ${fim}`;
                             });
-                            const partes = Object.entries(turnosPorDia).map(([dia, hrs]) => `${dia}: ${hrs.join(', ')}`);
-                            turnoInfo = ` | ${partes.join(' · ')}`;
+                            horario = hrs.join(', ');
                         }
 
-                        opt.textContent = `${a.nome_completo || a.username} (${a.nivel_acesso})${turnoInfo}`;
-                        select.appendChild(opt);
+                        html += `
+                            <div class="transfer-card" data-id="${a.id}" onclick="selecionarAtendente(this, ${a.id})">
+                                <div class="transfer-card-name">${escapeHtml(a.nome_completo || a.username)}</div>
+                                <div class="transfer-card-info">
+                                    <span class="transfer-card-nivel">${a.nivel_acesso}</span>
+                                    ${horario ? `<span class="transfer-card-horario">🕐 ${horario}</span>` : ''}
+                                </div>
+                            </div>`;
                     });
+
+                    lista.innerHTML = html;
                 }
             } catch (e) {
-                select.innerHTML = '<option value="" disabled>Erro ao carregar</option>';
+                lista.innerHTML = '<div style="padding:14px;text-align:center;color:#ef4444;font-size:13px;">Erro ao carregar técnicos.</div>';
             }
+        }
+
+        function selecionarAtendente(el, id) {
+            // Desmarcar anterior
+            document.querySelectorAll('.transfer-card.selected').forEach(c => c.classList.remove('selected'));
+            // Marcar novo
+            el.classList.add('selected');
+            document.getElementById('novoAtendenteId').value = id;
         }
 
         function fecharModalTransferir() {
@@ -1417,70 +1603,103 @@
                 <span class="chat-modal-close" onclick="fecharChat()">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </span>
-            </div>
-
-            <!-- Detalhes do chamado (compacto, colapsável) -->
-            <div id="chatDetalhes" class="chat-detalhes-bar">
-                <button type="button" class="chat-detalhes-toggle" onclick="toggleChatDetalhes()">
-                    <span>📋 Detalhes do chamado</span>
-                    <svg id="chatDetalhesArrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition: transform 0.2s;"><polyline points="6 9 12 15 18 9"/></svg>
+                <button type="button" id="btnEncerrarNoChat" class="chat-encerrar-btn" onclick="encerrarPeloChat()" title="Encerrar chamado">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span>Encerrar</span>
                 </button>
-                <div id="chatDetalhesBody" class="chat-detalhes-body" style="display:none;">
-                    <div class="cd-row"><span class="cd-label">📂 Categoria</span><span id="cdCategoria">—</span></div>
-                    <div class="cd-row"><span class="cd-label">🏢 Setor</span><span id="cdSetor">—</span></div>
-                    <div class="cd-row"><span class="cd-label">💻 IP</span><span id="cdIP">—</span></div>
-                    <div class="cd-row"><span class="cd-label">📱 Telefone</span><span id="cdTelefone">—</span></div>
-                    <div class="cd-row" id="cdEmailRow" style="display:none;"><span class="cd-label">📧 E-mail</span><span id="cdEmail">—</span></div>
-                    <div class="cd-row" id="cdCpfRow" style="display:none;"><span class="cd-label">🆔 CPF</span><span id="cdCpf">—</span></div>
-                    <div class="cd-row cd-desc"><span class="cd-label">📝 Descrição</span><div id="cdDescricao">—</div></div>
-                </div>
+                <button type="button" class="chat-toggle-info-btn" onclick="toggleChatDetalhes()" title="Ver detalhes do chamado">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                </button>
             </div>
 
-            <div class="chat-modal-body">
-                <!-- Área de mensagens -->
-                <div id="chatMessages" class="chat-messages">
-                    <p class="chat-empty">Carregando mensagens...</p>
-                </div>
-
-                <!-- Preview de mídia selecionada -->
-                <div id="chatMediaPreview" class="chat-media-preview" style="display:none;">
-                    <div class="chat-media-preview-inner">
-                        <img id="chatPreviewImg" src="" alt="" style="display:none;">
-                        <video id="chatPreviewVideo" style="display:none;"></video>
-                        <div id="chatPreviewAudio" class="chat-preview-audio" style="display:none;">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-                            <span id="chatPreviewFilename"></span>
+            <!-- Layout split: detalhes à esquerda, chat à direita -->
+            <div class="chat-split-layout">
+                <!-- Painel esquerdo: informações do chamado -->
+                <aside class="chat-sidebar-info">
+                    <div class="chat-sidebar-section">
+                        <h4 class="chat-sidebar-title">📋 Informações do Chamado</h4>
+                        <div class="chat-sidebar-fields">
+                            <div class="csf-item">
+                                <span class="csf-label">📂 Categoria</span>
+                                <span class="csf-value" id="cdCategoria">—</span>
+                            </div>
+                            <div class="csf-item">
+                                <span class="csf-label">🏢 Setor</span>
+                                <span class="csf-value" id="cdSetor">—</span>
+                            </div>
+                            <div class="csf-item">
+                                <span class="csf-label">💻 IP</span>
+                                <span class="csf-value" id="cdIP">—</span>
+                            </div>
+                            <div class="csf-item">
+                                <span class="csf-label">📱 Telefone</span>
+                                <span class="csf-value" id="cdTelefone">—</span>
+                            </div>
+                            <div class="csf-item" id="cdEmailRow" style="display:none;">
+                                <span class="csf-label">📧 E-mail</span>
+                                <span class="csf-value" id="cdEmail">—</span>
+                            </div>
+                            <div class="csf-item" id="cdCpfRow" style="display:none;">
+                                <span class="csf-label">🆔 CPF</span>
+                                <span class="csf-value" id="cdCpf">—</span>
+                            </div>
                         </div>
-                        <button type="button" class="chat-preview-remove" onclick="removerMidiaPreview()">×</button>
+                    </div>
+                    <div class="chat-sidebar-section">
+                        <h4 class="chat-sidebar-title">📝 Descrição</h4>
+                        <div class="csf-descricao" id="cdDescricao">—</div>
+                    </div>
+                </aside>
+
+                <!-- Painel direito: chat -->
+                <div class="chat-main-panel">
+                    <div class="chat-modal-body">
+                        <!-- Área de mensagens -->
+                        <div id="chatMessages" class="chat-messages">
+                            <p class="chat-empty">Carregando mensagens...</p>
+                        </div>
+
+                        <!-- Preview de mídia selecionada -->
+                        <div id="chatMediaPreview" class="chat-media-preview" style="display:none;">
+                            <div class="chat-media-preview-inner">
+                                <img id="chatPreviewImg" src="" alt="" style="display:none;">
+                                <video id="chatPreviewVideo" style="display:none;"></video>
+                                <div id="chatPreviewAudio" class="chat-preview-audio" style="display:none;">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                                    <span id="chatPreviewFilename"></span>
+                                </div>
+                                <button type="button" class="chat-preview-remove" onclick="removerMidiaPreview()">×</button>
+                            </div>
+                        </div>
+
+                        <!-- Barra de composição estilo WhatsApp -->
+                        <form id="formChat" class="chat-compose-bar" onsubmit="enviarMensagemChat(event)">
+                            <input type="hidden" id="chatChamadoId">
+                            <input type="file" id="chatFileImagem" accept="image/*,video/*" style="display:none;" onchange="selecionarMidia(this,'imagem')">
+                            <input type="file" id="chatFileAudio" accept="audio/*" style="display:none;" onchange="selecionarMidia(this,'audio')">
+
+                            <button type="button" class="chat-action-btn" onclick="document.getElementById('chatFileImagem').click()" title="Enviar imagem ou vídeo">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                            </button>
+                            <button type="button" class="chat-action-btn" onclick="document.getElementById('chatFileAudio').click()" title="Enviar áudio">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                            </button>
+
+                            <textarea
+                                id="chatMensagem"
+                                class="chat-compose-input"
+                                placeholder="Digite uma mensagem"
+                                rows="1"
+                                onkeydown="chatKeyDown(event)"
+                                oninput="autoResizeTextarea(this)"
+                            ></textarea>
+
+                            <button type="submit" class="chat-send-btn" title="Enviar">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                            </button>
+                        </form>
                     </div>
                 </div>
-
-                <!-- Barra de composição estilo WhatsApp -->
-                <form id="formChat" class="chat-compose-bar" onsubmit="enviarMensagemChat(event)">
-                    <input type="hidden" id="chatChamadoId">
-                    <input type="file" id="chatFileImagem" accept="image/*,video/*" style="display:none;" onchange="selecionarMidia(this,'imagem')">
-                    <input type="file" id="chatFileAudio" accept="audio/*" style="display:none;" onchange="selecionarMidia(this,'audio')">
-
-                    <button type="button" class="chat-action-btn" onclick="document.getElementById('chatFileImagem').click()" title="Enviar imagem ou vídeo">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                    </button>
-                    <button type="button" class="chat-action-btn" onclick="document.getElementById('chatFileAudio').click()" title="Enviar áudio">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-                    </button>
-
-                    <textarea
-                        id="chatMensagem"
-                        class="chat-compose-input"
-                        placeholder="Digite uma mensagem"
-                        rows="1"
-                        onkeydown="chatKeyDown(event)"
-                        oninput="autoResizeTextarea(this)"
-                    ></textarea>
-
-                    <button type="submit" class="chat-send-btn" title="Enviar">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                    </button>
-                </form>
             </div>
         </div>
     </div>
@@ -1615,37 +1834,43 @@
                 document.getElementById('cdTelefone').textContent = chamadoAtual.telefone_contato || chamadoAtual.telefone_whatsapp || 'Não informado';
                 document.getElementById('cdDescricao').textContent = chamadoAtual.descricao || 'Sem descrição';
 
-                // Tentar extrair email/cpf da descrição se vierem no padrão "FIELD: valor"
-                const desc = chamadoAtual.descricao || '';
-                const emailMatch = desc.match(/E-MAIL:\s*([^\s\n]+@[^\s\n]+)/i);
-                const cpfMatch = desc.match(/CPF:\s*([\d.\-]+)/i);
-                if (emailMatch) {
-                    document.getElementById('cdEmail').textContent = emailMatch[1];
+                // Email: usar coluna do banco; fallback para regex na descrição (compatibilidade)
+                let email = chamadoAtual.email || '';
+                if (!email) {
+                    const m = String(chamadoAtual.descricao || '').match(/E-?MAIL:\s*([^\s\n]+@[^\s\n]+)/i);
+                    if (m) email = m[1];
+                }
+                if (email) {
+                    document.getElementById('cdEmail').textContent = email;
                     document.getElementById('cdEmailRow').style.display = '';
                 } else {
                     document.getElementById('cdEmailRow').style.display = 'none';
                 }
-                if (cpfMatch) {
-                    document.getElementById('cdCpf').textContent = cpfMatch[1];
+
+                // CPF: usar coluna do banco; fallback para regex na descrição
+                let cpf = chamadoAtual.cpf_solicitante || '';
+                if (!cpf) {
+                    const m = String(chamadoAtual.descricao || '').match(/CPF:\s*([\d.\-]+)/i);
+                    if (m) cpf = m[1];
+                }
+                if (cpf) {
+                    document.getElementById('cdCpf').textContent = cpf;
                     document.getElementById('cdCpfRow').style.display = '';
                 } else {
                     document.getElementById('cdCpfRow').style.display = 'none';
                 }
             }
 
-            // Abrir o painel de detalhes automaticamente ao abrir o chat
-            const toggle = document.querySelector('.chat-detalhes-toggle');
-            const body = document.getElementById('chatDetalhesBody');
-            if (toggle && body) {
-                toggle.classList.add('open');
-                body.style.display = 'grid';
-            }
+            // Abrir o painel de detalhes (sidebar já é visível no desktop; no mobile, toggle)
+            // Nada a fazer aqui, o sidebar é estático no desktop
 
             // Se o chamado está finalizado: ocultar barra de composição (chat read-only)
             const formChat = document.getElementById('formChat');
+            const btnEncerrarChat = document.getElementById('btnEncerrarNoChat');
             if (formChat) {
                 if (chamadoAtual && chamadoAtual.status === 'finalizado') {
                     formChat.style.display = 'none';
+                    if (btnEncerrarChat) btnEncerrarChat.style.display = 'none';
                     // Mostra aviso no lugar
                     let aviso = document.getElementById('chatFinalizadoAviso');
                     if (!aviso) {
@@ -1658,6 +1883,7 @@
                     aviso.style.display = 'block';
                 } else {
                     formChat.style.display = '';
+                    if (btnEncerrarChat) btnEncerrarChat.style.display = 'flex';
                     const aviso = document.getElementById('chatFinalizadoAviso');
                     if (aviso) aviso.style.display = 'none';
                 }
@@ -1672,11 +1898,8 @@
         }
 
         function toggleChatDetalhes() {
-            const toggle = document.querySelector('.chat-detalhes-toggle');
-            const body = document.getElementById('chatDetalhesBody');
-            const aberto = body.style.display !== 'none';
-            body.style.display = aberto ? 'none' : 'grid';
-            toggle.classList.toggle('open', !aberto);
+            const sidebar = document.querySelector('.chat-sidebar-info');
+            if (sidebar) sidebar.classList.toggle('expanded');
         }
 
         function fecharChat() {
@@ -1684,12 +1907,26 @@
             if (chatInterval) { clearInterval(chatInterval); chatInterval = null; }
         }
 
+        function encerrarPeloChat() {
+            const chamadoId = document.getElementById('chatChamadoId').value;
+            const protocolo = document.getElementById('chatProtocolo').textContent;
+            // Abre o modal de encerrar já com os dados preenchidos
+            fecharChat();
+            abrirModalEncerrar(chamadoId, protocolo);
+        }
+
         function montarMidiaHtml(msg) {
+            if (!msg.media_url) return '';
+            // Mídia expirada (arquivo apagado por retenção)
+            if (String(msg.media_url).startsWith('[expirado]')) {
+                const tipo = msg.message_type || 'arquivo';
+                const icone = tipo === 'image' ? '🖼️' : tipo === 'audio' ? '🎵' : tipo === 'video' ? '🎬' : '📎';
+                return `<div class="chat-media chat-media-expirada">${icone} <em>Mídia expirada (chamado finalizado há mais de 7 dias)</em></div>`;
+            }
             const isImagem = msg.message_type === 'image';
             const isAudio  = msg.message_type === 'audio' || msg.message_type === 'ptt';
             const isVideo  = msg.message_type === 'video';
             const isArquivo = msg.media_url && !isImagem && !isAudio && !isVideo;
-            if (!msg.media_url) return '';
             if (isImagem)  return `<div class="chat-media"><a href="${msg.media_url}" target="_blank" rel="noopener noreferrer"><img src="${msg.media_url}" alt="Imagem"></a></div>`;
             if (isAudio)   return `<div class="chat-media"><audio controls><source src="${msg.media_url}" type="${msg.media_mime_type || 'audio/ogg'}"></audio></div>`;
             if (isVideo)   return `<div class="chat-media"><video controls><source src="${msg.media_url}" type="${msg.media_mime_type || 'video/mp4'}"></video></div>`;
@@ -1729,7 +1966,10 @@
                         }
                         const hora = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
                         const lado = msg.remetente_tipo === 'tecnico' ? 'from-tech' : (msg.remetente_tipo === 'sistema' ? 'from-system' : 'from-user');
-                        const textoHtml = msg.mensagem ? `<div class="chat-bubble-text">${escapeHtml(msg.mensagem)}</div>` : '';
+                        // Esconder placeholders auto-gerados quando há mídia (ex: [image], [audio])
+                        const isPlaceholder = msg.media_url && /^\[(image|audio|video|document|ptt|sticker)\]$/.test(String(msg.mensagem || '').trim());
+                        const mostraTexto = msg.mensagem && !isPlaceholder;
+                        const textoHtml = mostraTexto ? `<div class="chat-bubble-text">${escapeHtml(msg.mensagem)}</div>` : '';
                         html += `
                             <div class="chat-message-row ${lado}">
                                 <div class="chat-bubble ${lado}">
