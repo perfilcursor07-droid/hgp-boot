@@ -306,6 +306,7 @@ function attachChatbot(client, options = {}) {
                     telefone_whatsapp,
                     setor,
                     ip_maquina,
+                    cod_impressora,
                     telefone_contato,
                     descricao,
                     status,
@@ -313,7 +314,7 @@ function attachChatbot(client, options = {}) {
                     tecnico_telefone,
                     chat_origem,
                     atribuido_em
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     dadosChamado.protocolo,
                     dadosChamado.categoria,
@@ -322,6 +323,7 @@ function attachChatbot(client, options = {}) {
                     dadosChamado.telefoneWhats,
                     dadosChamado.setor,
                     (dadosChamado.ipMaquina || '').slice(0, 50) || null,
+                    dadosChamado.codImpressora || null,
                     dadosChamado.telefoneContato,
                     dadosChamado.descricao,
                     dadosChamado.status,
@@ -1071,6 +1073,7 @@ function attachChatbot(client, options = {}) {
                     telefoneWhats: telefoneWhatsApp,
                     setor: est.setor,
                     ipMaquina: est.ip,
+                    codImpressora: est.codImpressora || null,
                     telefoneContato: est.tel,
                     descricao: est.desc,
                     status: statusChamado,

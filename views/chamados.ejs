@@ -1631,6 +1631,10 @@
                                 <span class="csf-label">💻 IP</span>
                                 <span class="csf-value" id="cdIP">—</span>
                             </div>
+                            <div class="csf-item" id="cdImpressoraRow" style="display:none;">
+                                <span class="csf-label">🖨️ Cód. Impressora</span>
+                                <span class="csf-value" id="cdImpressora">—</span>
+                            </div>
                             <div class="csf-item">
                                 <span class="csf-label">📱 Telefone</span>
                                 <span class="csf-value" id="cdTelefone">—</span>
@@ -1742,6 +1746,7 @@
                 <p style="margin-bottom: 10px;"><strong>👤 Solicitante:</strong> <span id="detSolicitante"></span></p>
                 <p style="margin-bottom: 10px;"><strong>🏢 Setor:</strong> <span id="detSetor"></span></p>
                 <p style="margin-bottom: 10px;"><strong>💻 IP:</strong> <span id="detIP"></span></p>
+                <p id="detImpressoraRow" style="margin-bottom: 10px; display:none;"><strong>🖨️ Cód. Impressora:</strong> <span id="detImpressora"></span></p>
                 <p style="margin-bottom: 10px;"><strong>📱 Telefone:</strong> <span id="detTelefone"></span></p>
                 <p id="detEmailRow" style="margin-bottom: 10px; display:none;"><strong>📧 E-mail:</strong> <span id="detEmail"></span></p>
                 <p id="detCpfRow" style="margin-bottom: 10px; display:none;"><strong>🪪 CPF:</strong> <span id="detCpf"></span></p>
@@ -1831,6 +1836,16 @@
                 document.getElementById('cdCategoria').textContent = chamadoAtual.categoria || '—';
                 document.getElementById('cdSetor').textContent = chamadoAtual.setor || '—';
                 document.getElementById('cdIP').textContent = chamadoAtual.ip_maquina || 'Não informado';
+
+                // Código da impressora
+                const codImp = chamadoAtual.cod_impressora || '';
+                if (codImp) {
+                    document.getElementById('cdImpressora').textContent = codImp;
+                    document.getElementById('cdImpressoraRow').style.display = '';
+                } else {
+                    document.getElementById('cdImpressoraRow').style.display = 'none';
+                }
+
                 document.getElementById('cdTelefone').textContent = chamadoAtual.telefone_contato || chamadoAtual.telefone_whatsapp || 'Não informado';
                 document.getElementById('cdDescricao').textContent = chamadoAtual.descricao || 'Sem descrição';
 
@@ -2129,6 +2144,16 @@
             document.getElementById('detIP').textContent = chamado.ip_maquina || 'Não informado';
             document.getElementById('detTelefone').textContent = chamado.telefone_contato || 'Não informado';
             document.getElementById('detDescricao').textContent = chamado.descricao || 'Sem descrição';
+
+            // Código impressora
+            const impRow = document.getElementById('detImpressoraRow');
+            const impVal = chamado.cod_impressora || '';
+            if (impVal) {
+                document.getElementById('detImpressora').textContent = impVal;
+                impRow.style.display = 'block';
+            } else {
+                impRow.style.display = 'none';
+            }
 
             // Email
             const emailRow = document.getElementById('detEmailRow');

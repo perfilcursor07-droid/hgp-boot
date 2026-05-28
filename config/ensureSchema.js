@@ -426,6 +426,7 @@ async function ensureSchema(connection) {
 
     const chamadoColumns = [
         ['telefone_whatsapp', 'VARCHAR(50) NULL AFTER nome_whatsapp'],
+        ['cod_impressora', 'VARCHAR(100) NULL AFTER ip_maquina'],
         ['atendente_id', 'INT NULL AFTER tecnico_telefone'],
         ['atendente_nome', 'VARCHAR(255) NULL AFTER atendente_id'],
         ['iniciado_em', 'TIMESTAMP NULL AFTER atribuido_em'],
