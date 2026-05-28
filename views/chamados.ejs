@@ -1303,18 +1303,18 @@
         async function atenderChamado(id, protocolo) {
             if (!confirm(`Deseja iniciar o atendimento do chamado ${protocolo}?`)) return;
 
+            // Abrir o chat IMEDIATAMENTE (sem esperar o request)
+            abrirChat(id, protocolo);
+
+            // Enviar request de atender em background
             try {
                 const response = await fetch(`/api/chamados/${id}/atender`, {
                     method: 'POST'
                 });
-
                 const result = await response.json();
-
                 if (result.success) {
                     mostrarToast('✓ ' + result.message, 'success');
-                    await atualizarOverviewChamados();
-                    // Abrir o chat automaticamente após iniciar atendimento
-                    abrirChat(id, protocolo);
+                    atualizarOverviewChamados(); // sem await, não bloqueia
                 } else {
                     mostrarToast('✗ ' + result.message, 'error');
                 }
