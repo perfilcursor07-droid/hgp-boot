@@ -79,17 +79,6 @@ async function iniciarInstancia(instanciaId) {
 
     await atualizarStatusBanco(instanciaId, { status: 'connecting', last_error: null, qr_code: null });
 
-    // Attach o flow handler UMA ÚNICA VEZ, no setup (não no 'ready').
-    // O wrapper BaileysClient é um EventEmitter que sobrevive a reconexões do
-    // socket interno, então registrar aqui garante que o handler de mensagens
-    // nunca é registrado em duplicado, mesmo que 'ready' dispare várias vezes.
-    entry.controller = attachDynamicFlow(client, {
-        instanciaId: inst.id,
-        instanciaNome: inst.nome,
-        unidadeId: inst.unidade_id,
-        flowDefinition
-    });
-
     client.on('qr', async (qr) => {
         try {
             // BaileysClient já emite como dataURL
@@ -105,6 +94,15 @@ async function iniciarInstancia(instanciaId) {
     client.on('ready', async () => {
         entry.status = 'connected';
         entry.qr = null;
+        // Attach o flow handler apenas uma vez (evita duplicação na reconexão)
+        if (!entry.controller) {
+            entry.controller = attachDynamicFlow(client, {
+                instanciaId: inst.id,
+                instanciaNome: inst.nome,
+                unidadeId: inst.unidade_id,
+                flowDefinition
+            });
+        }
         await atualizarStatusBanco(instanciaId, {
             status: 'connected',
             qr_code: null,

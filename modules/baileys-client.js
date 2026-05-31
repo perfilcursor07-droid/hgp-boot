@@ -22,7 +22,8 @@ class BaileysClient extends EventEmitter {
         this.sock = null;
         this.isConnected = false;
         this.qrRetries = 0;
-        this.maxQrRetries = 5;
+        this.maxQrRetries = 8;
+        this.reconnectAttempts = 0;
         this._destroyed = false;
         // Dedup de mensagens recebidas por ID — sobrevive a reconexões (515 etc).
         // Mantido no nível da instância (não do socket) para que múltiplos
@@ -100,25 +101,54 @@ class BaileysClient extends EventEmitter {
             }
 
             if (connection === 'close') {
+                this.isConnected = false;
                 const statusCode = lastDisconnect?.error?.output?.statusCode;
-                const shouldReconnect = statusCode !== DisconnectReason.loggedOut && !this._destroyed;
+                const reason = lastDisconnect?.error?.message || '';
+                const nomeMotivo = Object.keys(DisconnectReason).find(k => DisconnectReason[k] === statusCode) || 'desconhecido';
+                console.log(`[Baileys:${this.clientId}] Conexão fechada — código=${statusCode} (${nomeMotivo}) msg="${reason}"`);
 
-                if (shouldReconnect) {
-                    const delay = Math.min(30000, 5000 * this.qrRetries);
-                    console.log(`[Baileys:${this.clientId}] Desconectado (${statusCode}) — reconectando em ${delay/1000}s...`);
-                    this.isConnected = false;
-                    setTimeout(() => {
-                        if (!this._destroyed) this._reconnect();
-                    }, delay);
-                } else {
-                    this.isConnected = false;
-                    this.emit('disconnected', statusCode === DisconnectReason.loggedOut ? 'LOGOUT' : 'Desconectado');
+                // Casos terminais: NÃO reconectar automaticamente
+                // - loggedOut (401): número deslogou / removeu o aparelho
+                // - 403 / 401 podem indicar BAN do número
+                if (statusCode === DisconnectReason.loggedOut || statusCode === 401 || statusCode === 403) {
+                    console.log(`[Baileys:${this.clientId}] Sessão inválida (logout/ban). Limpando credenciais — será necessário ler o QR de novo.`);
+                    try {
+                        if (fs.existsSync(this._sessionDir)) fs.rmSync(this._sessionDir, { recursive: true, force: true });
+                    } catch (e) {}
+                    this.emit('disconnected', statusCode === DisconnectReason.loggedOut ? 'LOGOUT' : 'BANIDO/INVÁLIDO');
+                    return;
                 }
+
+                // connectionReplaced (440): OUTRO dispositivo/processo abriu a mesma
+                // sessão. Reconectar criaria uma guerra de conexões (e duplicação).
+                if (statusCode === DisconnectReason.connectionReplaced) {
+                    console.log(`[Baileys:${this.clientId}] Conexão substituída por outro processo/dispositivo. NÃO reconectando para evitar conflito.`);
+                    this.emit('disconnected', 'CONEXÃO SUBSTITUÍDA (outro processo abriu a mesma sessão)');
+                    return;
+                }
+
+                if (this._destroyed) return;
+
+                // Demais casos (incl. 515 restartRequired, timeouts, etc): reconectar.
+                // 515 logo após parear é esperado e deve reconectar rápido.
+                this.reconnectAttempts++;
+                let delay;
+                if (statusCode === DisconnectReason.restartRequired || statusCode === 515) {
+                    delay = 1500; // restart logo após o pareamento — rápido
+                } else {
+                    delay = Math.min(30000, 3000 * this.reconnectAttempts);
+                }
+                console.log(`[Baileys:${this.clientId}] Reconectando em ${delay/1000}s (tentativa ${this.reconnectAttempts})...`);
+                setTimeout(() => {
+                    if (!this._destroyed) this._reconnect();
+                }, delay);
             }
 
             if (connection === 'open') {
                 this.isConnected = true;
                 this.qrRetries = 0;
+                this.reconnectAttempts = 0;
+                console.log(`[Baileys:${this.clientId}] Conexão aberta ✓`);
                 this.emit('ready');
             }
         });
@@ -130,33 +160,23 @@ class BaileysClient extends EventEmitter {
                 if (msg.key.fromMe) continue;
                 if (!msg.message) continue;
 
+                // ═══ DEDUP À PROVA DE RECONEXÃO ═══
+                // O WhatsApp pode reentregar a mesma mensagem (mesmo key.id) após
+                // uma reconexão (código 515) ou se houver mais de um socket vivo.
+                // Filtramos aqui, no nível da instância, ANTES de emitir ao handler.
                 const msgId = msg.key.id;
-                const remoteJid = msg.key.remoteJid || '';
-                const ts = msg.messageTimestamp || 0;
-                const m = msg.message || {};
-                const textoRaw = m.conversation || m.extendedTextMessage?.text || m.imageMessage?.caption || m.videoMessage?.caption || '';
-
-                const now = Date.now();
-                console.log(`[Baileys:${this.clientId}] upsert from=${remoteJid} id=${msgId} ts=${ts} body="${String(textoRaw).slice(0, 40)}"`);
-
-                // ═══ DEDUP À PROVA DE RECONEXÃO E DE @lid ═══
-                // O Baileys 7.x (endereçamento LID) pode entregar a MESMA mensagem
-                // lógica DUAS vezes com key.id DIFERENTE, quase simultaneamente.
-                // Deduplicamos por remetente + conteúdo dentro de uma JANELA curta.
-                // A reentrega chega em milissegundos; um input genuíno repetido
-                // (ex: digitar "1" no menu e "1" no submenu) leva segundos e passa.
-                const DEDUP_WINDOW_MS = 6000;
-                const dedupKey = `${remoteJid}|${String(textoRaw).trim().toLowerCase()}`;
-                const lastSeen = this._recentMsgIds.get(dedupKey);
-                if (lastSeen && (now - lastSeen) < DEDUP_WINDOW_MS) {
-                    console.log(`[Baileys:${this.clientId}] >> DUPLICADA ignorada (${now - lastSeen}ms) key="${dedupKey.slice(0, 50)}"`);
-                    continue;
-                }
-                this._recentMsgIds.set(dedupKey, now);
-                // Limpeza preguiçosa: remove chaves antigas
-                if (this._recentMsgIds.size > 500) {
-                    for (const [k, t] of this._recentMsgIds) {
-                        if (now - t > 60 * 1000) this._recentMsgIds.delete(k);
+                if (msgId) {
+                    const now = Date.now();
+                    if (this._recentMsgIds.has(msgId)) {
+                        console.log(`[Baileys:${this.clientId}] Msg duplicada ignorada (id=${msgId})`);
+                        continue;
+                    }
+                    this._recentMsgIds.set(msgId, now);
+                    // Limpeza preguiçosa: remove ids com mais de 5 min
+                    if (this._recentMsgIds.size > 500) {
+                        for (const [k, t] of this._recentMsgIds) {
+                            if (now - t > 5 * 60 * 1000) this._recentMsgIds.delete(k);
+                        }
                     }
                 }
 
