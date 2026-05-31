@@ -94,12 +94,15 @@ async function iniciarInstancia(instanciaId) {
     client.on('ready', async () => {
         entry.status = 'connected';
         entry.qr = null;
-        entry.controller = attachDynamicFlow(client, {
-            instanciaId: inst.id,
-            instanciaNome: inst.nome,
-            unidadeId: inst.unidade_id,
-            flowDefinition
-        });
+        // Attach o flow handler apenas uma vez (evita duplicação na reconexão)
+        if (!entry.controller) {
+            entry.controller = attachDynamicFlow(client, {
+                instanciaId: inst.id,
+                instanciaNome: inst.nome,
+                unidadeId: inst.unidade_id,
+                flowDefinition
+            });
+        }
         await atualizarStatusBanco(instanciaId, {
             status: 'connected',
             qr_code: null,
