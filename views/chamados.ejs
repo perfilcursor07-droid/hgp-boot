@@ -2007,10 +2007,12 @@
             }
         }
 
+        let chatEnviando = false;
         async function enviarMensagemChat(event) {
             event.preventDefault();
             const chamadoId = document.getElementById('chatChamadoId').value;
-            const mensagem = document.getElementById('chatMensagem').value.trim();
+            const inputMsg = document.getElementById('chatMensagem');
+            const mensagem = inputMsg.value.trim();
 
             if (chatMidiaArquivo) {
                 await enviarMidiaChat(chamadoId, chatMidiaArquivo, mensagem);
@@ -2018,6 +2020,15 @@
             }
 
             if (!mensagem) return;
+            if (chatEnviando) return; // trava reenvio enquanto a mensagem anterior não terminou
+
+            chatEnviando = true;
+            const btnEnviar = document.querySelector('.chat-send-btn');
+            if (btnEnviar) btnEnviar.disabled = true;
+
+            // Limpar o campo IMEDIATAMENTE (feedback instantâneo — evita reenvio por impaciência)
+            inputMsg.value = '';
+            autoResizeTextarea(inputMsg);
 
             try {
                 const response = await fetch(`/api/chamados/${chamadoId}/chat/enviar`, {
@@ -2027,16 +2038,23 @@
                 });
                 const result = await response.json();
                 if (result.success) {
-                    document.getElementById('chatMensagem').value = '';
-                    autoResizeTextarea(document.getElementById('chatMensagem'));
                     chatIsFirstLoad = true;
                     await carregarMensagensChat(chamadoId);
                 } else {
+                    // Falhou — devolver o texto ao campo para o atendente tentar de novo
+                    inputMsg.value = mensagem;
+                    autoResizeTextarea(inputMsg);
                     mostrarToast('✗ ' + result.message, 'error');
                 }
             } catch (error) {
+                inputMsg.value = mensagem;
+                autoResizeTextarea(inputMsg);
                 mostrarToast('✗ Erro ao enviar mensagem', 'error');
                 console.error(error);
+            } finally {
+                chatEnviando = false;
+                if (btnEnviar) btnEnviar.disabled = false;
+                inputMsg.focus();
             }
         }
 

@@ -3582,7 +3582,7 @@ app.post('/api/chamados/:id/chat/enviar', isAuthenticated, async (req, res) => {
                     `👤 *${remetenteNome}:*\n\n` +
                     `${mensagem.trim()}`;
                 
-                await wpp.client.sendMessage(chamado[0].chat_origem, mensagemWhatsApp);
+                await wpp.client.sendMessage(chamado[0].chat_origem, mensagemWhatsApp, { immediate: true });
                 
                 res.json({ success: true, message: 'Mensagem enviada com sucesso' });
             } catch (error) {

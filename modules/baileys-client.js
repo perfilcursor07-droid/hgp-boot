@@ -213,23 +213,31 @@ class BaileysClient extends EventEmitter {
     async sendMessage(chatId, content, options = {}) {
         if (!this.sock || !this.isConnected) throw new Error('WhatsApp não está conectado');
 
-        // ═══ ANTI-BAN: Simular comportamento humano ═══
-        // 1. Delay aleatório ANTES de enviar (humanos não respondem instantaneamente)
-        const preDelay = 1000 + Math.floor(Math.random() * 2000); // 1-3s
-        await new Promise(r => setTimeout(r, preDelay));
+        // Mensagens manuais (atendente respondendo no chat) devem sair NA HORA.
+        // O delay anti-ban só faz sentido para mensagens automáticas do bot.
+        const immediate = options.immediate === true;
 
-        // 2. Mostrar "digitando..." (presença composing)
-        try {
-            await this.sock.sendPresenceUpdate('composing', chatId);
-            // Tempo de "digitação" proporcional ao tamanho do texto (50-80ms por caractere)
-            const textoLen = typeof content === 'string' ? content.length : (options.caption || '').length || 20;
-            const typingTime = Math.min(4000, Math.max(800, textoLen * (50 + Math.floor(Math.random() * 30))));
-            await new Promise(r => setTimeout(r, typingTime));
-            await this.sock.sendPresenceUpdate('paused', chatId);
-        } catch (e) { /* não-crítico */ }
+        if (!immediate) {
+            // ═══ ANTI-BAN: Simular comportamento humano ═══
+            // 1. Delay aleatório ANTES de enviar (humanos não respondem instantaneamente)
+            const preDelay = 1000 + Math.floor(Math.random() * 2000); // 1-3s
+            await new Promise(r => setTimeout(r, preDelay));
 
-        // 3. Micro-delay final aleatório (100-500ms)
-        await new Promise(r => setTimeout(r, 100 + Math.floor(Math.random() * 400)));
+            // 2. Mostrar "digitando..." (presença composing)
+            try {
+                await this.sock.sendPresenceUpdate('composing', chatId);
+                // Tempo de "digitação" proporcional ao tamanho do texto (50-80ms por caractere)
+                const textoLen = typeof content === 'string' ? content.length : (options.caption || '').length || 20;
+                const typingTime = Math.min(4000, Math.max(800, textoLen * (50 + Math.floor(Math.random() * 30))));
+                await new Promise(r => setTimeout(r, typingTime));
+                await this.sock.sendPresenceUpdate('paused', chatId);
+            } catch (e) { /* não-crítico */ }
+        }
+
+        // 3. Micro-delay final aleatório (100-500ms) — pulado no modo imediato
+        if (!immediate) {
+            await new Promise(r => setTimeout(r, 100 + Math.floor(Math.random() * 400)));
+        }
 
         // ═══ ENVIO ═══
         if (typeof content === 'string') {
