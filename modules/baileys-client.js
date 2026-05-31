@@ -130,23 +130,33 @@ class BaileysClient extends EventEmitter {
                 if (msg.key.fromMe) continue;
                 if (!msg.message) continue;
 
-                // ═══ DEDUP À PROVA DE RECONEXÃO ═══
-                // O WhatsApp pode reentregar a mesma mensagem (mesmo key.id) após
-                // uma reconexão (código 515) ou se houver mais de um socket vivo.
-                // Filtramos aqui, no nível da instância, ANTES de emitir ao handler.
                 const msgId = msg.key.id;
-                if (msgId) {
-                    const now = Date.now();
-                    if (this._recentMsgIds.has(msgId)) {
-                        console.log(`[Baileys:${this.clientId}] Msg duplicada ignorada (id=${msgId})`);
-                        continue;
-                    }
-                    this._recentMsgIds.set(msgId, now);
-                    // Limpeza preguiçosa: remove ids com mais de 5 min
-                    if (this._recentMsgIds.size > 500) {
-                        for (const [k, t] of this._recentMsgIds) {
-                            if (now - t > 5 * 60 * 1000) this._recentMsgIds.delete(k);
-                        }
+                const remoteJid = msg.key.remoteJid || '';
+                const ts = msg.messageTimestamp || 0;
+                const m = msg.message || {};
+                const textoRaw = m.conversation || m.extendedTextMessage?.text || m.imageMessage?.caption || m.videoMessage?.caption || '';
+
+                const now = Date.now();
+                console.log(`[Baileys:${this.clientId}] upsert from=${remoteJid} id=${msgId} ts=${ts} body="${String(textoRaw).slice(0, 40)}"`);
+
+                // ═══ DEDUP À PROVA DE RECONEXÃO E DE @lid ═══
+                // O Baileys 7.x (endereçamento LID) pode entregar a MESMA mensagem
+                // lógica DUAS vezes com key.id DIFERENTE, quase simultaneamente.
+                // Deduplicamos por remetente + conteúdo dentro de uma JANELA curta.
+                // A reentrega chega em milissegundos; um input genuíno repetido
+                // (ex: digitar "1" no menu e "1" no submenu) leva segundos e passa.
+                const DEDUP_WINDOW_MS = 6000;
+                const dedupKey = `${remoteJid}|${String(textoRaw).trim().toLowerCase()}`;
+                const lastSeen = this._recentMsgIds.get(dedupKey);
+                if (lastSeen && (now - lastSeen) < DEDUP_WINDOW_MS) {
+                    console.log(`[Baileys:${this.clientId}] >> DUPLICADA ignorada (${now - lastSeen}ms) key="${dedupKey.slice(0, 50)}"`);
+                    continue;
+                }
+                this._recentMsgIds.set(dedupKey, now);
+                // Limpeza preguiçosa: remove chaves antigas
+                if (this._recentMsgIds.size > 500) {
+                    for (const [k, t] of this._recentMsgIds) {
+                        if (now - t > 60 * 1000) this._recentMsgIds.delete(k);
                     }
                 }
 
