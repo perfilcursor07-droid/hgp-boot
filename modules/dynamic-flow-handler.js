@@ -431,19 +431,11 @@ function attachDynamicFlow(client, options = {}) {
             if (!sessionId || sessionId === 'status@broadcast') return;
             if (sessionId.endsWith('@g.us')) return; // ignorar grupos
 
-            // ═══ DEDUP (2ª linha de defesa) ═══
-            // Síncrono e ANTES de qualquer await, evitando condição de corrida.
-            // Chave por remetente + texto numa janela curta, porque o Baileys LID
-            // pode reentregar a mesma mensagem com IDs diferentes.
-            const textoDedup = String(msg.body || '').trim().toLowerCase();
-            const dedupKey = `${msg.from}|${textoDedup}`;
-            const agoraDedup = Date.now();
-            const visto = mensagensProcessadas.get(dedupKey);
-            if (visto && (agoraDedup - visto) < 6000) {
-                return;
-            }
-            mensagensProcessadas.set(dedupKey, agoraDedup);
-            setTimeout(() => mensagensProcessadas.delete(dedupKey), 60_000);
+            // Dedup
+            const msgId = msg.id?._serialized || `${msg.from}-${msg.timestamp}`;
+            if (mensagensProcessadas.has(msgId)) return;
+            mensagensProcessadas.set(msgId, Date.now() + 60_000);
+            setTimeout(() => mensagensProcessadas.delete(msgId), 60_000);
 
             // Bloqueado pós-ticket
             const bloqEat = bloqueados.get(sessionId);
