@@ -5,8 +5,7 @@
 // A instância legada continua sendo gerenciada pelo server.js como antes.
 // ════════════════════════════════════════════════════════════════════
 
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode');
+const { BaileysClient } = require('./baileys-client');
 const fsSync = require('fs');
 const path = require('path');
 const db = require('../config/database');
@@ -14,39 +13,6 @@ const { attachDynamicFlow } = require('./dynamic-flow-handler');
 
 // Pool de instâncias ativas em memória: instanciaId -> { client, controller, status, qr, ... }
 const pool = new Map();
-
-const candidateBrowserPaths = [
-    process.env.PUPPETEER_EXECUTABLE_PATH,
-    process.env.CHROME_BIN,
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/chromium'
-].filter(Boolean);
-
-function resolveBrowserPath() {
-    for (const p of candidateBrowserPaths) {
-        if (fsSync.existsSync(p)) return p;
-    }
-    return undefined;
-}
-
-function buildPuppeteerConfig() {
-    const executablePath = resolveBrowserPath();
-    const config = {
-        headless: true,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-gpu',
-            '--no-zygote',
-            '--no-first-run'
-        ]
-    };
-    if (executablePath) config.executablePath = executablePath;
-    return config;
-}
 
 async function carregarFlowDefinition(flowId) {
     if (!flowId) return null;
@@ -95,16 +61,7 @@ async function iniciarInstancia(instanciaId) {
     const flowDefinition = await carregarFlowDefinition(inst.flow_id);
     if (!flowDefinition) throw new Error('Fluxo da instância não encontrado ou inativo');
 
-    const sessionDir = path.join(__dirname, '..', '.wwebjs_auth_multi');
-    if (!fsSync.existsSync(sessionDir)) fsSync.mkdirSync(sessionDir, { recursive: true });
-
-    const client = new Client({
-        authStrategy: new LocalAuth({
-            clientId: inst.session_name,
-            dataPath: sessionDir
-        }),
-        puppeteer: buildPuppeteerConfig()
-    });
+    const client = new BaileysClient({ clientId: inst.session_name });
 
     const entry = {
         instanciaId: inst.id,
@@ -124,10 +81,10 @@ async function iniciarInstancia(instanciaId) {
 
     client.on('qr', async (qr) => {
         try {
-            const dataUrl = await qrcode.toDataURL(qr);
-            entry.qr = dataUrl;
+            // BaileysClient já emite como dataURL
+            entry.qr = qr;
             entry.status = 'qr_ready';
-            await atualizarStatusBanco(instanciaId, { status: 'qr_ready', qr_code: dataUrl });
+            await atualizarStatusBanco(instanciaId, { status: 'qr_ready', qr_code: qr });
             console.log(`[Instance:${inst.nome}] QR pronto`);
         } catch (e) {
             console.error(`[Instance:${inst.nome}] Erro QR:`, e);
@@ -283,9 +240,9 @@ async function syncOnStartup() {
             `SELECT id, session_name, nome FROM instancias WHERE is_legacy = FALSE AND ativo = TRUE`
         );
 
-        const sessionDir = path.join(__dirname, '..', '.wwebjs_auth_multi');
+        const sessionDir = path.join(__dirname, '..', '.baileys_auth');
         for (const inst of insts) {
-            const sessionPath = path.join(sessionDir, `session-${inst.session_name}`);
+            const sessionPath = path.join(sessionDir, inst.session_name);
             if (fsSync.existsSync(sessionPath)) {
                 console.log(`[InstanceManager] Auto-reconectando: ${inst.nome}`);
                 iniciarInstancia(inst.id).catch(err => {

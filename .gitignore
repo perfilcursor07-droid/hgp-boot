@@ -3,6 +3,7 @@ node_modules/
 .wwebjs_auth/
 .wwebjs_auth_multi/
 .wwebjs_cache/
+.baileys_auth/
 wwebjs_sessions/
 chatbot_runtime.json
 .vscode/
