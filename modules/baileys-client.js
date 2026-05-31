@@ -24,6 +24,10 @@ class BaileysClient extends EventEmitter {
         this.qrRetries = 0;
         this.maxQrRetries = 5;
         this._destroyed = false;
+        // Dedup de mensagens recebidas por ID — sobrevive a reconexões (515 etc).
+        // Mantido no nível da instância (não do socket) para que múltiplos
+        // sockets criados na mesma instância compartilhem o mesmo registro.
+        this._recentMsgIds = new Map();
     }
 
     async initialize() {
@@ -49,9 +53,13 @@ class BaileysClient extends EventEmitter {
         const { version } = await fetchLatestBaileysVersion();
         const { state, saveCreds } = await useMultiFileAuthState(this._sessionDir);
 
-        // Limpar socket anterior se existir
+        // Limpar socket anterior se existir — remover listeners E encerrar a
+        // conexão websocket antiga. Sem o end(), o socket antigo pode continuar
+        // vivo e entregar mensagens em paralelo ao novo (duplicação).
         if (this.sock) {
             try { this.sock.ev.removeAllListeners(); } catch (e) {}
+            try { this.sock.end(undefined); } catch (e) {}
+            this.sock = null;
         }
 
         this.sock = makeWASocket({
@@ -121,6 +129,27 @@ class BaileysClient extends EventEmitter {
             for (const msg of messages) {
                 if (msg.key.fromMe) continue;
                 if (!msg.message) continue;
+
+                // ═══ DEDUP À PROVA DE RECONEXÃO ═══
+                // O WhatsApp pode reentregar a mesma mensagem (mesmo key.id) após
+                // uma reconexão (código 515) ou se houver mais de um socket vivo.
+                // Filtramos aqui, no nível da instância, ANTES de emitir ao handler.
+                const msgId = msg.key.id;
+                if (msgId) {
+                    const now = Date.now();
+                    if (this._recentMsgIds.has(msgId)) {
+                        console.log(`[Baileys:${this.clientId}] Msg duplicada ignorada (id=${msgId})`);
+                        continue;
+                    }
+                    this._recentMsgIds.set(msgId, now);
+                    // Limpeza preguiçosa: remove ids com mais de 5 min
+                    if (this._recentMsgIds.size > 500) {
+                        for (const [k, t] of this._recentMsgIds) {
+                            if (now - t > 5 * 60 * 1000) this._recentMsgIds.delete(k);
+                        }
+                    }
+                }
+
                 const fakeMsg = this._converterMensagem(msg);
                 this.emit('message', fakeMsg);
             }

@@ -128,6 +128,7 @@ async function iniciarInstancia(instanciaId) {
 
     // Listener de mensagens para salvar em `messages` (igual HGP)
     client.on('message', async (message) => {
+        console.log(`[Instance:${inst.nome}] msg recebida de ${message.from} id=${message.id?._serialized} pid=${process.pid}`);
         try {
             const [sessions] = await db.query(
                 'SELECT id FROM whatsapp_sessions WHERE session_name = ?',
