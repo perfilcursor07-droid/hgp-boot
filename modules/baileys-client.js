@@ -33,7 +33,26 @@ class BaileysClient extends EventEmitter {
         if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
 
         const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
+        this._state = state;
+        this._saveCreds = saveCreds;
+        this._sessionDir = sessionDir;
+
+        await this._createSocket();
+    }
+
+    async _reconnect() {
+        if (this._destroyed) return;
+        await this._createSocket();
+    }
+
+    async _createSocket() {
         const { version } = await fetchLatestBaileysVersion();
+        const { state, saveCreds } = await useMultiFileAuthState(this._sessionDir);
+
+        // Limpar socket anterior se existir
+        if (this.sock) {
+            try { this.sock.ev.removeAllListeners(); } catch (e) {}
+        }
 
         this.sock = makeWASocket({
             version,
@@ -43,13 +62,13 @@ class BaileysClient extends EventEmitter {
             generateHighQualityLinkPreview: false,
             syncFullHistory: false,
             // ═══ ANTI-BAN: Configurações otimizadas ═══
-            markOnlineOnConnect: false,       // NÃO mostrar "online" ao conectar
-            connectTimeoutMs: 60_000,        // Timeout generoso
-            keepAliveIntervalMs: 25_000,     // Heartbeat a cada 25s (padrão WA)
-            retryRequestDelayMs: 500,        // Delay entre retries
-            defaultQueryTimeoutMs: 60_000,   // Timeout de queries
-            emitOwnEvents: false,            // Não emitir eventos das próprias mensagens
-            fireInitQueries: true            // Queries iniciais (normal)
+            markOnlineOnConnect: false,
+            connectTimeoutMs: 60_000,
+            keepAliveIntervalMs: 25_000,
+            retryRequestDelayMs: 500,
+            defaultQueryTimeoutMs: 60_000,
+            emitOwnEvents: false,
+            fireInitQueries: true
         });
 
         this.sock.ev.on('creds.update', saveCreds);
@@ -77,12 +96,11 @@ class BaileysClient extends EventEmitter {
                 const shouldReconnect = statusCode !== DisconnectReason.loggedOut && !this._destroyed;
 
                 if (shouldReconnect) {
-                    // Delay progressivo para evitar loop agressivo (anti-ban)
                     const delay = Math.min(30000, 5000 * this.qrRetries);
                     console.log(`[Baileys:${this.clientId}] Desconectado (${statusCode}) — reconectando em ${delay/1000}s...`);
                     this.isConnected = false;
                     setTimeout(() => {
-                        if (!this._destroyed) this.initialize();
+                        if (!this._destroyed) this._reconnect();
                     }, delay);
                 } else {
                     this.isConnected = false;
@@ -97,7 +115,7 @@ class BaileysClient extends EventEmitter {
             }
         });
 
-        // Mensagens recebidas
+        // Mensagens recebidas — registra UMA vez por socket
         this.sock.ev.on('messages.upsert', async ({ messages, type }) => {
             if (type !== 'notify' || this._destroyed) return;
             for (const msg of messages) {
