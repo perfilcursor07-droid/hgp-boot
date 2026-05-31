@@ -3350,26 +3350,30 @@ app.post('/api/chamados/:id/atender', isAuthenticated, async (req, res) => {
             [atendenteId, atendenteNome, chamadoId]
         );
 
-        // Enviar mensagem pelo WhatsApp
-        const wppAt = await obterClienteWhatsAppParaChamado(chamado[0]);
-        if (wppAt.isConnected && wppAt.client && chamado[0].chat_origem) {
-            try {
-                const mensagem = `🔔 *ATUALIZAÇÃO DO CHAMADO*\n\n` +
-                    `📌 *Protocolo:* ${chamado[0].protocolo}\n` +
-                    `👤 *Atendente:* ${atendenteNome}\n` +
-                    `📊 *Status:* Em Atendimento\n\n` +
-                    `Seu chamado está sendo atendido. Em breve entraremos em contato.`;
-                
-                await wppAt.client.sendMessage(chamado[0].chat_origem, mensagem);
-            } catch (error) {
-                console.error('Erro ao enviar mensagem WhatsApp:', error);
-            }
-        }
-
+        // Responder ao front IMEDIATAMENTE; o WhatsApp vai em segundo plano.
         res.json({ success: true, message: 'Atendimento iniciado com sucesso' });
+
+        // Enviar mensagem pelo WhatsApp (fire-and-forget)
+        (async () => {
+            try {
+                const wppAt = await obterClienteWhatsAppParaChamado(chamado[0]);
+                if (wppAt.isConnected && wppAt.client && chamado[0].chat_origem) {
+                    const mensagem = `🔔 *ATUALIZAÇÃO DO CHAMADO*\n\n` +
+                        `📌 *Protocolo:* ${chamado[0].protocolo}\n` +
+                        `👤 *Atendente:* ${atendenteNome}\n` +
+                        `📊 *Status:* Em Atendimento\n\n` +
+                        `Seu chamado está sendo atendido. Em breve entraremos em contato.`;
+                    await wppAt.client.sendMessage(chamado[0].chat_origem, mensagem);
+                }
+            } catch (error) {
+                console.error('Erro ao enviar mensagem WhatsApp (atender):', error.message);
+            }
+        })();
     } catch (error) {
         console.error('Erro ao iniciar atendimento:', error);
-        res.status(500).json({ success: false, message: 'Erro ao iniciar atendimento' });
+        if (!res.headersSent) {
+            res.status(500).json({ success: false, message: 'Erro ao iniciar atendimento' });
+        }
     }
 });
 
@@ -3405,10 +3409,17 @@ app.post('/api/chamados/:id/encerrar', isAuthenticated, async (req, res) => {
 
         const mensagemEncerramento = `✅ Chamado encerrado.\n📌 Protocolo: ${chamado[0].protocolo}`;
 
-        // Enviar mensagem pelo WhatsApp e reabrir o fluxo para o usuário
-        const wppEnc2 = await obterClienteWhatsAppParaChamado(chamado[0]);
-        if (wppEnc2.isConnected && wppEnc2.client) {
+        // Responder ao front IMEDIATAMENTE — o envio pelo WhatsApp (com delays
+        // anti-ban + mensagem de avaliação) roda em segundo plano. Assim o botão
+        // não fica "travado" esperando e o atendente não clica várias vezes.
+        res.json({ success: true, message: 'Chamado encerrado com sucesso' });
+
+        // ── Envio em segundo plano (fire-and-forget) ──
+        (async () => {
             try {
+                const wppEnc2 = await obterClienteWhatsAppParaChamado(chamado[0]);
+                if (!wppEnc2.isConnected || !wppEnc2.client) return;
+
                 let notificacaoEnviada = false;
 
                 // Reabertura de fluxo (avaliação): HGP usa controller legacy, instâncias novas usam o controller do instance-manager
@@ -3447,14 +3458,14 @@ app.post('/api/chamados/:id/encerrar', isAuthenticated, async (req, res) => {
                     console.error(`Nao foi possivel enviar a mensagem de encerramento do chamado ${chamado[0].protocolo}`);
                 }
             } catch (error) {
-                console.error('Erro ao enviar mensagem WhatsApp:', error);
+                console.error('Erro ao enviar mensagem WhatsApp (encerramento):', error.message);
             }
-        }
-
-        res.json({ success: true, message: 'Chamado encerrado com sucesso' });
+        })();
     } catch (error) {
         console.error('Erro ao encerrar chamado:', error);
-        res.status(500).json({ success: false, message: 'Erro ao encerrar chamado' });
+        if (!res.headersSent) {
+            res.status(500).json({ success: false, message: 'Erro ao encerrar chamado' });
+        }
     }
 });
 

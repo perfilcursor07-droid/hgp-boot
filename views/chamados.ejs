@@ -1443,11 +1443,18 @@
             }
         }
 
+        let encerrandoChamado = false;
         async function encerrarChamado(event) {
             event.preventDefault();
+            if (encerrandoChamado) return; // evita duplo clique
 
             const chamadoId = document.getElementById('chamadoId').value;
             const observacoes = document.getElementById('observacoes').value;
+
+            encerrandoChamado = true;
+            const btnSubmit = document.querySelector('#formEncerrar button[type="submit"]');
+            const btnLabelOriginal = btnSubmit ? btnSubmit.textContent : '';
+            if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.textContent = 'Encerrando...'; }
 
             try {
                 const response = await fetch(`/api/chamados/${chamadoId}/encerrar`, {
@@ -1468,6 +1475,9 @@
             } catch (error) {
                 mostrarToast('✗ Erro ao encerrar chamado', 'error');
                 console.error(error);
+            } finally {
+                encerrandoChamado = false;
+                if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = btnLabelOriginal; }
             }
         }
 
