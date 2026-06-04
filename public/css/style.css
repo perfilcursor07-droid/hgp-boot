@@ -2352,7 +2352,7 @@ body.sidebar-collapsed .sidebar-toggle-btn .toggle-chevron {
     flex-direction: column;
     overflow: hidden;
     border-radius: 14px;
-    background: #e5ddd5;
+    background: #efeae2;
     box-shadow: 0 24px 70px rgba(0, 0, 0, 0.4);
 }
 
@@ -2423,17 +2423,18 @@ body.sidebar-collapsed .sidebar-toggle-btn .toggle-chevron {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    background: #e5ddd5;
+    background: #efeae2;
 }
 
 .chat-messages {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding: 16px 24px;
+    padding: 14px 6%;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    background-color: #efeae2;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'%3E%3Cg fill='none' stroke='%23000000' stroke-opacity='0.04' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='34' cy='40' r='13'/%3E%3Cpath d='M150 30c-6-9-22-3-22 7 0 9 22 20 22 20s22-11 22-20c0-10-16-16-22-7z'/%3E%3Crect x='26' y='150' width='46' height='30' rx='9'/%3E%3Cpath d='M40 180l-6 11 15-7z'/%3E%3Cpath d='M196 148l4 12 13 1-10 8 3 13-10-7-10 7 3-13-10-8 13-1z'/%3E%3Ccircle cx='120' cy='110' r='16'/%3E%3Ccircle cx='114' cy='105' r='1.6'/%3E%3Ccircle cx='126' cy='105' r='1.6'/%3E%3Cpath d='M112 116c5 6 11 6 16 0'/%3E%3Ccircle cx='202' cy='62' r='10'/%3E%3Cpath d='M202 46v-6M202 84v-6M218 62h6M180 62h6M213 51l4-4M191 73l-4 4M213 73l4 4M191 51l-4-4'/%3E%3Cpath d='M150 202v-22l16-4v18'/%3E%3Ccircle cx='147' cy='202' r='4.5'/%3E%3Ccircle cx='163' cy='198' r='4.5'/%3E%3C/g%3E%3C/svg%3E");
 }
 
 .chat-empty {
@@ -2463,13 +2464,43 @@ body.sidebar-collapsed .sidebar-toggle-btn .toggle-chevron {
 
 .chat-message-row {
     display: flex;
-    margin-bottom: 2px;
+    margin-top: 10px;
 }
+
+/* Mensagens agrupadas (mesmo remetente em sequência) ficam coladinhas */
+.chat-message-row.grouped { margin-top: 2px; }
+.chat-message-row:first-child { margin-top: 0; }
 
 .chat-message-row.from-tech { justify-content: flex-end; }
 
 .chat-message-row.from-user,
 .chat-message-row.from-system { justify-content: flex-start; }
+
+/* ── Mensagens de sistema: pílula central estilo WhatsApp ── */
+.chat-system-row {
+    display: flex;
+    justify-content: center;
+    margin: 10px 0 4px;
+}
+.chat-system-pill {
+    background: #fff5c4;
+    color: #54592f;
+    font-size: 12.5px;
+    line-height: 1.45;
+    padding: 6px 14px;
+    border-radius: 8px;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+    max-width: 85%;
+    text-align: center;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.chat-system-time {
+    font-size: 10.5px;
+    color: #9a9462;
+    margin-left: 8px;
+    white-space: nowrap;
+}
 
 .chat-bubble {
     max-width: min(70%, 580px);
@@ -2481,12 +2512,10 @@ body.sidebar-collapsed .sidebar-toggle-btn .toggle-chevron {
 
 .chat-bubble.from-tech {
     background: #d9fdd3;
-    border-bottom-right-radius: 3px;
 }
 
 .chat-bubble.from-user {
     background: #ffffff;
-    border-bottom-left-radius: 3px;
 }
 
 .chat-bubble.from-system {
@@ -2503,7 +2532,37 @@ body.sidebar-collapsed .sidebar-toggle-btn .toggle-chevron {
     color: #128c7e;
     margin-bottom: 2px;
 }
-.chat-bubble.from-tech .chat-bubble-author { color: #25d366; }
+.chat-bubble.from-tech .chat-bubble-author { color: #1fa855; }
+
+/* Rabinho (tail) no primeiro balão de cada grupo — estilo WhatsApp */
+.chat-bubble.from-tech.first {
+    border-top-right-radius: 0;
+}
+.chat-bubble.from-user.first {
+    border-top-left-radius: 0;
+}
+.chat-bubble.from-tech.first::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: -8px;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 0 10px 10px;
+    border-color: transparent transparent transparent #d9fdd3;
+}
+.chat-bubble.from-user.first::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -8px;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 10px 10px 0;
+    border-color: transparent #ffffff transparent transparent;
+}
 
 .chat-bubble-text {
     white-space: pre-wrap;

@@ -93,7 +93,7 @@
             display: flex;
             flex-direction: column;
             min-width: 0;
-            background: #e5ddd5;
+            background: #efeae2;
         }
 
         /* Botão toggle de info (visível apenas no mobile) */
@@ -522,43 +522,63 @@
         }
 
         /* ── Paginação ── */
-        #paginacao {
-            padding: 14px 0 !important;
+        .paginacao-secao {
+            padding: 10px 0 !important;
         }
-        #paginacaoBtns button {
+        #paginacaoAtivosBtns button,
+        #paginacaoFinalizadosBtns button {
             border-radius: 8px !important;
             font-weight: 600 !important;
             transition: all 0.15s !important;
         }
-        #paginacaoBtns button:hover:not(:disabled) {
+        #paginacaoAtivosBtns button:hover:not(:disabled),
+        #paginacaoFinalizadosBtns button:hover:not(:disabled) {
             background: #f1f5f9 !important;
         }
 
-        /* ── Separador ativo/finalizado ── */
-        .separator-row td {
-            padding: 0 !important;
-            border: none !important;
-        }
-        .table-separator {
+        /* ── Cabeçalho das seções (ativos / finalizados) ── */
+        .chamados-secao { width: 100%; }
+        .secao-header {
             display: flex;
             align-items: center;
+            justify-content: space-between;
             gap: 10px;
-            padding: 8px 0;
+            padding: 9px 14px;
+            border-radius: 10px;
+            margin-bottom: 10px;
         }
-        .table-separator::before,
-        .table-separator::after {
-            content: '';
-            flex: 1;
-            height: 1px;
-            background: #e2e8f0;
-        }
-        .table-separator span {
-            font-size: 10px;
+        .secao-header-ativos     { background: #fffbeb; border: 1px solid #fde68a; }
+        .secao-header-finalizados { background: #f5f3ff; border: 1px solid #ddd6fe; }
+        .secao-titulo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
             font-weight: 700;
-            color: #94a3b8;
+            color: #334155;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            white-space: nowrap;
+            letter-spacing: 0.4px;
+        }
+        .secao-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .secao-count {
+            font-size: 12px;
+            font-weight: 700;
+            color: #475569;
+            background: rgba(255,255,255,0.8);
+            border: 1px solid rgba(0,0,0,0.06);
+            padding: 2px 10px;
+            border-radius: 999px;
+            min-width: 26px;
+            text-align: center;
+        }
+        .secao-empty {
+            padding: 18px 0 !important;
+            font-size: 13px;
         }
 
         /* ── Novo chamado highlight ── */
@@ -709,25 +729,60 @@
                     </div>
                     <div class="messages-container">
                         <p id="chamadosEmptyState" class="no-messages" style="display: <%= chamados.length === 0 ? 'block' : 'none' %>;">📭 Nenhum chamado encontrado</p>
-                        <table id="chamadosTable" class="messages-table" style="display: <%= chamados.length === 0 ? 'none' : 'table' %>;">
-                            <thead>
-                                <tr>
-                                    <th>Protocolo</th>
-                                    <th>Solicitante</th>
-                                    <th>Setor / Categoria</th>
-                                    <th>Status</th>
-                                    <th>Atendente</th>
-                                    <th>Data</th>
-                                    <th>Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody id="chamadosTableBody"></tbody>
-                        </table>
-                    </div>
-                    <!-- Paginação -->
-                    <div id="paginacao" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-top:1px solid #e2e8f0;margin-top:12px;">
-                        <span id="paginacaoInfo" style="font-size:12px;color:#64748b;"></span>
-                        <div id="paginacaoBtns" style="display:flex;gap:4px;"></div>
+
+                        <!-- ───── Seção: Em aberto / aguardando atendimento ───── -->
+                        <section class="chamados-secao" id="secaoAtivos">
+                            <div class="secao-header secao-header-ativos">
+                                <span class="secao-titulo"><span class="secao-dot" style="background:#f59e0b;"></span> Aguardando / Em atendimento</span>
+                                <span class="secao-count" id="countAtivos">0</span>
+                            </div>
+                            <p id="emptyAtivos" class="no-messages secao-empty" style="display:none;">✅ Nenhum chamado em aberto no momento</p>
+                            <table id="tableAtivos" class="messages-table">
+                                <thead>
+                                    <tr>
+                                        <th>Protocolo</th>
+                                        <th>Solicitante</th>
+                                        <th>Setor / Categoria</th>
+                                        <th>Status</th>
+                                        <th>Atendente</th>
+                                        <th>Data</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodyAtivos"></tbody>
+                            </table>
+                            <div id="paginacaoAtivos" class="paginacao-secao" style="display:none;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid #e2e8f0;margin-top:10px;">
+                                <span id="paginacaoAtivosInfo" style="font-size:12px;color:#64748b;"></span>
+                                <div id="paginacaoAtivosBtns" style="display:flex;gap:4px;"></div>
+                            </div>
+                        </section>
+
+                        <!-- ───── Seção: Finalizados ───── -->
+                        <section class="chamados-secao" id="secaoFinalizados" style="margin-top:22px;">
+                            <div class="secao-header secao-header-finalizados">
+                                <span class="secao-titulo"><span class="secao-dot" style="background:#8b5cf6;"></span> Finalizados</span>
+                                <span class="secao-count" id="countFinalizados">0</span>
+                            </div>
+                            <p id="emptyFinalizados" class="no-messages secao-empty" style="display:none;">📭 Nenhum chamado finalizado</p>
+                            <table id="tableFinalizados" class="messages-table">
+                                <thead>
+                                    <tr>
+                                        <th>Protocolo</th>
+                                        <th>Solicitante</th>
+                                        <th>Setor / Categoria</th>
+                                        <th>Status</th>
+                                        <th>Atendente</th>
+                                        <th>Data</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodyFinalizados"></tbody>
+                            </table>
+                            <div id="paginacaoFinalizados" class="paginacao-secao" style="display:none;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid #e2e8f0;margin-top:10px;">
+                                <span id="paginacaoFinalizadosInfo" style="font-size:12px;color:#64748b;"></span>
+                                <div id="paginacaoFinalizadosBtns" style="display:flex;gap:4px;"></div>
+                            </div>
+                        </section>
                     </div>
                 </div>
             </div>
@@ -976,21 +1031,21 @@
             return html;
         }
 
-        function chamadoMatchFiltro(chamado) {
-            if (filtroAtivo !== 'todos' && chamado.status !== filtroAtivo) return false;
-            if (buscaAtiva) {
-                const q = buscaAtiva.toLowerCase();
-                return (chamado.protocolo || '').toLowerCase().includes(q)
-                    || (chamado.solicitante_nome || '').toLowerCase().includes(q)
-                    || (chamado.setor || '').toLowerCase().includes(q)
-                    || (chamado.categoria || '').toLowerCase().includes(q);
-            }
-            return true;
+        const STATUS_ATIVOS = ['pendente', 'aberto', 'em_atendimento'];
+
+        function chamadoMatchBusca(chamado) {
+            if (!buscaAtiva) return true;
+            const q = buscaAtiva.toLowerCase();
+            return (chamado.protocolo || '').toLowerCase().includes(q)
+                || (chamado.solicitante_nome || '').toLowerCase().includes(q)
+                || (chamado.setor || '').toLowerCase().includes(q)
+                || (chamado.categoria || '').toLowerCase().includes(q);
         }
 
         function aplicarFiltro(status) {
             filtroAtivo = status;
-            paginaAtual = 1;
+            paginaAtivos = 1;
+            paginaFinalizados = 1;
             document.querySelectorAll('.filter-tab').forEach(t => t.classList.toggle('active', t.dataset.filter === status));
             document.querySelectorAll('.stat-card[data-filter]').forEach(c => c.classList.toggle('stat-card-active', c.dataset.filter === status));
             renderChamadosTable(chamadosState);
@@ -998,111 +1053,175 @@
 
         function debounceBusca(valor) {
             clearTimeout(buscaTimer);
-            buscaTimer = setTimeout(() => { buscaAtiva = valor.trim(); paginaAtual = 1; renderChamadosTable(chamadosState); }, 200);
+            buscaTimer = setTimeout(() => { buscaAtiva = valor.trim(); paginaAtivos = 1; paginaFinalizados = 1; renderChamadosTable(chamadosState); }, 200);
         }
 
-        let paginaAtual = 1;
+        let paginaAtivos = 1;
+        let paginaFinalizados = 1;
         const itensPorPagina = 25;
 
+        const whatsAppBtn = (c) => (c.nome_whatsapp || c.telefone_whatsapp)
+            ? `<button onclick="mostrarDadosWhatsApp('${escapeHtml(c.protocolo)}','${escapeHtml(c.solicitante_nome)}','${escapeHtml(c.telefone_contato||'')}','${escapeHtml(c.nome_whatsapp||'')}','${escapeHtml(c.telefone_whatsapp||'')}')" class="ca-btn ca-whatsapp" title="Dados WhatsApp"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button>`
+            : '';
+
+        function renderLinhaChamado(chamado) {
+            const dh = formatarDataHora(chamado.criado_em);
+            const isNew = chamado._isNew ? 'chamado-row-new' : '';
+            return `
+                <tr data-status="${chamado.status}" class="${isNew}">
+                    <td class="td-protocolo" data-label="Protocolo"><strong>${escapeHtml(chamado.protocolo)}</strong><br><small class="td-hora">${dh.hora}</small></td>
+                    <td class="td-solicitante" data-label="Solicitante">
+                        <span class="solicitante-nome">${escapeHtml(chamado.solicitante_nome)}</span>
+                        ${whatsAppBtn(chamado)}
+                    </td>
+                    <td class="td-setor" data-label="Setor"><span>${escapeHtml(chamado.setor)}</span><small>${escapeHtml(chamado.categoria)}</small></td>
+                    <td data-label="Status">${montarBadgeStatus(chamado.status)}</td>
+                    <td data-label="Atendente">${montarAvatarAtendente(chamado.atendente_nome)}</td>
+                    <td class="td-data" data-label="Data">${dh.data}</td>
+                    <td data-label="">${montarAcoesChamado(chamado)}</td>
+                </tr>`;
+        }
+
+        function renderPaginacaoSecao(infoId, btnsId, containerId, paginaAtualSecao, totalPaginas, total, fnIr) {
+            const containerEl = document.getElementById(containerId);
+            if (!containerEl) return;
+            if (totalPaginas <= 1) {
+                containerEl.style.display = 'none';
+                return;
+            }
+            containerEl.style.display = 'flex';
+            document.getElementById(infoId).textContent = `Página ${paginaAtualSecao} de ${totalPaginas} (${total} chamados)`;
+            let btnsHtml = '';
+            btnsHtml += `<button onclick="${fnIr}(${paginaAtualSecao - 1})" style="padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;font-size:12px;" ${paginaAtualSecao === 1 ? 'disabled style="opacity:0.4;cursor:default;"' : ''}>← Anterior</button>`;
+            const maxBtns = 5;
+            let startPage = Math.max(1, paginaAtualSecao - 2);
+            let endPage = Math.min(totalPaginas, startPage + maxBtns - 1);
+            if (endPage - startPage < maxBtns - 1) startPage = Math.max(1, endPage - maxBtns + 1);
+            for (let i = startPage; i <= endPage; i++) {
+                const isActive = i === paginaAtualSecao;
+                btnsHtml += `<button onclick="${fnIr}(${i})" style="padding:6px 10px;border:1px solid ${isActive ? '#25D366' : '#e2e8f0'};border-radius:6px;background:${isActive ? '#25D366' : 'white'};color:${isActive ? 'white' : '#334155'};cursor:pointer;font-size:12px;font-weight:${isActive ? '600' : '400'};">${i}</button>`;
+            }
+            btnsHtml += `<button onclick="${fnIr}(${paginaAtualSecao + 1})" style="padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;font-size:12px;" ${paginaAtualSecao === totalPaginas ? 'disabled style="opacity:0.4;cursor:default;"' : ''}>Próxima →</button>`;
+            document.getElementById(btnsId).innerHTML = btnsHtml;
+        }
+
         function renderChamadosTable(chamados) {
-            const tabelaChamados = document.getElementById('chamadosTable');
-            const tbody = document.getElementById('chamadosTableBody');
             const emptyState = document.getElementById('chamadosEmptyState');
             const countEl = document.getElementById('chamadosCount');
-            const paginacaoEl = document.getElementById('paginacao');
-            if (!tabelaChamados || !tbody || !emptyState) return;
+            const secaoAtivos = document.getElementById('secaoAtivos');
+            const secaoFinalizados = document.getElementById('secaoFinalizados');
+            if (!emptyState || !secaoAtivos || !secaoFinalizados) return;
 
-            let filtrados = Array.isArray(chamados) ? chamados.filter(chamadoMatchFiltro) : [];
+            const base = Array.isArray(chamados) ? chamados.filter(chamadoMatchBusca) : [];
 
-            // Ordenar: ativos primeiro (pendente, aberto, em_atendimento), finalizados por último
-            const statusOrdem = { pendente: 0, aberto: 1, em_atendimento: 2, finalizado: 3 };
-            filtrados.sort((a, b) => {
+            // Quais seções aparecem conforme o filtro selecionado
+            const mostrarAtivos = filtroAtivo === 'todos' || STATUS_ATIVOS.includes(filtroAtivo);
+            const mostrarFinalizados = filtroAtivo === 'todos' || filtroAtivo === 'finalizado';
+
+            // ── Ativos (pendente → aberto → em atendimento) ──
+            const statusOrdem = { pendente: 0, aberto: 1, em_atendimento: 2 };
+            let ativos = base.filter(c => STATUS_ATIVOS.includes(c.status));
+            if (STATUS_ATIVOS.includes(filtroAtivo)) ativos = ativos.filter(c => c.status === filtroAtivo);
+            ativos.sort((a, b) => {
                 const ordemA = statusOrdem[a.status] ?? 9;
                 const ordemB = statusOrdem[b.status] ?? 9;
                 if (ordemA !== ordemB) return ordemA - ordemB;
-                // Dentro do mesmo status, mais recente primeiro
                 return new Date(b.criado_em) - new Date(a.criado_em);
             });
 
-            const totalPaginas = Math.ceil(filtrados.length / itensPorPagina);
-            if (paginaAtual > totalPaginas) paginaAtual = totalPaginas || 1;
+            // ── Finalizados (mais recentes primeiro) ──
+            let finalizados = base.filter(c => c.status === 'finalizado');
+            finalizados.sort((a, b) => new Date(b.criado_em) - new Date(a.criado_em));
 
-            const inicio = (paginaAtual - 1) * itensPorPagina;
-            const paginados = filtrados.slice(inicio, inicio + itensPorPagina);
+            // Renderizar cada seção
+            paginaAtivos = renderSecaoChamados({
+                lista: ativos,
+                pagina: paginaAtivos,
+                visivel: mostrarAtivos,
+                secaoEl: secaoAtivos,
+                tbodyId: 'tbodyAtivos',
+                tableId: 'tableAtivos',
+                emptyId: 'emptyAtivos',
+                countId: 'countAtivos',
+                pagInfoId: 'paginacaoAtivosInfo',
+                pagBtnsId: 'paginacaoAtivosBtns',
+                pagContainerId: 'paginacaoAtivos',
+                fnIr: 'irPaginaAtivos'
+            });
 
-            if (countEl) countEl.textContent = filtrados.length > 0 ? `${filtrados.length} chamado${filtrados.length !== 1 ? 's' : ''}` : '';
+            paginaFinalizados = renderSecaoChamados({
+                lista: finalizados,
+                pagina: paginaFinalizados,
+                visivel: mostrarFinalizados,
+                secaoEl: secaoFinalizados,
+                tbodyId: 'tbodyFinalizados',
+                tableId: 'tableFinalizados',
+                emptyId: 'emptyFinalizados',
+                countId: 'countFinalizados',
+                pagInfoId: 'paginacaoFinalizadosInfo',
+                pagBtnsId: 'paginacaoFinalizadosBtns',
+                pagContainerId: 'paginacaoFinalizados',
+                fnIr: 'irPaginaFinalizados'
+            });
 
-            if (filtrados.length === 0) {
-                tbody.innerHTML = '';
-                emptyState.style.display = 'block';
-                tabelaChamados.style.display = 'none';
-                if (paginacaoEl) paginacaoEl.style.display = 'none';
-                return;
-            }
-
+            // Contador geral na toolbar — as seções exibem seu próprio estado vazio
+            const totalVisivel = (mostrarAtivos ? ativos.length : 0) + (mostrarFinalizados ? finalizados.length : 0);
+            if (countEl) countEl.textContent = totalVisivel > 0 ? `${totalVisivel} chamado${totalVisivel !== 1 ? 's' : ''}` : '';
             emptyState.style.display = 'none';
-            tabelaChamados.style.display = 'table';
-
-            const whatsAppBtn = (c) => (c.nome_whatsapp || c.telefone_whatsapp)
-                ? `<button onclick="mostrarDadosWhatsApp('${escapeHtml(c.protocolo)}','${escapeHtml(c.solicitante_nome)}','${escapeHtml(c.telefone_contato||'')}','${escapeHtml(c.nome_whatsapp||'')}','${escapeHtml(c.telefone_whatsapp||'')}')" class="ca-btn ca-whatsapp" title="Dados WhatsApp"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button>`
-                : '';
-
-            tbody.innerHTML = paginados.map((chamado, idx) => {
-                const dh = formatarDataHora(chamado.criado_em);
-                const isNew = chamado._isNew ? 'chamado-row-new' : '';
-                // Separador entre ativos e finalizados
-                let separator = '';
-                if (idx > 0 && chamado.status === 'finalizado' && paginados[idx-1].status !== 'finalizado') {
-                    separator = `<tr class="separator-row"><td colspan="7"><div class="table-separator"><span>Finalizados</span></div></td></tr>`;
-                }
-                return `${separator}
-                    <tr data-status="${chamado.status}" class="${isNew}">
-                        <td class="td-protocolo" data-label="Protocolo"><strong>${escapeHtml(chamado.protocolo)}</strong><br><small class="td-hora">${dh.hora}</small></td>
-                        <td class="td-solicitante" data-label="Solicitante">
-                            <span class="solicitante-nome">${escapeHtml(chamado.solicitante_nome)}</span>
-                            ${whatsAppBtn(chamado)}
-                        </td>
-                        <td class="td-setor" data-label="Setor"><span>${escapeHtml(chamado.setor)}</span><small>${escapeHtml(chamado.categoria)}</small></td>
-                        <td data-label="Status">${montarBadgeStatus(chamado.status)}</td>
-                        <td data-label="Atendente">${montarAvatarAtendente(chamado.atendente_nome)}</td>
-                        <td class="td-data" data-label="Data">${dh.data}</td>
-                        <td data-label="">${montarAcoesChamado(chamado)}</td>
-                    </tr>`;
-            }).join('');
-
-            // Renderizar paginação
-            if (paginacaoEl) {
-                if (totalPaginas <= 1) {
-                    paginacaoEl.style.display = 'none';
-                } else {
-                    paginacaoEl.style.display = 'flex';
-                    document.getElementById('paginacaoInfo').textContent = `Página ${paginaAtual} de ${totalPaginas} (${filtrados.length} chamados)`;
-                    let btnsHtml = '';
-                    btnsHtml += `<button onclick="irPagina(${paginaAtual - 1})" style="padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;font-size:12px;" ${paginaAtual === 1 ? 'disabled style="opacity:0.4;cursor:default;"' : ''}>← Anterior</button>`;
-                    
-                    const maxBtns = 5;
-                    let startPage = Math.max(1, paginaAtual - 2);
-                    let endPage = Math.min(totalPaginas, startPage + maxBtns - 1);
-                    if (endPage - startPage < maxBtns - 1) startPage = Math.max(1, endPage - maxBtns + 1);
-
-                    for (let i = startPage; i <= endPage; i++) {
-                        const isActive = i === paginaAtual;
-                        btnsHtml += `<button onclick="irPagina(${i})" style="padding:6px 10px;border:1px solid ${isActive ? '#25D366' : '#e2e8f0'};border-radius:6px;background:${isActive ? '#25D366' : 'white'};color:${isActive ? 'white' : '#334155'};cursor:pointer;font-size:12px;font-weight:${isActive ? '600' : '400'};">${i}</button>`;
-                    }
-
-                    btnsHtml += `<button onclick="irPagina(${paginaAtual + 1})" style="padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;font-size:12px;" ${paginaAtual === totalPaginas ? 'disabled style="opacity:0.4;cursor:default;"' : ''}>Próxima →</button>`;
-                    document.getElementById('paginacaoBtns').innerHTML = btnsHtml;
-                }
-            }
         }
 
-        function irPagina(pagina) {
-            const filtrados = chamadosState.filter(chamadoMatchFiltro);
-            const totalPaginas = Math.ceil(filtrados.length / itensPorPagina);
-            if (pagina < 1 || pagina > totalPaginas) return;
-            paginaAtual = pagina;
+        function renderSecaoChamados(opts) {
+            const secaoEl = opts.secaoEl;
+            const tbody = document.getElementById(opts.tbodyId);
+            const tabela = document.getElementById(opts.tableId);
+            const emptyEl = document.getElementById(opts.emptyId);
+            const countEl = document.getElementById(opts.countId);
+
+            if (!opts.visivel) {
+                secaoEl.style.display = 'none';
+                if (tbody) tbody.innerHTML = '';
+                return 1;
+            }
+            secaoEl.style.display = 'block';
+
+            const lista = opts.lista;
+            if (countEl) countEl.textContent = lista.length;
+
+            if (lista.length === 0) {
+                if (tbody) tbody.innerHTML = '';
+                if (tabela) tabela.style.display = 'none';
+                if (emptyEl) emptyEl.style.display = 'block';
+                document.getElementById(opts.pagContainerId).style.display = 'none';
+                return 1;
+            }
+
+            if (emptyEl) emptyEl.style.display = 'none';
+            if (tabela) tabela.style.display = 'table';
+
+            const totalPaginas = Math.ceil(lista.length / itensPorPagina);
+            let pagina = opts.pagina;
+            if (pagina > totalPaginas) pagina = totalPaginas || 1;
+
+            const inicio = (pagina - 1) * itensPorPagina;
+            const paginados = lista.slice(inicio, inicio + itensPorPagina);
+
+            if (tbody) tbody.innerHTML = paginados.map(renderLinhaChamado).join('');
+
+            renderPaginacaoSecao(opts.pagInfoId, opts.pagBtnsId, opts.pagContainerId, pagina, totalPaginas, lista.length, opts.fnIr);
+            return pagina;
+        }
+
+        function irPaginaAtivos(pagina) {
+            if (pagina < 1) return;
+            paginaAtivos = pagina;
             renderChamadosTable(chamadosState);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function irPaginaFinalizados(pagina) {
+            if (pagina < 1) return;
+            paginaFinalizados = pagina;
+            renderChamadosTable(chamadosState);
+            document.getElementById('secaoFinalizados').scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         function renderStats(contagem) {
@@ -1192,6 +1311,7 @@
         }
 
         document.addEventListener('DOMContentLoaded', function() {
+            renderChamadosTable(chamadosState);
             carregarGestores();
             atualizarOverviewChamados();
             iniciarAutoRefreshChamados();
@@ -1982,23 +2102,48 @@
                 } else {
                     let html = '';
                     let lastDate = '';
+                    let prevTipo = '';
+                    let prevNome = '';
                     result.mensagens.forEach(msg => {
                         const dt = new Date(msg.enviada_em);
                         const dateKey = dt.toLocaleDateString('pt-BR');
                         if (dateKey !== lastDate) {
                             html += `<div class="chat-date-separator"><span>${dateKey}</span></div>`;
                             lastDate = dateKey;
+                            prevTipo = '';
+                            prevNome = '';
                         }
                         const hora = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-                        const lado = msg.remetente_tipo === 'tecnico' ? 'from-tech' : (msg.remetente_tipo === 'sistema' ? 'from-system' : 'from-user');
+                        const tipo = msg.remetente_tipo;
+
+                        // Mensagens de sistema: pílula centralizada (estilo WhatsApp)
+                        if (tipo === 'sistema') {
+                            html += `
+                                <div class="chat-system-row">
+                                    <div class="chat-system-pill">${escapeHtml(msg.mensagem || '')}<span class="chat-system-time">${hora}</span></div>
+                                </div>`;
+                            prevTipo = 'sistema';
+                            prevNome = '';
+                            return;
+                        }
+
+                        const lado = tipo === 'tecnico' ? 'from-tech' : 'from-user';
+                        const nome = msg.remetente_nome || (tipo === 'tecnico' ? 'Atendente' : 'Solicitante');
+                        // Agrupar mensagens consecutivas do mesmo remetente
+                        const agrupado = (tipo === prevTipo && nome === prevNome);
+                        prevTipo = tipo;
+                        prevNome = nome;
+                        const grpClass = agrupado ? ' grouped' : ' first';
+
                         // Esconder placeholders auto-gerados quando há mídia (ex: [image], [audio])
                         const isPlaceholder = msg.media_url && /^\[(image|audio|video|document|ptt|sticker)\]$/.test(String(msg.mensagem || '').trim());
                         const mostraTexto = msg.mensagem && !isPlaceholder;
                         const textoHtml = mostraTexto ? `<div class="chat-bubble-text">${escapeHtml(msg.mensagem)}</div>` : '';
+                        const autorHtml = agrupado ? '' : `<div class="chat-bubble-author">${escapeHtml(nome)}</div>`;
                         html += `
-                            <div class="chat-message-row ${lado}">
-                                <div class="chat-bubble ${lado}">
-                                    <div class="chat-bubble-author">${escapeHtml(msg.remetente_nome || 'Sistema')}</div>
+                            <div class="chat-message-row ${lado}${grpClass}">
+                                <div class="chat-bubble ${lado}${grpClass}">
+                                    ${autorHtml}
                                     ${textoHtml}
                                     ${montarMidiaHtml(msg)}
                                     <div class="chat-bubble-time">${hora}</div>
