@@ -264,12 +264,28 @@ function attachDynamicFlow(client, options = {}) {
             ? `[${subcategoria}] ${dados.descricao || ''}`
             : (dados.descricao || '');
 
+        // Tentar resolver local_id pelo nome do campo "unidade" no formulário
+        let localId = null;
+        if (unidadeId && dados.unidade) {
+            try {
+                const [locais] = await db.query(
+                    `SELECT id FROM unidade_locais WHERE unidade_id = ? AND ativo = TRUE AND (nome = ? OR codigo = ?) LIMIT 1`,
+                    [unidadeId, dados.unidade.trim(), dados.unidade.trim()]
+                );
+                if (locais.length > 0) {
+                    localId = locais[0].id;
+                }
+            } catch (e) {
+                // Tabela pode não existir em ambientes antigos, ignorar
+            }
+        }
+
         const [result] = await db.query(
             `INSERT INTO chamados (
                 protocolo, categoria, solicitante_nome, nome_whatsapp, telefone_whatsapp,
                 setor, ip_maquina, cod_impressora, telefone_contato, email, cpf_solicitante, descricao, status, chat_origem,
-                unidade_id, instancia_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?, ?, ?)`,
+                unidade_id, local_id, instancia_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?, ?, ?, ?)`,
             [
                 protocolo,
                 categoria,
@@ -285,6 +301,7 @@ function attachDynamicFlow(client, options = {}) {
                 descricaoFinal,
                 sessionId,
                 unidadeId,
+                localId,
                 instanciaId
             ]
         );

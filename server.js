@@ -76,6 +76,25 @@ app.use(async (req, res, next) => {
         }
     }
 
+    // Garantir que localIds esteja na sessão
+    if (req.session.localIds === undefined) {
+        try {
+            if (req.session.nivelAcesso === 'administrador') {
+                req.session.localIds = null; // null = todos (sem filtro)
+            } else {
+                const [locs] = await db.query(
+                    'SELECT local_id FROM admin_locais WHERE admin_id = ?',
+                    [req.session.userId]
+                );
+                // Se não tem locais vinculados, null = vê tudo da unidade
+                req.session.localIds = locs.length > 0 ? locs.map(l => l.local_id) : null;
+            }
+        } catch (e) {
+            // Tabela pode não existir ainda
+            req.session.localIds = null;
+        }
+    }
+
     try {
         // Filtrar por unidades do usuário (admin = null = todas)
         const ids = req.session.unidadeIds;
@@ -458,11 +477,24 @@ function buildUnidadeWhere(req, alias = '', columnName = 'unidade_id') {
         return { sql: ` AND ${col} IS NULL`, params: [] };
     }
     const placeholders = ids.map(() => '?').join(',');
+
+    // Filtro adicional por local (sub-unidade)
+    const localIds = req?.session?.localIds;
+    const localCol = alias ? `${alias}.local_id` : 'local_id';
+    let localSql = '';
+    const localParams = [];
+
+    if (Array.isArray(localIds) && localIds.length > 0) {
+        // Usuário tem locais vinculados: ver chamados daqueles locais + chamados sem local definido (legado)
+        const localPh = localIds.map(() => '?').join(',');
+        localSql = ` AND (${localCol} IS NULL OR ${localCol} IN (${localPh}))`;
+        localParams.push(...localIds);
+    }
+    // Se localIds é null: sem filtro de local, vê tudo da unidade
+
     return {
-        // Usuário com unidade vinculada: ver APENAS chamados da sua unidade
-        // Não inclui NULL para não vazar chamados de outras unidades
-        sql: ` AND ${col} IN (${placeholders})`,
-        params: [...ids]
+        sql: ` AND ${col} IN (${placeholders})${localSql}`,
+        params: [...ids, ...localParams]
     };
 }
 
@@ -635,12 +667,24 @@ app.post('/login', async (req, res) => {
         // Carregar unidades vinculadas (admin sempre vê todas)
         if (user.nivel_acesso === 'administrador') {
             req.session.unidadeIds = null; // null = todas
+            req.session.localIds = null;
         } else {
             const [unids] = await db.query(
                 'SELECT unidade_id FROM admin_unidades WHERE admin_id = ?',
                 [user.id]
             );
             req.session.unidadeIds = unids.map(u => u.unidade_id);
+
+            // Carregar locais vinculados
+            try {
+                const [locs] = await db.query(
+                    'SELECT local_id FROM admin_locais WHERE admin_id = ?',
+                    [user.id]
+                );
+                req.session.localIds = locs.length > 0 ? locs.map(l => l.local_id) : null;
+            } catch (e) {
+                req.session.localIds = null;
+            }
         }
         
         // Redirecionar baseado no nível de acesso
@@ -1132,6 +1176,89 @@ app.post('/api/unidades/:id/admins', isAuthenticated, isAdminOnly, async (req, r
         res.json({ success: true });
     } catch (e) {
         res.json({ success: false, message: e.message });
+    }
+});
+
+// ─── LOCAIS (sub-unidades) ────────────────────────────────────────
+
+// Listar locais de uma unidade
+app.get('/api/unidades/:id/locais', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const [locais] = await db.query(
+            'SELECT id, nome, codigo, ativo FROM unidade_locais WHERE unidade_id = ? ORDER BY nome',
+            [req.params.id]
+        );
+        res.json({ success: true, locais });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+// Salvar locais de uma unidade (substituir todos)
+app.post('/api/unidades/:id/locais', isAuthenticated, isAdminOnly, async (req, res) => {
+    try {
+        const unidadeId = Number(req.params.id);
+        const { locais } = req.body;
+
+        if (!Array.isArray(locais)) {
+            return res.status(400).json({ success: false, message: 'Lista de locais inválida' });
+        }
+
+        // Remover locais que não estão na nova lista (mas manter se tem chamados vinculados)
+        // Abordagem segura: desativar os antigos e inserir/atualizar os novos
+        await db.query('UPDATE unidade_locais SET ativo = FALSE WHERE unidade_id = ?', [unidadeId]);
+
+        for (const local of locais) {
+            if (!local.nome) continue;
+            const codigo = local.codigo || local.nome.trim().toUpperCase().replace(/\s+/g, '-').slice(0, 50);
+            await db.query(
+                `INSERT INTO unidade_locais (unidade_id, nome, codigo, ativo)
+                 VALUES (?, ?, ?, TRUE)
+                 ON DUPLICATE KEY UPDATE codigo = VALUES(codigo), ativo = TRUE`,
+                [unidadeId, local.nome.trim(), codigo]
+            );
+        }
+
+        res.json({ success: true, message: 'Locais atualizados' });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+// Listar locais vinculados a um usuário
+app.get('/api/usuarios/:id/locais', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const [locais] = await db.query(`
+            SELECT al.local_id, ul.nome, ul.codigo, u.nome AS unidade_nome
+            FROM admin_locais al
+            JOIN unidade_locais ul ON ul.id = al.local_id
+            JOIN unidades u ON u.id = ul.unidade_id
+            WHERE al.admin_id = ?
+            ORDER BY u.nome, ul.nome
+        `, [req.params.id]);
+        res.json({ success: true, locais });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+// Salvar locais vinculados a um usuário
+app.post('/api/usuarios/:id/locais', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const adminId = Number(req.params.id);
+        const { local_ids } = req.body;
+
+        await db.query('DELETE FROM admin_locais WHERE admin_id = ?', [adminId]);
+
+        if (Array.isArray(local_ids) && local_ids.length > 0) {
+            const values = local_ids.map(lid => [adminId, Number(lid)]);
+            await db.query('INSERT INTO admin_locais (admin_id, local_id) VALUES ?', [values]);
+        }
+
+        // Invalidar sessão cached de localIds
+        res.json({ success: true, message: 'Locais atualizados' });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
     }
 });
 

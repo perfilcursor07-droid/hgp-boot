@@ -676,6 +676,37 @@ async function ensureSchema(connection) {
         changes.push('avaliacoes.resposta_tecnico');
     }
 
+    // Tabela de locais (sub-unidades) por unidade
+    await connection.query(`
+        CREATE TABLE IF NOT EXISTS unidade_locais (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            unidade_id INT NOT NULL,
+            nome VARCHAR(150) NOT NULL,
+            codigo VARCHAR(50) NULL,
+            ativo BOOLEAN DEFAULT TRUE,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_unidade_local (unidade_id, nome),
+            INDEX idx_locais_unidade (unidade_id),
+            FOREIGN KEY (unidade_id) REFERENCES unidades(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // Vínculo admin <-> locais
+    await connection.query(`
+        CREATE TABLE IF NOT EXISTS admin_locais (
+            admin_id INT NOT NULL,
+            local_id INT NOT NULL,
+            PRIMARY KEY (admin_id, local_id),
+            FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE,
+            FOREIGN KEY (local_id) REFERENCES unidade_locais(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // Adicionar local_id na tabela chamados
+    try {
+        await connection.query(`ALTER TABLE chamados ADD COLUMN local_id INT NULL AFTER unidade_id, ADD INDEX idx_chamados_local (local_id)`);
+    } catch (e) { /* coluna já existe */ }
+
     return changes;
 }
 

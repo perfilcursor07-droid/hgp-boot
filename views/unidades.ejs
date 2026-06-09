@@ -117,6 +117,20 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="modalLocais">
+        <div class="modal-box" style="max-width:600px;">
+            <h3>📍 Locais — <span id="locaisUnidadeNome"></span></h3>
+            <p style="font-size:12px;color:#64748b;margin-bottom:10px;">Configure os locais/sub-unidades. Eles serão usados para filtrar chamados por técnico e devem corresponder às opções do fluxo do bot.</p>
+            <input type="hidden" id="locaisUnidadeId">
+            <div id="locaisContainer" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;"></div>
+            <button type="button" class="btn-secondary" onclick="adicionarLocal()" style="width:100%;">+ Adicionar local</button>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="fecharModal('modalLocais')">Cancelar</button>
+                <button type="button" class="btn-primary" onclick="salvarLocais()">Salvar Locais</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let unidades = <%- JSON.stringify(unidades) %>;
 
@@ -140,6 +154,7 @@
                     <div class="un-actions">
                         <button class="un-btn" onclick="editarUnidade(${u.id})">Editar</button>
                         <button class="un-btn primary" onclick="abrirAdmins(${u.id},'${escapeHtml(u.nome).replace(/'/g,"\\'")}')">Técnicos</button>
+                        <button class="un-btn" onclick="abrirLocais(${u.id},'${escapeHtml(u.nome).replace(/'/g,"\\'")}')" title="Configurar locais/sub-unidades">📍 Locais</button>
                         <button class="un-btn" onclick="abrirPresets(${u.id},'${escapeHtml(u.nome).replace(/'/g,"\\'")}')" title="Configurar turnos">🕐 Turnos</button>
                         <button class="un-btn danger" onclick="excluir(${u.id})">×</button>
                     </div>
@@ -326,6 +341,73 @@
                 if (d.success) {
                     fecharModal('modalPresets');
                     alert('Turnos atualizados!');
+                } else alert(d.message);
+            } catch (e) { alert(e.message); }
+        }
+
+        // ── Locais (sub-unidades) ──
+        async function abrirLocais(id, nome) {
+            document.getElementById('locaisUnidadeId').value = id;
+            document.getElementById('locaisUnidadeNome').textContent = nome;
+            document.getElementById('modalLocais').classList.add('open');
+            document.getElementById('locaisContainer').innerHTML = '<p style="color:#64748b;padding:14px;text-align:center;">Carregando...</p>';
+
+            try {
+                const r = await fetch(`/api/unidades/${id}/locais`);
+                const d = await r.json();
+                if (!d.success) { alert(d.message); return; }
+                renderLocais(d.locais || []);
+            } catch (e) { alert(e.message); }
+        }
+
+        function renderLocais(locais) {
+            const container = document.getElementById('locaisContainer');
+            if (locais.length === 0) {
+                container.innerHTML = '<p style="color:#94a3b8;padding:14px;text-align:center;font-size:12px;">Nenhum local cadastrado. Clique em "Adicionar local".</p>';
+                return;
+            }
+            container.innerHTML = locais.map((l, idx) => localRowHtml(l, idx)).join('');
+        }
+
+        function localRowHtml(l, idx) {
+            return `
+                <div class="local-row" data-idx="${idx}" style="display:grid;grid-template-columns:1fr 120px 32px;gap:6px;align-items:center;padding:8px;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;">
+                    <input type="text" value="${escapeHtml(l.nome || '')}" placeholder="Nome do local (ex: ANEXO I)" style="font-size:12px;padding:6px 8px;border:1px solid #e2e8f0;border-radius:4px;">
+                    <input type="text" value="${escapeHtml(l.codigo || '')}" placeholder="Código" style="font-size:11px;padding:6px 8px;border:1px solid #e2e8f0;border-radius:4px;color:#64748b;">
+                    <button type="button" onclick="this.closest('.local-row').remove()" title="Remover" style="background:#fee2e2;color:#dc2626;border:none;border-radius:4px;cursor:pointer;font-weight:700;padding:4px;">×</button>
+                </div>`;
+        }
+
+        function adicionarLocal() {
+            const container = document.getElementById('locaisContainer');
+            if (container.querySelector('p')) container.innerHTML = '';
+            const div = document.createElement('div');
+            div.innerHTML = localRowHtml({ nome: '', codigo: '' }, container.children.length);
+            container.appendChild(div.firstElementChild);
+        }
+
+        async function salvarLocais() {
+            const id = document.getElementById('locaisUnidadeId').value;
+            const rows = document.querySelectorAll('#locaisContainer .local-row');
+            const locais = [];
+            for (const row of rows) {
+                const inputs = row.querySelectorAll('input');
+                const nome = inputs[0].value.trim();
+                const codigo = inputs[1].value.trim();
+                if (!nome) continue;
+                locais.push({ nome, codigo });
+            }
+
+            try {
+                const r = await fetch(`/api/unidades/${id}/locais`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ locais })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    fecharModal('modalLocais');
+                    alert('Locais atualizados!');
                 } else alert(d.message);
             } catch (e) { alert(e.message); }
         }
