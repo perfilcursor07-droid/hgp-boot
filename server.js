@@ -48,6 +48,73 @@ app.use(session({
     cookie: { maxAge: 24 * 60 * 60 * 1000 }
 }));
 
+// Recarrega unidade/local do banco a cada request (evita sessão desatualizada após editar usuário)
+async function refreshUserScope(req) {
+    if (!req.session?.userId) return;
+
+    if (req.session.nivelAcesso === 'administrador') {
+        req.session.unidadeIds = null; // null = todas
+        req.session.localIds = null;
+        return;
+    }
+
+    try {
+        const [unids] = await db.query(
+            'SELECT unidade_id FROM admin_unidades WHERE admin_id = ?',
+            [req.session.userId]
+        );
+        req.session.unidadeIds = unids.map(u => u.unidade_id);
+    } catch (e) {
+        console.error('Erro ao carregar unidades do usuário:', e.message);
+        req.session.unidadeIds = null;
+    }
+
+    try {
+        const [locs] = await db.query(
+            'SELECT local_id FROM admin_locais WHERE admin_id = ?',
+            [req.session.userId]
+        );
+        // Sem locais vinculados = vê todos os chamados da unidade
+        req.session.localIds = locs.length > 0 ? locs.map(l => l.local_id) : null;
+    } catch (e) {
+        req.session.localIds = null;
+    }
+}
+
+// Filtro de chamados por unidade/local do usuário logado
+function buildChamadosListWhere(req, options = {}) {
+    let sql = 'WHERE 1=1';
+    const params = [];
+
+    if (options.statuses?.length) {
+        sql += ` AND status IN (${options.statuses.map(() => '?').join(',')})`;
+        params.push(...options.statuses);
+    }
+
+    const ids = req?.session?.unidadeIds;
+    if (!Array.isArray(ids)) {
+        return { sql, params }; // administrador: sem filtro
+    }
+
+    if (ids.length === 0) {
+        sql += ' AND unidade_id IS NULL';
+        return { sql, params };
+    }
+
+    const placeholders = ids.map(() => '?').join(',');
+    sql += ` AND (unidade_id IS NULL OR unidade_id IN (${placeholders}))`;
+    params.push(...ids);
+
+    const localIds = req?.session?.localIds;
+    if (Array.isArray(localIds) && localIds.length > 0) {
+        const localPh = localIds.map(() => '?').join(',');
+        sql += ` AND (local_id IS NULL OR local_id IN (${localPh}))`;
+        params.push(...localIds);
+    }
+
+    return { sql, params };
+}
+
 app.use(async (req, res, next) => {
     res.locals.pendingChamadosCount = 0;
 
@@ -58,60 +125,14 @@ app.use(async (req, res, next) => {
     // Disponibilizar nivelAcesso em todas as views
     res.locals.nivelAcesso = req.session.nivelAcesso || 'administrador';
 
-    // Garantir que unidadeIds esteja na sessão (sessões antigas não tinham)
-    if (req.session.unidadeIds === undefined) {
-        try {
-            if (req.session.nivelAcesso === 'administrador') {
-                req.session.unidadeIds = null; // null = todas
-            } else {
-                const [unids] = await db.query(
-                    'SELECT unidade_id FROM admin_unidades WHERE admin_id = ?',
-                    [req.session.userId]
-                );
-                req.session.unidadeIds = unids.map(u => u.unidade_id);
-            }
-        } catch (e) {
-            console.error('Erro ao carregar unidades do usuário:', e.message);
-            req.session.unidadeIds = null;
-        }
-    }
-
-    // Garantir que localIds esteja na sessão
-    if (req.session.localIds === undefined) {
-        try {
-            if (req.session.nivelAcesso === 'administrador') {
-                req.session.localIds = null; // null = todos (sem filtro)
-            } else {
-                const [locs] = await db.query(
-                    'SELECT local_id FROM admin_locais WHERE admin_id = ?',
-                    [req.session.userId]
-                );
-                // Se não tem locais vinculados, null = vê tudo da unidade
-                req.session.localIds = locs.length > 0 ? locs.map(l => l.local_id) : null;
-            }
-        } catch (e) {
-            // Tabela pode não existir ainda
-            req.session.localIds = null;
-        }
-    }
+    await refreshUserScope(req);
 
     try {
-        // Filtrar por unidades do usuário (admin = null = todas)
-        const ids = req.session.unidadeIds;
-        let whereClause = `WHERE status IN ('pendente', 'aberto')`;
-        const params = [];
-
-        if (Array.isArray(ids)) {
-            if (ids.length === 0) {
-                whereClause += ` AND unidade_id IS NULL`;
-            } else {
-                whereClause += ` AND (unidade_id IS NULL OR unidade_id IN (${ids.map(() => '?').join(',')}))`;
-                params.push(...ids);
-            }
-        }
-
+        const { sql, params } = buildChamadosListWhere(req, {
+            statuses: ['pendente', 'aberto']
+        });
         const [rows] = await db.query(
-            `SELECT COUNT(*) AS total FROM chamados ${whereClause}`,
+            `SELECT COUNT(*) AS total FROM chamados ${sql}`,
             params
         );
         res.locals.pendingChamadosCount = Number(rows[0]?.total || 0);
@@ -554,25 +575,14 @@ async function obterClienteWhatsAppParaChamado(chamado) {
 }
 
 const listChamadosOverview = async (req = null) => {
-    // Filtrar por unidades do usuário (administrador vê tudo)
-    let where = '';
-    const params = [];
-    if (req && req.session && Array.isArray(req.session.unidadeIds)) {
-        // null/undefined = administrador, vê tudo
-        if (req.session.unidadeIds.length === 0) {
-            // Usuário sem unidade vinculada e não-admin: vê só chamados sem unidade (legado)
-            where = 'WHERE unidade_id IS NULL';
-        } else {
-            const placeholders = req.session.unidadeIds.map(() => '?').join(',');
-            where = `WHERE unidade_id IS NULL OR unidade_id IN (${placeholders})`;
-            params.push(...req.session.unidadeIds);
-        }
-    }
+    const { sql, params } = req?.session
+        ? buildChamadosListWhere(req)
+        : { sql: 'WHERE 1=1', params: [] };
 
     const [chamados] = await db.query(`
         SELECT *
         FROM chamados
-        ${where}
+        ${sql}
         ORDER BY criado_em DESC
         LIMIT 200
     `, params);
@@ -1690,20 +1700,12 @@ app.get('/api/chamados/pending-count', isAuthenticated, async (req, res) => {
         res.set('Pragma', 'no-cache');
         res.set('Expires', '0');
 
-        const ids = req.session.unidadeIds;
-        let where = `WHERE status IN ('pendente', 'aberto')`;
-        const params = [];
-        if (Array.isArray(ids)) {
-            if (ids.length === 0) {
-                where += ` AND unidade_id IS NULL`;
-            } else {
-                where += ` AND (unidade_id IS NULL OR unidade_id IN (${ids.map(() => '?').join(',')}))`;
-                params.push(...ids);
-            }
-        }
+        const { sql, params } = buildChamadosListWhere(req, {
+            statuses: ['pendente', 'aberto']
+        });
 
         const [rows] = await db.query(
-            `SELECT COUNT(*) AS total FROM chamados ${where}`,
+            `SELECT COUNT(*) AS total FROM chamados ${sql}`,
             params
         );
 
