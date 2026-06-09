@@ -2897,7 +2897,7 @@ app.post('/api/usuarios', isAuthenticated, isAdmin, async (req, res) => {
             await db.query('INSERT INTO admin_unidades (admin_id, unidade_id) VALUES ?', [values]);
         }
 
-        res.json({ success: true, message: 'Usuário criado com sucesso' });
+        res.json({ success: true, message: 'Usuário criado com sucesso', userId: result.insertId });
     } catch (error) {
         console.error('Erro ao criar usuário:', error);
         res.status(500).json({ success: false, message: 'Erro ao criar usuário' });

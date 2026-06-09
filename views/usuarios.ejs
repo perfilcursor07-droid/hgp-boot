@@ -197,7 +197,7 @@
                         <% if (unidades && unidades.length > 0) { %>
                             <% unidades.forEach(u => { %>
                                 <label style="display:flex;align-items:center;gap:8px;padding:5px 8px;cursor:pointer;font-size:13px;border-radius:5px;" onmouseover="this.style.background='#fff'" onmouseout="this.style.background='transparent'">
-                                    <input type="checkbox" name="unidade_ids" value="<%= u.id %>" class="check-unidade" style="width:auto">
+                                    <input type="checkbox" name="unidade_ids" value="<%= u.id %>" class="check-unidade" style="width:auto" onchange="carregarLocaisForm()">
                                     <span><strong><%= u.codigo %></strong> — <%= u.nome %></span>
                                 </label>
                             <% }) %>
@@ -208,6 +208,14 @@
                     <% if (nivelAcesso === 'administrador') { %>
                         <small style="color:#94a3b8;display:block;margin-top:4px;">Administradores sempre veem todas as unidades.</small>
                     <% } %>
+                </div>
+
+                <div class="form-group" id="locaisFormGroup" style="display:none;">
+                    <label>Locais vinculados <small style="color:#64748b;font-weight:normal;">(deixe vazio para ver todos os chamados da unidade)</small></label>
+                    <div id="locaisList" style="border:1px solid #e2e8f0;border-radius:8px;padding:8px;max-height:160px;overflow-y:auto;background:#f8fafc;">
+                        <p style="color:#94a3b8;font-size:12px;text-align:center;padding:10px;">Selecione uma unidade acima</p>
+                    </div>
+                    <small style="color:#94a3b8;display:block;margin-top:4px;">Se nenhum local for marcado, o usuário verá todos os chamados da unidade.</small>
                 </div>
 
                 <div class="form-group">
@@ -269,6 +277,9 @@
             document.getElementById('password').required = true;
             document.getElementById('senhaOpcional').style.display = 'none';
             document.querySelectorAll('.check-unidade').forEach(cb => cb.checked = false);
+            locaisVinculadosUsuario = [];
+            document.getElementById('locaisFormGroup').style.display = 'none';
+            document.getElementById('locaisList').innerHTML = '<p style="color:#94a3b8;font-size:12px;text-align:center;padding:10px;">Selecione uma unidade acima</p>';
             usernameEditadoManual = false;
             document.getElementById('modalUsuario').style.display = 'flex';
         }
@@ -301,6 +312,16 @@
                         cb.checked = vincSet.has(Number(cb.value));
                     });
 
+                    // Carregar locais vinculados
+                    try {
+                        const locRes = await fetch(`/api/usuarios/${id}/locais`);
+                        const locData = await locRes.json();
+                        locaisVinculadosUsuario = locData.success ? locData.locais.map(l => l.local_id) : [];
+                    } catch (e) {
+                        locaisVinculadosUsuario = [];
+                    }
+                    await carregarLocaisForm();
+
                     document.getElementById('modalUsuario').style.display = 'flex';
                 } else {
                     alert('Erro ao carregar usuário');
@@ -316,6 +337,7 @@
             
             const formData = new FormData(event.target);
             const unidadeIds = Array.from(document.querySelectorAll('.check-unidade:checked')).map(cb => Number(cb.value));
+            const localIds = Array.from(document.querySelectorAll('.check-local:checked')).map(cb => Number(cb.value));
             const data = {
                 id: formData.get('id'),
                 nome_completo: formData.get('nome_completo'),
@@ -346,20 +368,31 @@
                 const url = data.id ? `/api/usuarios/${data.id}` : '/api/usuarios';
                 const method = data.id ? 'PUT' : 'POST';
                 
-                console.log('Enviando para:', url, 'Método:', method);
-                
                 const response = await fetch(url, {
                     method: method,
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
                 
-                console.log('Status da resposta:', response.status);
-                
                 const result = await response.json();
-                console.log('Resultado:', result);
                 
                 if (result.success) {
+                    // Salvar locais vinculados
+                    const userId = data.id || result.userId;
+                    if (userId && localIds.length > 0) {
+                        await fetch(`/api/usuarios/${userId}/locais`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ local_ids: localIds })
+                        });
+                    } else if (userId) {
+                        // Limpar locais se nenhum foi marcado
+                        await fetch(`/api/usuarios/${userId}/locais`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ local_ids: [] })
+                        });
+                    }
                     alert(result.message);
                     location.reload();
                 } else {
@@ -460,6 +493,50 @@
             const removerAcento = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
             const sugestao = ultimo ? `${removerAcento(primeiro)}${removerAcento(ultimo)}` : removerAcento(primeiro);
             document.getElementById('username').value = sugestao;
+        }
+
+        // ── Locais (sub-unidades) ──
+        let locaisVinculadosUsuario = []; // IDs dos locais vinculados ao usuário sendo editado
+
+        async function carregarLocaisForm() {
+            const unidadeIds = Array.from(document.querySelectorAll('.check-unidade:checked')).map(cb => Number(cb.value));
+            const container = document.getElementById('locaisList');
+            const group = document.getElementById('locaisFormGroup');
+
+            if (unidadeIds.length === 0) {
+                group.style.display = 'none';
+                container.innerHTML = '<p style="color:#94a3b8;font-size:12px;text-align:center;padding:10px;">Selecione uma unidade acima</p>';
+                return;
+            }
+
+            container.innerHTML = '<p style="color:#94a3b8;font-size:12px;text-align:center;padding:10px;">Carregando locais...</p>';
+            group.style.display = 'block';
+
+            try {
+                let todosLocais = [];
+                for (const uid of unidadeIds) {
+                    const r = await fetch(`/api/unidades/${uid}/locais`);
+                    const d = await r.json();
+                    if (d.success && d.locais.length > 0) {
+                        todosLocais.push(...d.locais.map(l => ({ ...l, unidade_id: uid })));
+                    }
+                }
+
+                if (todosLocais.length === 0) {
+                    group.style.display = 'none';
+                    return;
+                }
+
+                const vincSet = new Set(locaisVinculadosUsuario.map(Number));
+                container.innerHTML = todosLocais.map(l => `
+                    <label style="display:flex;align-items:center;gap:8px;padding:5px 8px;cursor:pointer;font-size:13px;border-radius:5px;" onmouseover="this.style.background='#fff'" onmouseout="this.style.background='transparent'">
+                        <input type="checkbox" class="check-local" value="${l.id}" style="width:auto" ${vincSet.has(l.id) ? 'checked' : ''}>
+                        <span>📍 ${l.nome}</span>
+                    </label>
+                `).join('');
+            } catch (e) {
+                container.innerHTML = '<p style="color:#ef4444;font-size:12px;text-align:center;padding:10px;">Erro ao carregar locais</p>';
+            }
         }
     </script>
 </body>
