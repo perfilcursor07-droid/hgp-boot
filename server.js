@@ -3994,29 +3994,6 @@ async function startServer() {
 
         // Inicia limpeza automática de mídia (executa após 30s e a cada 24h)
         mediaManager.iniciarLimpezaAutomatica(db);
-
-        // Auto-encerramento de chamados pendentes às 23:59
-        setInterval(async () => {
-            const agora = new Date();
-            if (agora.getHours() === 23 && agora.getMinutes() === 59) {
-                try {
-                    const [result] = await db.query(`
-                        UPDATE chamados
-                        SET status = 'finalizado',
-                            encerrado_em = NOW(),
-                            observacoes = CONCAT(COALESCE(observacoes, ''), '\n[Encerrado automaticamente às 23:59]')
-                        WHERE status = 'pendente'
-                          AND DATE(criado_em) <= CURDATE()
-                    `);
-
-                    if (result.affectedRows > 0) {
-                        console.log(`🔒 Auto-encerramento: ${result.affectedRows} chamado(s) pendente(s) encerrado(s) às 23:59`);
-                    }
-                } catch (error) {
-                    console.error('Erro no auto-encerramento de chamados:', error);
-                }
-            }
-        }, 60 * 1000); // Verifica a cada 1 minuto
     } catch (error) {
         console.error('Falha ao sincronizar schema do banco antes de iniciar o servidor:', error);
         process.exit(1);
