@@ -49,28 +49,27 @@ app.use(session({
 }));
 
 // Recarrega unidade/local do banco a cada request (evita sessão desatualizada após editar usuário)
-// Admin COM unidades vinculadas: filtra por elas.
-// Admin SEM unidades vinculadas: null = vê todas (super-admin).
+// Administrador: sempre vê todas as unidades/instâncias (unidadeIds = null).
+// Demais perfis: respeitam admin_unidades / admin_locais.
+// Filtro opcional por unidade nas telas usa ?unidade_id= (seletor), sem restringir o escopo base do admin.
 async function refreshUserScope(req) {
     if (!req.session?.userId) return;
 
-    const isAdmin = req.session.nivelAcesso === 'administrador';
+    if (req.session.nivelAcesso === 'administrador') {
+        req.session.unidadeIds = null; // null = todas
+        req.session.localIds = null;
+        return;
+    }
 
     try {
         const [unids] = await db.query(
             'SELECT unidade_id FROM admin_unidades WHERE admin_id = ?',
             [req.session.userId]
         );
-        if (unids.length > 0) {
-            req.session.unidadeIds = unids.map(u => u.unidade_id);
-        } else if (isAdmin) {
-            req.session.unidadeIds = null; // sem vínculo = vê todas
-        } else {
-            req.session.unidadeIds = []; // sem vínculo e não-admin = só legado
-        }
+        req.session.unidadeIds = unids.map(u => u.unidade_id);
     } catch (e) {
         console.error('Erro ao carregar unidades do usuário:', e.message);
-        req.session.unidadeIds = isAdmin ? null : [];
+        req.session.unidadeIds = [];
     }
 
     try {
