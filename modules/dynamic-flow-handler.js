@@ -835,7 +835,12 @@ function attachDynamicFlow(client, options = {}) {
                     });
                     // pequeno delay
                     await new Promise(r => setTimeout(r, 600));
-                    await client.sendMessage(chatId, flowDefinition.avaliacao.texto);
+                    const creditoSistema = '\n\n_Sistema versão 2.1 — Desenvolvido por Erick Vinicius (62) 98101-3083_';
+                    const textoAvaliacao = flowDefinition.avaliacao.texto || '';
+                    const msgAvaliacao = textoAvaliacao.includes('versão 2.1')
+                        ? textoAvaliacao
+                        : `${textoAvaliacao}${creditoSistema}`;
+                    await client.sendMessage(chatId, msgAvaliacao);
                 }
                 return true;
             } catch (e) {
