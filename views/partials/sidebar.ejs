@@ -147,7 +147,7 @@
                 </a>
             </div>
             <div class="sidebar-version">
-                <span>v2.1</span>
+                <span>v2.2</span>
                 <span>·</span>
                 <span>Erick Vinicius</span>
             </div>
@@ -206,9 +206,15 @@
         }
 
         function aplicarPreferenciaSidebar() {
+            <% if (typeof activePage !== 'undefined' && activePage === 'chamados') { %>
+            // Em /chamados o menu recolhe para dar espaço ao painel estilo WhatsApp
+            document.body.classList.add('sidebar-collapsed');
+            localStorage.setItem('sidebar-collapsed', '1');
+            <% } else { %>
             if (localStorage.getItem('sidebar-collapsed') === '1') {
                 document.body.classList.add('sidebar-collapsed');
             }
+            <% } %>
         }
 
         window.toggleDesktopSidebar = toggleDesktopSidebar;
