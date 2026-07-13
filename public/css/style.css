@@ -2735,6 +2735,14 @@ body.sidebar-collapsed .sidebar-toggle-btn .toggle-chevron {
 }
 .chat-send-btn:hover { background: #20c05a; transform: scale(1.05); }
 
+/* ── Chamados WhatsApp inbox (page shell helpers) ── */
+.chamados-wa-chat .chat-modal-header {
+    border-radius: 0;
+}
+.chamados-wa-chat .chat-split-layout {
+    background: #efeae2;
+}
+
 /* Form Styles */
 .form-group label {
     display: block;

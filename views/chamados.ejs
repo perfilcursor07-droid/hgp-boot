@@ -636,10 +636,6 @@
         .secao-expand-hint { font-size: 10px; color: #94a3b8; font-weight: 500; text-transform: none; letter-spacing: 0; }
 
         /* ── Banner ── */
-        #bannerMeusChamadosPage {
-            border-radius: 12px !important;
-            border: 1px solid rgba(14,165,233,0.2) !important;
-        }
 
         /* ── Paginação ── */
         .paginacao-secao {
@@ -752,6 +748,550 @@
                 grid-template-columns: 1fr 1fr !important;
             }
         }
+
+        /* ═══ WhatsApp Web inbox layout ══════════════════════════════════ */
+        .main-content:has(.chamados-content) {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            max-height: 100vh;
+            overflow: hidden;
+        }
+        .main-content:has(.chamados-content) .topbar {
+            flex-shrink: 0;
+        }
+        .chamados-content {
+            display: flex !important;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+            padding: 10px 12px 12px !important;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+        /* ── Top strip compacto (chips de status + unidade) ── */
+        .chamados-topstrip {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .topstrip-chips {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            scrollbar-width: none;
+            min-width: 0;
+        }
+        .topstrip-chips::-webkit-scrollbar { display: none; }
+        .stat-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #475569;
+            cursor: pointer;
+            white-space: nowrap;
+            flex-shrink: 0;
+            transition: all 0.15s;
+            font-family: inherit;
+        }
+        .stat-chip:hover { border-color: #cbd5e1; background: #f8fafc; }
+        .stat-chip strong {
+            font-size: 13px;
+            color: #111b21;
+        }
+        .stat-chip.stat-card-active {
+            border-color: #25d366;
+            background: #f0fdf4;
+            color: #15803d;
+        }
+        .stat-chip-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .stat-chip-badge {
+            background: #0ea5e9;
+            color: #fff;
+            border-radius: 999px;
+            padding: 1px 7px;
+            font-size: 11px;
+        }
+        .topstrip-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .topstrip-unidade {
+            background: #fff;
+            color: #334155;
+            border: 1px solid #e2e8f0;
+            border-radius: 999px;
+            padding: 6px 14px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            min-width: 150px;
+            font-family: inherit;
+        }
+
+        .chamados-wa-workspace {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid #d1d7db;
+            background: #fff;
+            box-shadow: 0 1px 3px rgba(11, 20, 26, 0.08);
+        }
+
+        .chamados-wa-inbox {
+            width: 380px;
+            min-width: 300px;
+            max-width: 420px;
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+            border-right: 1px solid #e9edef;
+            min-height: 0;
+        }
+
+        .chamados-wa-inbox .chamados-toolbar {
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            padding: 10px 12px 8px;
+            background: #f0f2f5;
+            border-bottom: 1px solid #e9edef;
+            gap: 8px;
+        }
+        .chamados-wa-inbox .chamados-toolbar-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+        }
+        .chamados-wa-inbox .chamados-search-wrap {
+            flex: 1;
+        }
+        .chamados-wa-inbox .chamados-search {
+            background: #fff !important;
+            width: 100% !important;
+            border-radius: 999px !important;
+        }
+        .chamados-wa-inbox .chamados-count {
+            font-size: 11px;
+            color: #667781;
+            white-space: nowrap;
+        }
+        .chamados-wa-inbox .filter-tabs {
+            display: flex;
+            gap: 5px;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            scrollbar-width: none;
+            padding-bottom: 2px;
+        }
+        .chamados-wa-inbox .filter-tabs::-webkit-scrollbar { display: none; }
+        .chamados-wa-inbox .filter-tab {
+            font-size: 11px !important;
+            padding: 5px 11px !important;
+            border-radius: 999px !important;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .chamados-inbox-scroll {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            background: #fff;
+        }
+
+        .chamados-wa-inbox .chamados-secao {
+            margin: 0 !important;
+        }
+        .chamados-wa-inbox .secao-header {
+            border-radius: 0 !important;
+            margin-bottom: 0 !important;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+        .chamados-wa-inbox .secao-body {
+            padding: 0;
+        }
+        .chamados-wa-inbox .paginacao-secao {
+            padding: 8px 12px !important;
+            margin: 0 !important;
+            border-top: 1px solid #e9edef;
+            background: #fafafa;
+        }
+
+        /* Conversation rows */
+        .wa-conv-list {
+            display: flex;
+            flex-direction: column;
+        }
+        .wa-conv {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f2f5;
+            transition: background 0.12s;
+            position: relative;
+            background: #fff;
+        }
+        .wa-conv:hover { background: #f5f6f6; }
+        .wa-conv.active {
+            background: #f0f2f5;
+        }
+        .wa-conv.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: #25d366;
+        }
+        .wa-conv.chamado-row-new {
+            animation: waConvPulse 1.6s ease;
+        }
+        @keyframes waConvPulse {
+            0% { background: #dcf8c6; }
+            100% { background: #fff; }
+        }
+        .wa-conv[data-status="pendente"] .wa-conv-avatar { box-shadow: 0 0 0 2px #f59e0b; }
+        .wa-conv[data-status="aberto"] .wa-conv-avatar { box-shadow: 0 0 0 2px #22c55e; }
+        .wa-conv[data-status="em_atendimento"] .wa-conv-avatar { box-shadow: 0 0 0 2px #3b82f6; }
+
+        .wa-conv-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: #dfe5e7;
+            color: #54656f;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 17px;
+            flex-shrink: 0;
+            text-transform: uppercase;
+            position: relative;
+        }
+        .wa-conv-body {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        .wa-conv-top {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .wa-conv-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: #111b21;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .wa-conv-time {
+            font-size: 11px;
+            color: #667781;
+            flex-shrink: 0;
+        }
+        .wa-conv-mid {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .wa-conv-preview {
+            font-size: 12.5px;
+            color: #667781;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+            min-width: 0;
+        }
+        .wa-conv-bottom {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 1px;
+        }
+        .wa-conv-proto {
+            font-size: 10px;
+            font-weight: 700;
+            color: #128c7e;
+            background: rgba(18, 140, 126, 0.08);
+            padding: 1px 7px;
+            border-radius: 6px;
+            flex-shrink: 0;
+            letter-spacing: 0.2px;
+        }
+        .wa-conv-atend {
+            font-size: 11px;
+            color: #667781;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+        }
+
+        /* Ações: aparecem apenas ao passar o mouse (overlay à direita) */
+        .wa-conv-actions {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%) translateX(6px);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 999px;
+            padding: 3px 6px;
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.14);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.14s ease, transform 0.14s ease;
+            z-index: 3;
+        }
+        .wa-conv:hover .wa-conv-actions,
+        .wa-conv.active .wa-conv-actions {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(-50%) translateX(0);
+        }
+        .wa-conv-actions .chamado-actions {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .wa-conv-actions .ca-btn {
+            width: 28px !important;
+            height: 28px !important;
+            min-width: 28px !important;
+            padding: 0 !important;
+            border-radius: 50% !important;
+        }
+        .wa-conv-actions .ca-btn svg { width: 13px !important; height: 13px !important; }
+        .wa-conv-actions .ca-btn span:not(.chat-badge) { display: none !important; }
+        .wa-conv-actions .ca-btn-primary {
+            width: auto !important;
+            padding: 0 10px !important;
+            gap: 4px !important;
+            border-radius: 999px !important;
+        }
+        .wa-conv-actions .ca-btn-primary span:not(.chat-badge) {
+            display: inline !important;
+            font-size: 10.5px !important;
+            font-weight: 700;
+        }
+        .wa-conv-actions .ca-menu {
+            right: 0;
+            top: calc(100% + 6px);
+        }
+        .wa-conv .status-chip {
+            font-size: 9.5px !important;
+            padding: 2px 7px !important;
+            flex-shrink: 0;
+        }
+        .wa-conv .chat-badge {
+            position: absolute;
+            top: -3px;
+            right: -3px;
+            width: 16px;
+            height: 16px;
+            font-size: 9px;
+            border-width: 1.5px;
+        }
+        /* Badge de novas mensagens no avatar */
+        .wa-conv-avatar .chat-badge {
+            top: -2px;
+            right: -2px;
+        }
+        /* Toque (mobile): ações sempre visíveis, sem hover */
+        @media (hover: none) {
+            .wa-conv-actions {
+                position: static;
+                transform: none;
+                opacity: 1;
+                pointer-events: auto;
+                box-shadow: none;
+                border: none;
+                background: transparent;
+                padding: 0;
+                margin-left: auto;
+                flex-shrink: 0;
+            }
+        }
+
+        /* Chat panel (right) */
+        .chamados-wa-chat {
+            flex: 1;
+            min-width: 0;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            background: #efeae2;
+            position: relative;
+        }
+        .wa-chat-placeholder {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            color: #54656f;
+            background: #f0f2f5;
+            text-align: center;
+            padding: 24px;
+        }
+        .wa-chat-placeholder-icon {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            background: #dff3ea;
+            color: #128c7e;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 4px;
+        }
+        .wa-chat-placeholder h3 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 300;
+            color: #41525d;
+        }
+        .wa-chat-placeholder p {
+            margin: 0;
+            font-size: 13.5px;
+            color: #667781;
+            max-width: 320px;
+            line-height: 1.45;
+        }
+
+        #modalChat.wa-chat-panel {
+            display: none;
+            flex: 1;
+            flex-direction: column;
+            min-height: 0;
+            width: 100%;
+            height: 100%;
+            max-width: none;
+            max-height: none;
+            border-radius: 0;
+            box-shadow: none;
+            background: #efeae2;
+            position: relative;
+            z-index: 1;
+        }
+        #modalChat.wa-chat-panel.is-open {
+            display: flex !important;
+        }
+        .wa-chat-panel-inner {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+            height: 100%;
+            background: #efeae2;
+        }
+        .wa-chat-panel-inner .chat-split-layout {
+            flex: 1;
+            min-height: 0;
+        }
+        .chat-back-btn {
+            display: none;
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: rgba(255,255,255,0.15);
+            color: rgba(255,255,255,0.95);
+            border-radius: 50%;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .chat-back-btn:hover { background: rgba(255,255,255,0.25); }
+
+        @media (max-width: 1100px) {
+            .chamados-wa-inbox {
+                width: 320px;
+                min-width: 280px;
+            }
+            .chat-sidebar-info {
+                width: 240px;
+                min-width: 220px;
+            }
+        }
+        @media (max-width: 900px) {
+            .main-content:has(.chamados-content) {
+                max-height: none;
+                overflow: visible;
+            }
+            .chamados-content {
+                height: auto;
+                max-height: none;
+                overflow: visible;
+            }
+            .chamados-wa-workspace {
+                flex-direction: column;
+                min-height: 70vh;
+                height: calc(100vh - 220px);
+            }
+            .chamados-wa-inbox {
+                width: 100%;
+                max-width: none;
+                min-width: 0;
+                flex: 1;
+                border-right: none;
+            }
+            .chamados-wa-chat {
+                display: none;
+            }
+            .chamados-wa-workspace.chat-open .chamados-wa-inbox {
+                display: none;
+            }
+            .chamados-wa-workspace.chat-open .chamados-wa-chat {
+                display: flex;
+                position: fixed;
+                inset: 0;
+                z-index: 1200;
+                border-radius: 0;
+            }
+            .chat-back-btn { display: flex; }
+            .chamados-wa-workspace.chat-open .chat-modal-close { display: none; }
+        }
     </style>
 </head>
 <body>
@@ -776,157 +1316,235 @@
                 </div>
             </div>
 
-            <div class="content">
-                <!-- Banner Meus Chamados em Andamento -->
-                <div id="bannerMeusChamadosPage" style="display:none; background:linear-gradient(135deg,#0ea5e9,#0284c7); border-radius:10px; padding:12px 18px; margin-bottom:12px; color:white; align-items:center; justify-content:space-between; gap:12px;">
-                    <div>
-                        <strong style="font-size:13px;">📋 Você tem <span id="bannerQtdPage">0</span> chamado(s) em andamento</strong>
+            <div class="content chamados-content">
+                <!-- Barra superior compacta: stats em chips + unidade + meus chamados -->
+                <div class="chamados-topstrip">
+                    <div class="topstrip-chips">
+                        <button class="stat-chip" data-filter="aberto" onclick="aplicarFiltro('aberto')">
+                            <span class="stat-chip-dot" style="background:#22c55e;"></span>
+                            Abertos <strong id="statsAberto"><%= contagem.aberto || 0 %></strong>
+                        </button>
+                        <button class="stat-chip" data-filter="pendente" onclick="aplicarFiltro('pendente')">
+                            <span class="stat-chip-dot" style="background:#f97316;"></span>
+                            Pendentes <strong id="statsPendente"><%= contagem.pendente || 0 %></strong>
+                        </button>
+                        <button class="stat-chip" data-filter="em_atendimento" onclick="aplicarFiltro('em_atendimento')">
+                            <span class="stat-chip-dot" style="background:#3b82f6;"></span>
+                            Em atendimento <strong id="statsAtendimento"><%= contagem.em_atendimento || 0 %></strong>
+                        </button>
+                        <button class="stat-chip" data-filter="finalizado" onclick="aplicarFiltro('finalizado')">
+                            <span class="stat-chip-dot" style="background:#8b5cf6;"></span>
+                            Finalizados <strong id="statsFinalizado"><%= contagem.finalizado || 0 %></strong>
+                        </button>
+                        <button class="stat-chip stat-chip-meus" onclick="carregarMeusAtendimentos()">
+                            <span class="stat-chip-dot" style="background:#0ea5e9;"></span>
+                            Meus atendimentos
+                            <span id="bannerMeusChamadosPage" style="display:none;"><strong id="bannerQtdPage" class="stat-chip-badge">0</strong></span>
+                        </button>
                     </div>
-                    <a href="/meus-chamados" style="background:white;color:#0284c7;padding:6px 14px;border-radius:6px;font-size:11px;font-weight:600;text-decoration:none;white-space:nowrap;">Ver Meus Chamados →</a>
-                </div>
-
-                <section class="dashboard-hero" style="margin-bottom: 10px;">
-                    <div>
-                        <p class="eyebrow">Central de atendimento</p>
-                        <h1>Chamados</h1>
-                    </div>
-                    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                    <div class="topstrip-right">
                         <div id="unidadeFilterWrap" style="display:none;">
-                            <label for="filtroUnidade" style="display:block;font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;font-weight:700;">Unidade</label>
-                            <select id="filtroUnidade" onchange="aplicarFiltroUnidade(this.value)" style="background:#1e293b;color:#f1f5f9;border:1px solid #334155;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;min-width:140px;">
-                                <option value="">Todas</option>
+                            <select id="filtroUnidade" onchange="aplicarFiltroUnidade(this.value)" class="topstrip-unidade" title="Filtrar por unidade">
+                                <option value="">Todas as unidades</option>
                             </select>
                         </div>
-                        <div class="hero-highlight">
-                            <span class="hero-highlight-label">Resumo</span>
-                            <strong><%= (contagem.total || 0) %> chamados</strong>
-                            <small><%= (contagem.pendente || 0) %> pendente(s)</small>
-                        </div>
-                    </div>
-                </section>
-
-                <div class="stats-grid" style="margin-bottom: 10px;">
-                    <div class="stat-card stat-card-clickable" data-filter="aberto" onclick="aplicarFiltro('aberto')" style="border-left: 3px solid #22c55e;">
-                        <div class="stat-info">
-                            <h3 id="statsAberto" style="color:#16a34a;"><%= contagem.aberto || 0 %></h3>
-                            <p>Abertos</p>
-                        </div>
-                    </div>
-                    <div class="stat-card stat-card-clickable" data-filter="pendente" onclick="aplicarFiltro('pendente')" style="border-left: 3px solid #f97316;">
-                        <div class="stat-info">
-                            <h3 id="statsPendente" style="color:#ea580c;"><%= contagem.pendente || 0 %></h3>
-                            <p>Pendentes</p>
-                        </div>
-                    </div>
-                    <div class="stat-card stat-card-clickable" data-filter="em_atendimento" onclick="aplicarFiltro('em_atendimento')" style="border-left: 3px solid #3b82f6;">
-                        <div class="stat-info">
-                            <h3 id="statsAtendimento" style="color:#2563eb;"><%= contagem.em_atendimento || 0 %></h3>
-                            <p>Em Atendimento</p>
-                        </div>
-                    </div>
-                    <div class="stat-card stat-card-clickable" data-filter="finalizado" onclick="aplicarFiltro('finalizado')" style="border-left: 3px solid #8b5cf6;">
-                        <div class="stat-info">
-                            <h3 id="statsFinalizado" style="color:#7c3aed;"><%= contagem.finalizado || 0 %></h3>
-                            <p>Finalizados</p>
-                        </div>
-                    </div>
-                    <div class="stat-card stat-card-clickable stat-card-meus" onclick="carregarMeusAtendimentos()" style="border-left: 3px solid #0ea5e9;">
-                        <div class="stat-info">
-                            <h3 style="font-size: 15px; color:#0ea5e9;">Meus</h3>
-                            <p>Atendimentos</p>
-                        </div>
                     </div>
                 </div>
 
-                <div class="card" style="padding: 16px;">
-                    <div class="chamados-toolbar">
-                        <div class="filter-tabs">
-                            <button class="filter-tab active" data-filter="todos" onclick="aplicarFiltro('todos')">Todos</button>
-                            <button class="filter-tab" data-filter="pendente" onclick="aplicarFiltro('pendente')">Pendentes</button>
-                            <button class="filter-tab" data-filter="aberto" onclick="aplicarFiltro('aberto')">Abertos</button>
-                            <button class="filter-tab" data-filter="em_atendimento" onclick="aplicarFiltro('em_atendimento')">Em Atendimento</button>
-                            <button class="filter-tab" data-filter="finalizado" onclick="aplicarFiltro('finalizado')">Finalizados</button>
+                <div class="chamados-wa-workspace" id="chamadosWorkspace">
+                    <!-- Inbox (esquerda) -->
+                    <aside class="chamados-wa-inbox">
+                        <div class="chamados-toolbar">
+                            <div class="filter-tabs">
+                                <button class="filter-tab active" data-filter="todos" onclick="aplicarFiltro('todos')">Todos</button>
+                                <button class="filter-tab" data-filter="pendente" onclick="aplicarFiltro('pendente')">Pendentes</button>
+                                <button class="filter-tab" data-filter="aberto" onclick="aplicarFiltro('aberto')">Abertos</button>
+                                <button class="filter-tab" data-filter="em_atendimento" onclick="aplicarFiltro('em_atendimento')">Em Atend.</button>
+                                <button class="filter-tab" data-filter="finalizado" onclick="aplicarFiltro('finalizado')">Finalizados</button>
+                            </div>
+                            <div class="chamados-toolbar-right">
+                                <div class="chamados-search-wrap">
+                                    <svg class="chamados-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                    <input type="search" id="chamadosBusca" class="chamados-search" placeholder="Buscar protocolo ou nome..." oninput="debounceBusca(this.value)">
+                                </div>
+                                <span id="chamadosCount" class="chamados-count"></span>
+                            </div>
                         </div>
-                        <div class="chamados-toolbar-right">
-                            <span id="chamadosCount" class="chamados-count"></span>
-                            <div class="chamados-search-wrap">
-                                <svg class="chamados-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                                <input type="search" id="chamadosBusca" class="chamados-search" placeholder="Buscar protocolo ou nome..." oninput="debounceBusca(this.value)">
+                        <div class="chamados-inbox-scroll">
+                            <p id="chamadosEmptyState" class="no-messages" style="display: <%= chamados.length === 0 ? 'block' : 'none' %>; padding: 28px 16px; text-align: center;">📭 Nenhum chamado encontrado</p>
+
+                            <section class="chamados-secao" id="secaoAtivos">
+                                <div class="secao-header secao-header-ativos" onclick="toggleSecaoChamados('secaoAtivos')">
+                                    <span class="secao-titulo">
+                                        <span class="secao-dot" style="background:#f59e0b;"></span>
+                                        Aguardando / Em atendimento
+                                        <span class="secao-toggle">▼</span>
+                                    </span>
+                                    <div class="secao-header-actions">
+                                        <span class="secao-count" id="countAtivos">0</span>
+                                    </div>
+                                </div>
+                                <div class="secao-body">
+                                    <p id="emptyAtivos" class="no-messages secao-empty" style="display:none;">✅ Nenhum chamado em aberto no momento</p>
+                                    <div id="listaAtivos" class="wa-conv-list"></div>
+                                    <div id="paginacaoAtivos" class="paginacao-secao" style="display:none;align-items:center;justify-content:space-between;">
+                                        <span id="paginacaoAtivosInfo" style="font-size:12px;color:#64748b;"></span>
+                                        <div id="paginacaoAtivosBtns" style="display:flex;gap:4px;"></div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section class="chamados-secao collapsed" id="secaoFinalizados">
+                                <div class="secao-header secao-header-finalizados" onclick="toggleSecaoChamados('secaoFinalizados')">
+                                    <span class="secao-titulo">
+                                        <span class="secao-dot" style="background:#8b5cf6;"></span>
+                                        Finalizados
+                                        <span class="secao-toggle">▼</span>
+                                        <span class="secao-expand-hint">clique para expandir</span>
+                                    </span>
+                                    <div class="secao-header-actions">
+                                        <span class="secao-count" id="countFinalizados">0</span>
+                                    </div>
+                                </div>
+                                <div class="secao-body">
+                                    <p id="emptyFinalizados" class="no-messages secao-empty" style="display:none;">📭 Nenhum chamado finalizado</p>
+                                    <div id="listaFinalizados" class="wa-conv-list"></div>
+                                    <div id="paginacaoFinalizados" class="paginacao-secao" style="display:none;align-items:center;justify-content:space-between;">
+                                        <span id="paginacaoFinalizadosInfo" style="font-size:12px;color:#64748b;"></span>
+                                        <div id="paginacaoFinalizadosBtns" style="display:flex;gap:4px;"></div>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+                    </aside>
+
+                    <!-- Chat (direita) -->
+                    <section class="chamados-wa-chat" id="painelChat">
+                        <div class="wa-chat-placeholder" id="chatPlaceholder">
+                            <div class="wa-chat-placeholder-icon">
+                                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                            </div>
+                            <h3>Central de Chamados</h3>
+                            <p>Selecione um chamado na lista ao lado para abrir a conversa, no estilo WhatsApp.</p>
+                        </div>
+
+                        <div id="modalChat" class="wa-chat-panel" data-lock-backdrop="true">
+                            <div class="wa-chat-panel-inner">
+                                <div class="chat-modal-header">
+                                    <button type="button" class="chat-back-btn" onclick="fecharChat()" title="Voltar">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                                    </button>
+                                    <div class="chat-header-avatar" id="chatAvatarInitial">?</div>
+                                    <div class="chat-header-info">
+                                        <div class="chat-header-name" id="chatSolicitanteNome">Solicitante</div>
+                                        <div class="chat-header-sub">
+                                            <span id="chatSolicitanteTelefone">Sem telefone</span>
+                                            <span class="chat-header-dot">·</span>
+                                            <span id="chatProtocolo"></span>
+                                        </div>
+                                    </div>
+                                    <span class="chat-modal-close" onclick="fecharChat()" title="Fechar">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                    </span>
+                                    <button type="button" id="btnEncerrarNoChat" class="chat-encerrar-btn" onclick="encerrarPeloChat()" title="Encerrar chamado">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                        <span>Encerrar</span>
+                                    </button>
+                                    <button type="button" class="chat-toggle-info-btn" onclick="toggleChatDetalhes()" title="Ver detalhes do chamado">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                                    </button>
+                                </div>
+
+                                <div class="chat-split-layout">
+                                    <aside class="chat-sidebar-info">
+                                        <div class="chat-sidebar-section">
+                                            <h4 class="chat-sidebar-title">📋 Informações do Chamado</h4>
+                                            <div class="chat-sidebar-fields">
+                                                <div class="csf-item">
+                                                    <span class="csf-label">📂 Categoria</span>
+                                                    <span class="csf-value" id="cdCategoria">—</span>
+                                                </div>
+                                                <div class="csf-item">
+                                                    <span class="csf-label">🏢 Setor</span>
+                                                    <span class="csf-value" id="cdSetor">—</span>
+                                                </div>
+                                                <div class="csf-item">
+                                                    <span class="csf-label">💻 IP</span>
+                                                    <span class="csf-value" id="cdIP">—</span>
+                                                </div>
+                                                <div class="csf-item" id="cdImpressoraRow" style="display:none;">
+                                                    <span class="csf-label">🖨️ Cód. Impressora</span>
+                                                    <span class="csf-value" id="cdImpressora">—</span>
+                                                </div>
+                                                <div class="csf-item">
+                                                    <span class="csf-label">📱 Telefone</span>
+                                                    <span class="csf-value" id="cdTelefone">—</span>
+                                                </div>
+                                                <div class="csf-item" id="cdEmailRow" style="display:none;">
+                                                    <span class="csf-label">📧 E-mail</span>
+                                                    <span class="csf-value" id="cdEmail">—</span>
+                                                </div>
+                                                <div class="csf-item" id="cdCpfRow" style="display:none;">
+                                                    <span class="csf-label">🆔 CPF</span>
+                                                    <span class="csf-value" id="cdCpf">—</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="chat-sidebar-section">
+                                            <h4 class="chat-sidebar-title">📝 Descrição</h4>
+                                            <div class="csf-descricao" id="cdDescricao">—</div>
+                                        </div>
+                                    </aside>
+
+                                    <div class="chat-main-panel">
+                                        <div class="chat-modal-body">
+                                            <div id="chatMessages" class="chat-messages">
+                                                <p class="chat-empty">Carregando mensagens...</p>
+                                            </div>
+
+                                            <div id="chatMediaPreview" class="chat-media-preview" style="display:none;">
+                                                <div class="chat-media-preview-inner">
+                                                    <img id="chatPreviewImg" src="" alt="" style="display:none;">
+                                                    <video id="chatPreviewVideo" style="display:none;"></video>
+                                                    <div id="chatPreviewAudio" class="chat-preview-audio" style="display:none;">
+                                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                                                        <span id="chatPreviewFilename"></span>
+                                                    </div>
+                                                    <button type="button" class="chat-preview-remove" onclick="removerMidiaPreview()">×</button>
+                                                </div>
+                                            </div>
+
+                                            <form id="formChat" class="chat-compose-bar" onsubmit="enviarMensagemChat(event)">
+                                                <input type="hidden" id="chatChamadoId">
+                                                <input type="file" id="chatFileImagem" accept="image/*,video/*" style="display:none;" onchange="selecionarMidia(this,'imagem')">
+                                                <input type="file" id="chatFileAudio" accept="audio/*" style="display:none;" onchange="selecionarMidia(this,'audio')">
+
+                                                <button type="button" class="chat-action-btn" onclick="document.getElementById('chatFileImagem').click()" title="Enviar imagem ou vídeo">
+                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                                                </button>
+                                                <button type="button" class="chat-action-btn" onclick="document.getElementById('chatFileAudio').click()" title="Enviar áudio">
+                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                                                </button>
+
+                                                <textarea
+                                                    id="chatMensagem"
+                                                    class="chat-compose-input"
+                                                    placeholder="Digite uma mensagem"
+                                                    rows="1"
+                                                    onkeydown="chatKeyDown(event)"
+                                                    oninput="autoResizeTextarea(this)"
+                                                ></textarea>
+
+                                                <button type="submit" class="chat-send-btn" title="Enviar">
+                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="messages-container">
-                        <p id="chamadosEmptyState" class="no-messages" style="display: <%= chamados.length === 0 ? 'block' : 'none' %>;">📭 Nenhum chamado encontrado</p>
-
-                        <!-- ───── Seção: Em aberto / aguardando atendimento ───── -->
-                        <section class="chamados-secao" id="secaoAtivos">
-                            <div class="secao-header secao-header-ativos" onclick="toggleSecaoChamados('secaoAtivos')">
-                                <span class="secao-titulo">
-                                    <span class="secao-dot" style="background:#f59e0b;"></span>
-                                    Aguardando / Em atendimento
-                                    <span class="secao-toggle">▼</span>
-                                </span>
-                                <div class="secao-header-actions">
-                                    <span class="secao-count" id="countAtivos">0</span>
-                                </div>
-                            </div>
-                            <div class="secao-body">
-                                <p id="emptyAtivos" class="no-messages secao-empty" style="display:none;">✅ Nenhum chamado em aberto no momento</p>
-                                <table id="tableAtivos" class="messages-table">
-                                    <thead>
-                                        <tr>
-                                            <th class="col-protocolo">Protocolo</th>
-                                            <th class="col-solicitante">Solicitante</th>
-                                            <th class="col-setor">Setor / Categoria</th>
-                                            <th class="col-status">Status</th>
-                                            <th class="col-atendente">Atend.</th>
-                                            <th class="col-acoes">Ações</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="tbodyAtivos"></tbody>
-                                </table>
-                                <div id="paginacaoAtivos" class="paginacao-secao" style="display:none;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid #e2e8f0;margin-top:10px;">
-                                    <span id="paginacaoAtivosInfo" style="font-size:12px;color:#64748b;"></span>
-                                    <div id="paginacaoAtivosBtns" style="display:flex;gap:4px;"></div>
-                                </div>
-                            </div>
-                        </section>
-
-                        <!-- ───── Seção: Finalizados (recolhida por padrão) ───── -->
-                        <section class="chamados-secao collapsed" id="secaoFinalizados" style="margin-top:16px;">
-                            <div class="secao-header secao-header-finalizados" onclick="toggleSecaoChamados('secaoFinalizados')">
-                                <span class="secao-titulo">
-                                    <span class="secao-dot" style="background:#8b5cf6;"></span>
-                                    Finalizados
-                                    <span class="secao-toggle">▼</span>
-                                    <span class="secao-expand-hint">clique para expandir</span>
-                                </span>
-                                <div class="secao-header-actions">
-                                    <span class="secao-count" id="countFinalizados">0</span>
-                                </div>
-                            </div>
-                            <div class="secao-body">
-                                <p id="emptyFinalizados" class="no-messages secao-empty" style="display:none;">📭 Nenhum chamado finalizado</p>
-                                <table id="tableFinalizados" class="messages-table table-finalizados">
-                                    <thead>
-                                        <tr>
-                                            <th class="col-protocolo">Protocolo</th>
-                                            <th class="col-solicitante">Solicitante</th>
-                                            <th class="col-setor">Setor / Categoria</th>
-                                            <th class="col-status">Status</th>
-                                            <th class="col-atendente">Atend.</th>
-                                            <th class="col-acoes">Ações</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="tbodyFinalizados"></tbody>
-                                </table>
-                                <div id="paginacaoFinalizados" class="paginacao-secao" style="display:none;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid #e2e8f0;margin-top:10px;">
-                                    <span id="paginacaoFinalizadosInfo" style="font-size:12px;color:#64748b;"></span>
-                                    <div id="paginacaoFinalizadosBtns" style="display:flex;gap:4px;"></div>
-                                </div>
-                            </div>
-                        </section>
-                    </div>
+                    </section>
                 </div>
             </div>
         </main>
@@ -1252,8 +1870,6 @@
             if (!finalizado) {
                 if (!emAtendimento) {
                     html += `<button onclick="atenderChamado(${chamado.id},'${p}')" class="ca-btn ca-atender ca-btn-primary" title="Atender">${icAtender}<span>Atender</span></button>`;
-                } else {
-                    html += `<button onclick="abrirChat(${chamado.id},'${p}')" class="ca-btn ca-chat ca-btn-primary" title="Abrir chat" style="position:relative">${icChat}<span>Chat</span><span id="badge-${chamado.id}" class="chat-badge" style="display:none;"></span></button>`;
                 }
                 html += `<button class="ca-btn ca-info btn-detalhes" title="Detalhes" data-id="${chamado.id}">${icInfo}</button>`;
                 html += `<button onclick="abrirModalEncerrar(${chamado.id},'${p}')" class="ca-btn ca-close" title="Encerrar">${icEncerrar}</button>`;
@@ -1264,9 +1880,11 @@
                     menuItems += `<button type="button" class="ca-menu-item" onclick="fecharMenusCa();abrirModalTransferir(${chamado.id},'${p}')">${icForward} Transferir</button>`;
                 }
             } else {
-                html += `<button onclick="abrirChat(${chamado.id},'${p}')" class="ca-btn ca-chat" title="Ver chat" style="position:relative">${icChat}<span id="badge-${chamado.id}" class="chat-badge" style="display:none;"></span></button>`;
                 html += `<button class="ca-btn ca-info btn-detalhes" title="Detalhes" data-id="${chamado.id}">${icInfo}</button>`;
                 menuItems += `<button type="button" class="ca-menu-item" onclick="fecharMenusCa();abrirModalReabrir(${chamado.id},'${p}')">${icReabrir} Reabrir</button>`;
+            }
+            if (chamado.nome_whatsapp || chamado.telefone_whatsapp) {
+                menuItems += `<button type="button" class="ca-menu-item" onclick="fecharMenusCa();mostrarDadosWhatsApp('${p}','${escapeHtml(chamado.solicitante_nome)}','${escapeHtml(chamado.telefone_contato||'')}','${escapeHtml(chamado.nome_whatsapp||'')}','${escapeHtml(chamado.telefone_whatsapp||'')}')">${icChat} Dados WhatsApp</button>`;
             }
 
             if (isAdminOnly) {
@@ -1300,7 +1918,7 @@
             paginaAtivos = 1;
             paginaFinalizados = 1;
             document.querySelectorAll('.filter-tab').forEach(t => t.classList.toggle('active', t.dataset.filter === status));
-            document.querySelectorAll('.stat-card[data-filter]').forEach(c => c.classList.toggle('stat-card-active', c.dataset.filter === status));
+            document.querySelectorAll('.stat-chip[data-filter]').forEach(c => c.classList.toggle('stat-card-active', c.dataset.filter === status));
             if (status === 'finalizado') {
                 document.getElementById('secaoFinalizados')?.classList.remove('collapsed');
             }
@@ -1331,31 +1949,42 @@
         const itensPorPagina = 25;
 
         const whatsAppBtn = (c) => (c.nome_whatsapp || c.telefone_whatsapp)
-            ? `<button onclick="mostrarDadosWhatsApp('${escapeHtml(c.protocolo)}','${escapeHtml(c.solicitante_nome)}','${escapeHtml(c.telefone_contato||'')}','${escapeHtml(c.nome_whatsapp||'')}','${escapeHtml(c.telefone_whatsapp||'')}')" class="ca-btn ca-whatsapp" title="Dados WhatsApp"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button>`
+            ? `<button onclick="event.stopPropagation();mostrarDadosWhatsApp('${escapeHtml(c.protocolo)}','${escapeHtml(c.solicitante_nome)}','${escapeHtml(c.telefone_contato||'')}','${escapeHtml(c.nome_whatsapp||'')}','${escapeHtml(c.telefone_whatsapp||'')}')" class="ca-btn ca-whatsapp" title="Dados WhatsApp"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button>`
             : '';
+
+        let chamadoChatAbertoId = null;
 
         function renderLinhaChamado(chamado) {
             const dh = formatarDataHora(chamado.criado_em);
             const isNew = chamado._isNew ? 'chamado-row-new' : '';
-            const nomeHtml = truncarTexto(chamado.solicitante_nome, 38);
-            const setorHtml = truncarTexto(chamado.setor, 32);
-            const catHtml = truncarTexto(chamado.categoria, 28);
+            const isActive = Number(chamadoChatAbertoId) === Number(chamado.id) ? 'active' : '';
+            const nome = String(chamado.solicitante_nome || 'Solicitante').trim();
+            const inicial = (nome.charAt(0) || '?').toUpperCase();
+            const preview = [chamado.setor, chamado.categoria].filter(Boolean).join(' · ') || 'Sem setor';
+            const p = escapeHtml(chamado.protocolo);
+            const atendente = chamado.atendente_nome
+                ? `<span class="wa-conv-atend">👤 ${escapeHtml(String(chamado.atendente_nome).trim().split(/\s+/)[0])}</span>`
+                : '';
             return `
-                <tr data-status="${chamado.status}" class="${isNew}">
-                    <td class="td-protocolo" data-label="Protocolo">
-                        <strong>${escapeHtml(chamado.protocolo)}</strong>
-                        <small class="td-hora">${dh.hora}</small>
-                        <small class="td-data-inline">${dh.data}</small>
-                    </td>
-                    <td class="td-solicitante" data-label="Solicitante">
-                        <span class="solicitante-nome">${nomeHtml}</span>
-                        ${whatsAppBtn(chamado)}
-                    </td>
-                    <td class="td-setor" data-label="Setor"><span>${setorHtml}</span><small>${catHtml}</small></td>
-                    <td data-label="Status">${montarBadgeStatus(chamado.status)}</td>
-                    <td data-label="Atendente">${montarAvatarAtendente(chamado.atendente_nome)}</td>
-                    <td data-label="">${montarAcoesChamado(chamado)}</td>
-                </tr>`;
+                <div class="wa-conv ${isNew} ${isActive}" data-id="${chamado.id}" data-status="${chamado.status}"
+                     onclick="abrirChat(${chamado.id},'${p}')">
+                    <div class="wa-conv-avatar">${escapeHtml(inicial)}<span id="badge-${chamado.id}" class="chat-badge" style="display:none;"></span></div>
+                    <div class="wa-conv-body">
+                        <div class="wa-conv-top">
+                            <span class="wa-conv-name">${escapeHtml(nome)}</span>
+                            <span class="wa-conv-time">${dh.hora}</span>
+                        </div>
+                        <div class="wa-conv-mid">
+                            <span class="wa-conv-preview">${escapeHtml(preview)}</span>
+                            ${montarBadgeStatus(chamado.status)}
+                        </div>
+                        <div class="wa-conv-bottom">
+                            <span class="wa-conv-proto">${p}</span>
+                            ${atendente}
+                        </div>
+                    </div>
+                    <div class="wa-conv-actions" onclick="event.stopPropagation()">${montarAcoesChamado(chamado)}</div>
+                </div>`;
         }
 
         function renderPaginacaoSecao(infoId, btnsId, containerId, paginaAtualSecao, totalPaginas, total, fnIr) {
@@ -1390,11 +2019,9 @@
 
             const base = Array.isArray(chamados) ? chamados.filter(chamadoMatchBusca) : [];
 
-            // Quais seções aparecem conforme o filtro selecionado
             const mostrarAtivos = filtroAtivo === 'todos' || STATUS_ATIVOS.includes(filtroAtivo);
             const mostrarFinalizados = filtroAtivo === 'todos' || filtroAtivo === 'finalizado';
 
-            // ── Ativos (pendente → aberto → em atendimento) ──
             const statusOrdem = { pendente: 0, aberto: 1, em_atendimento: 2 };
             let ativos = base.filter(c => STATUS_ATIVOS.includes(c.status));
             if (STATUS_ATIVOS.includes(filtroAtivo)) ativos = ativos.filter(c => c.status === filtroAtivo);
@@ -1405,18 +2032,15 @@
                 return new Date(b.criado_em) - new Date(a.criado_em);
             });
 
-            // ── Finalizados (mais recentes primeiro) ──
             let finalizados = base.filter(c => c.status === 'finalizado');
             finalizados.sort((a, b) => new Date(b.criado_em) - new Date(a.criado_em));
 
-            // Renderizar cada seção
             paginaAtivos = renderSecaoChamados({
                 lista: ativos,
                 pagina: paginaAtivos,
                 visivel: mostrarAtivos,
                 secaoEl: secaoAtivos,
-                tbodyId: 'tbodyAtivos',
-                tableId: 'tableAtivos',
+                listId: 'listaAtivos',
                 emptyId: 'emptyAtivos',
                 countId: 'countAtivos',
                 pagInfoId: 'paginacaoAtivosInfo',
@@ -1430,8 +2054,7 @@
                 pagina: paginaFinalizados,
                 visivel: mostrarFinalizados,
                 secaoEl: secaoFinalizados,
-                tbodyId: 'tbodyFinalizados',
-                tableId: 'tableFinalizados',
+                listId: 'listaFinalizados',
                 emptyId: 'emptyFinalizados',
                 countId: 'countFinalizados',
                 pagInfoId: 'paginacaoFinalizadosInfo',
@@ -1440,22 +2063,20 @@
                 fnIr: 'irPaginaFinalizados'
             });
 
-            // Contador geral na toolbar — as seções exibem seu próprio estado vazio
             const totalVisivel = (mostrarAtivos ? ativos.length : 0) + (mostrarFinalizados ? finalizados.length : 0);
             if (countEl) countEl.textContent = totalVisivel > 0 ? `${totalVisivel} chamado${totalVisivel !== 1 ? 's' : ''}` : '';
-            emptyState.style.display = 'none';
+            emptyState.style.display = totalVisivel === 0 ? 'block' : 'none';
         }
 
         function renderSecaoChamados(opts) {
             const secaoEl = opts.secaoEl;
-            const tbody = document.getElementById(opts.tbodyId);
-            const tabela = document.getElementById(opts.tableId);
+            const listaEl = document.getElementById(opts.listId);
             const emptyEl = document.getElementById(opts.emptyId);
             const countEl = document.getElementById(opts.countId);
 
             if (!opts.visivel) {
                 secaoEl.style.display = 'none';
-                if (tbody) tbody.innerHTML = '';
+                if (listaEl) listaEl.innerHTML = '';
                 return 1;
             }
             secaoEl.style.display = 'block';
@@ -1464,15 +2085,13 @@
             if (countEl) countEl.textContent = lista.length;
 
             if (lista.length === 0) {
-                if (tbody) tbody.innerHTML = '';
-                if (tabela) tabela.style.display = 'none';
+                if (listaEl) listaEl.innerHTML = '';
                 if (emptyEl) emptyEl.style.display = 'block';
                 document.getElementById(opts.pagContainerId).style.display = 'none';
                 return 1;
             }
 
             if (emptyEl) emptyEl.style.display = 'none';
-            if (tabela) tabela.style.display = 'table';
 
             const totalPaginas = Math.ceil(lista.length / itensPorPagina);
             let pagina = opts.pagina;
@@ -1481,7 +2100,7 @@
             const inicio = (pagina - 1) * itensPorPagina;
             const paginados = lista.slice(inicio, inicio + itensPorPagina);
 
-            if (tbody) tbody.innerHTML = paginados.map(renderLinhaChamado).join('');
+            if (listaEl) listaEl.innerHTML = paginados.map(renderLinhaChamado).join('');
 
             renderPaginacaoSecao(opts.pagInfoId, opts.pagBtnsId, opts.pagContainerId, pagina, totalPaginas, lista.length, opts.fnIr);
             return pagina;
@@ -1602,7 +2221,7 @@
                 const banner = document.getElementById('bannerMeusChamadosPage');
                 if (result.success && result.total > 0) {
                     document.getElementById('bannerQtdPage').textContent = result.total;
-                    banner.style.display = 'flex';
+                    banner.style.display = 'inline-flex';
                 } else {
                     banner.style.display = 'none';
                 }
@@ -1993,128 +2612,6 @@
 
     </script>
 
-    <!-- Modal Chat -->
-    <div id="modalChat" class="modal" data-lock-backdrop="true">
-        <div class="modal-content chat-modal-content">
-            <!-- Header estilo WhatsApp -->
-            <div class="chat-modal-header">
-                <div class="chat-header-avatar" id="chatAvatarInitial">?</div>
-                <div class="chat-header-info">
-                    <div class="chat-header-name" id="chatSolicitanteNome">Solicitante</div>
-                    <div class="chat-header-sub">
-                        <span id="chatSolicitanteTelefone">Sem telefone</span>
-                        <span class="chat-header-dot">·</span>
-                        <span id="chatProtocolo"></span>
-                    </div>
-                </div>
-                <span class="chat-modal-close" onclick="fecharChat()">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </span>
-                <button type="button" id="btnEncerrarNoChat" class="chat-encerrar-btn" onclick="encerrarPeloChat()" title="Encerrar chamado">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    <span>Encerrar</span>
-                </button>
-                <button type="button" class="chat-toggle-info-btn" onclick="toggleChatDetalhes()" title="Ver detalhes do chamado">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                </button>
-            </div>
-
-            <!-- Layout split: detalhes à esquerda, chat à direita -->
-            <div class="chat-split-layout">
-                <!-- Painel esquerdo: informações do chamado -->
-                <aside class="chat-sidebar-info">
-                    <div class="chat-sidebar-section">
-                        <h4 class="chat-sidebar-title">📋 Informações do Chamado</h4>
-                        <div class="chat-sidebar-fields">
-                            <div class="csf-item">
-                                <span class="csf-label">📂 Categoria</span>
-                                <span class="csf-value" id="cdCategoria">—</span>
-                            </div>
-                            <div class="csf-item">
-                                <span class="csf-label">🏢 Setor</span>
-                                <span class="csf-value" id="cdSetor">—</span>
-                            </div>
-                            <div class="csf-item">
-                                <span class="csf-label">💻 IP</span>
-                                <span class="csf-value" id="cdIP">—</span>
-                            </div>
-                            <div class="csf-item" id="cdImpressoraRow" style="display:none;">
-                                <span class="csf-label">🖨️ Cód. Impressora</span>
-                                <span class="csf-value" id="cdImpressora">—</span>
-                            </div>
-                            <div class="csf-item">
-                                <span class="csf-label">📱 Telefone</span>
-                                <span class="csf-value" id="cdTelefone">—</span>
-                            </div>
-                            <div class="csf-item" id="cdEmailRow" style="display:none;">
-                                <span class="csf-label">📧 E-mail</span>
-                                <span class="csf-value" id="cdEmail">—</span>
-                            </div>
-                            <div class="csf-item" id="cdCpfRow" style="display:none;">
-                                <span class="csf-label">🆔 CPF</span>
-                                <span class="csf-value" id="cdCpf">—</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="chat-sidebar-section">
-                        <h4 class="chat-sidebar-title">📝 Descrição</h4>
-                        <div class="csf-descricao" id="cdDescricao">—</div>
-                    </div>
-                </aside>
-
-                <!-- Painel direito: chat -->
-                <div class="chat-main-panel">
-                    <div class="chat-modal-body">
-                        <!-- Área de mensagens -->
-                        <div id="chatMessages" class="chat-messages">
-                            <p class="chat-empty">Carregando mensagens...</p>
-                        </div>
-
-                        <!-- Preview de mídia selecionada -->
-                        <div id="chatMediaPreview" class="chat-media-preview" style="display:none;">
-                            <div class="chat-media-preview-inner">
-                                <img id="chatPreviewImg" src="" alt="" style="display:none;">
-                                <video id="chatPreviewVideo" style="display:none;"></video>
-                                <div id="chatPreviewAudio" class="chat-preview-audio" style="display:none;">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-                                    <span id="chatPreviewFilename"></span>
-                                </div>
-                                <button type="button" class="chat-preview-remove" onclick="removerMidiaPreview()">×</button>
-                            </div>
-                        </div>
-
-                        <!-- Barra de composição estilo WhatsApp -->
-                        <form id="formChat" class="chat-compose-bar" onsubmit="enviarMensagemChat(event)">
-                            <input type="hidden" id="chatChamadoId">
-                            <input type="file" id="chatFileImagem" accept="image/*,video/*" style="display:none;" onchange="selecionarMidia(this,'imagem')">
-                            <input type="file" id="chatFileAudio" accept="audio/*" style="display:none;" onchange="selecionarMidia(this,'audio')">
-
-                            <button type="button" class="chat-action-btn" onclick="document.getElementById('chatFileImagem').click()" title="Enviar imagem ou vídeo">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                            </button>
-                            <button type="button" class="chat-action-btn" onclick="document.getElementById('chatFileAudio').click()" title="Enviar áudio">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-                            </button>
-
-                            <textarea
-                                id="chatMensagem"
-                                class="chat-compose-input"
-                                placeholder="Digite uma mensagem"
-                                rows="1"
-                                onkeydown="chatKeyDown(event)"
-                                oninput="autoResizeTextarea(this)"
-                            ></textarea>
-
-                            <button type="submit" class="chat-send-btn" title="Enviar">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Modal Dados WhatsApp -->
     <div id="modalWhatsApp" class="modal">
         <div class="modal-content" style="max-width: 500px;">
@@ -2226,10 +2723,21 @@
             const chamadoAtual = chamadosState.find((item) => Number(item.id) === Number(chamadoId));
             const nome = chamadoAtual?.solicitante_nome || 'Solicitante';
 
+            chamadoChatAbertoId = chamadoId;
+
             // Limpar mensagens anteriores imediatamente para não mostrar conversa de outro chamado
             document.getElementById('chatMessages').innerHTML = '<p class="chat-empty">Carregando mensagens...</p>';
 
-            document.getElementById('modalChat').style.display = 'flex';
+            const placeholder = document.getElementById('chatPlaceholder');
+            const painel = document.getElementById('modalChat');
+            const workspace = document.getElementById('chamadosWorkspace');
+            if (placeholder) placeholder.style.display = 'none';
+            if (painel) painel.classList.add('is-open');
+            if (workspace) workspace.classList.add('chat-open');
+
+            document.querySelectorAll('.wa-conv.active').forEach((el) => el.classList.remove('active'));
+            document.querySelector(`.wa-conv[data-id="${chamadoId}"]`)?.classList.add('active');
+
             document.getElementById('chatProtocolo').textContent = protocolo;
             document.getElementById('chatSolicitanteNome').textContent = nome;
             document.getElementById('chatSolicitanteTelefone').textContent = chamadoAtual?.telefone_contato || chamadoAtual?.telefone_whatsapp || 'Sem telefone';
@@ -2283,9 +2791,6 @@
                 }
             }
 
-            // Abrir o painel de detalhes (sidebar já é visível no desktop; no mobile, toggle)
-            // Nada a fazer aqui, o sidebar é estático no desktop
-
             // Se o chamado está finalizado: ocultar barra de composição (chat read-only)
             const formChat = document.getElementById('formChat');
             const btnEncerrarChat = document.getElementById('btnEncerrarNoChat');
@@ -2325,7 +2830,14 @@
         }
 
         function fecharChat() {
-            document.getElementById('modalChat').style.display = 'none';
+            const placeholder = document.getElementById('chatPlaceholder');
+            const painel = document.getElementById('modalChat');
+            const workspace = document.getElementById('chamadosWorkspace');
+            if (painel) painel.classList.remove('is-open');
+            if (placeholder) placeholder.style.display = 'flex';
+            if (workspace) workspace.classList.remove('chat-open');
+            document.querySelectorAll('.wa-conv.active').forEach((el) => el.classList.remove('active'));
+            chamadoChatAbertoId = null;
             if (chatInterval) { clearInterval(chatInterval); chatInterval = null; }
         }
 
