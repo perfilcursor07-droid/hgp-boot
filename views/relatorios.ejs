@@ -490,13 +490,25 @@
                 const sel = document.getElementById('filtroUnidadeRel');
                 if (!wrap || !sel) return;
 
-                const mostrar = data.todas || (data.unidades && data.unidades.length > 1);
+                // Admin (todas): seletor opcional, sempre começa em "Todas"
+                if (data.todas) {
+                    sessionStorage.removeItem('relatorios_unidade_id');
+                    wrap.style.display = (data.unidades && data.unidades.length > 1) ? 'block' : 'none';
+                    sel.innerHTML = '<option value="">Todas</option>' +
+                        (data.unidades || []).map(u =>
+                            `<option value="${u.id}">${u.codigo || u.nome}</option>`
+                        ).join('');
+                    sel.value = '';
+                    sel.onchange = () => {}; // não persiste filtro do admin
+                    return;
+                }
+
+                const mostrar = data.unidades && data.unidades.length > 1;
                 if (!mostrar) {
                     wrap.style.display = 'none';
-                    if (!data.todas && data.unidades?.length === 1) {
-                        sel.innerHTML = `<option value="${data.unidades[0].id}">${data.unidades[0].codigo || data.unidades[0].nome}</option>`;
-                        sel.value = String(data.unidades[0].id);
-                    }
+                    sessionStorage.removeItem('relatorios_unidade_id');
+                    sel.innerHTML = '<option value="">Todas do escopo</option>';
+                    sel.value = '';
                     return;
                 }
 

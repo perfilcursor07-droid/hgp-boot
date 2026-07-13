@@ -1149,7 +1149,9 @@
         }
 
         // ── Filtro de unidade ──
-        let unidadeFiltroAtiva = sessionStorage.getItem('chamados_unidade_id') || '';
+        // Admin (todas=true) NÃO herda filtro antigo do sessionStorage — senão some chamados.
+        let unidadeFiltroAtiva = '';
+        let escopoVeTodas = false;
 
         function overviewQuery() {
             const params = new URLSearchParams({ t: Date.now() });
@@ -1167,31 +1169,42 @@
                 const sel = document.getElementById('filtroUnidade');
                 if (!wrap || !sel) return;
 
-                // Mostrar seletor se há 2+ unidades no escopo OU se vê todas
-                const mostrar = data.todas || (data.unidades && data.unidades.length > 1);
+                escopoVeTodas = !!data.todas;
+
+                // Admin / escopo total: sempre começa em "Todas" (vê tudo)
+                if (data.todas) {
+                    unidadeFiltroAtiva = '';
+                    sessionStorage.removeItem('chamados_unidade_id');
+                    wrap.style.display = (data.unidades && data.unidades.length > 1) ? 'block' : 'none';
+                    sel.innerHTML = '<option value="">Todas</option>' +
+                        (data.unidades || []).map(u =>
+                            `<option value="${u.id}">${escapeHtml(u.codigo || u.nome)}</option>`
+                        ).join('');
+                    sel.value = '';
+                    return;
+                }
+
+                // Escopo restrito: só mostra seletor se houver 2+ unidades
+                const mostrar = data.unidades && data.unidades.length > 1;
                 if (!mostrar) {
                     wrap.style.display = 'none';
-                    // Se só 1 unidade no escopo, fixa o filtro nela
-                    if (!data.todas && data.unidades?.length === 1) {
-                        unidadeFiltroAtiva = String(data.unidades[0].id);
-                        sessionStorage.setItem('chamados_unidade_id', unidadeFiltroAtiva);
-                    }
+                    unidadeFiltroAtiva = '';
+                    sessionStorage.removeItem('chamados_unidade_id');
                     return;
                 }
 
                 wrap.style.display = 'block';
-                sel.innerHTML = '<option value="">Todas</option>' +
+                sel.innerHTML = '<option value="">Todas do escopo</option>' +
                     (data.unidades || []).map(u =>
                         `<option value="${u.id}">${escapeHtml(u.codigo || u.nome)}</option>`
                     ).join('');
 
-                // Validar seleção salva
-                if (unidadeFiltroAtiva) {
-                    const ok = (data.unidades || []).some(u => String(u.id) === String(unidadeFiltroAtiva));
-                    if (!ok) {
-                        unidadeFiltroAtiva = '';
-                        sessionStorage.removeItem('chamados_unidade_id');
-                    }
+                const saved = sessionStorage.getItem('chamados_unidade_id') || '';
+                if (saved && (data.unidades || []).some(u => String(u.id) === String(saved))) {
+                    unidadeFiltroAtiva = saved;
+                } else {
+                    unidadeFiltroAtiva = '';
+                    sessionStorage.removeItem('chamados_unidade_id');
                 }
                 sel.value = unidadeFiltroAtiva;
             } catch (e) {
@@ -1201,8 +1214,13 @@
 
         function aplicarFiltroUnidade(valor) {
             unidadeFiltroAtiva = valor || '';
-            if (unidadeFiltroAtiva) {
-                sessionStorage.setItem('chamados_unidade_id', unidadeFiltroAtiva);
+            // Persistência só para quem NÃO é admin total (evita admin ficar preso em 1 unidade)
+            if (!escopoVeTodas) {
+                if (unidadeFiltroAtiva) {
+                    sessionStorage.setItem('chamados_unidade_id', unidadeFiltroAtiva);
+                } else {
+                    sessionStorage.removeItem('chamados_unidade_id');
+                }
             } else {
                 sessionStorage.removeItem('chamados_unidade_id');
             }
