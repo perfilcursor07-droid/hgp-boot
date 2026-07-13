@@ -489,6 +489,22 @@
             font-size: 11px;
             font-weight: 700;
             cursor: default;
+            flex-shrink: 0;
+        }
+        .atendente-cell {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            max-width: 100%;
+        }
+        .atendente-nome {
+            font-size: 11px;
+            font-weight: 600;
+            color: #334155;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 72px;
         }
         .atendente-vazio { color: #cbd5e1; font-size: 13px; }
 
@@ -580,8 +596,8 @@
         .messages-table .col-solicitante { width: 24%; }
         .messages-table .col-setor { width: 22%; }
         .messages-table .col-status { width: 100px; }
-        .messages-table .col-atendente { width: 44px; }
-        .messages-table .col-acoes { width: 130px; }
+        .messages-table .col-atendente { width: 90px; }
+        .messages-table .col-acoes { width: 140px; }
         .messages-table.table-finalizados .col-status { display: none; }
         .messages-table.table-finalizados tbody td:nth-child(4),
         .messages-table.table-finalizados thead th:nth-child(4) { display: none; }
@@ -774,10 +790,18 @@
                         <p class="eyebrow">Central de atendimento</p>
                         <h1>Chamados</h1>
                     </div>
-                    <div class="hero-highlight">
-                        <span class="hero-highlight-label">Resumo</span>
-                        <strong><%= (contagem.total || 0) %> chamados</strong>
-                        <small><%= (contagem.pendente || 0) %> pendente(s)</small>
+                    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                        <div id="unidadeFilterWrap" style="display:none;">
+                            <label for="filtroUnidade" style="display:block;font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;font-weight:700;">Unidade</label>
+                            <select id="filtroUnidade" onchange="aplicarFiltroUnidade(this.value)" style="background:#1e293b;color:#f1f5f9;border:1px solid #334155;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;min-width:140px;">
+                                <option value="">Todas</option>
+                            </select>
+                        </div>
+                        <div class="hero-highlight">
+                            <span class="hero-highlight-label">Resumo</span>
+                            <strong><%= (contagem.total || 0) %> chamados</strong>
+                            <small><%= (contagem.pendente || 0) %> pendente(s)</small>
+                        </div>
                     </div>
                 </section>
 
@@ -1119,7 +1143,72 @@
         function montarAvatarAtendente(nome) {
             if (!nome) return '<span class="atendente-vazio">—</span>';
             const inicial = nome.charAt(0).toUpperCase();
-            return `<span class="atendente-avatar" title="${escapeHtml(nome)}">${inicial}</span>`;
+            const primeiroNome = String(nome).trim().split(/\s+/)[0];
+            const curto = primeiroNome.length > 10 ? primeiroNome.slice(0, 9) + '…' : primeiroNome;
+            return `<span class="atendente-cell" title="${escapeHtml(nome)}"><span class="atendente-avatar">${inicial}</span><span class="atendente-nome">${escapeHtml(curto)}</span></span>`;
+        }
+
+        // ── Filtro de unidade ──
+        let unidadeFiltroAtiva = sessionStorage.getItem('chamados_unidade_id') || '';
+
+        function overviewQuery() {
+            const params = new URLSearchParams({ t: Date.now() });
+            if (unidadeFiltroAtiva) params.set('unidade_id', unidadeFiltroAtiva);
+            if (buscaAtiva && buscaAtiva.length >= 2) params.set('q', buscaAtiva);
+            return params.toString();
+        }
+
+        async function carregarSeletorUnidades() {
+            try {
+                const res = await fetch('/api/me/unidades');
+                const data = await res.json();
+                if (!data.success) return;
+                const wrap = document.getElementById('unidadeFilterWrap');
+                const sel = document.getElementById('filtroUnidade');
+                if (!wrap || !sel) return;
+
+                // Mostrar seletor se há 2+ unidades no escopo OU se vê todas
+                const mostrar = data.todas || (data.unidades && data.unidades.length > 1);
+                if (!mostrar) {
+                    wrap.style.display = 'none';
+                    // Se só 1 unidade no escopo, fixa o filtro nela
+                    if (!data.todas && data.unidades?.length === 1) {
+                        unidadeFiltroAtiva = String(data.unidades[0].id);
+                        sessionStorage.setItem('chamados_unidade_id', unidadeFiltroAtiva);
+                    }
+                    return;
+                }
+
+                wrap.style.display = 'block';
+                sel.innerHTML = '<option value="">Todas</option>' +
+                    (data.unidades || []).map(u =>
+                        `<option value="${u.id}">${escapeHtml(u.codigo || u.nome)}</option>`
+                    ).join('');
+
+                // Validar seleção salva
+                if (unidadeFiltroAtiva) {
+                    const ok = (data.unidades || []).some(u => String(u.id) === String(unidadeFiltroAtiva));
+                    if (!ok) {
+                        unidadeFiltroAtiva = '';
+                        sessionStorage.removeItem('chamados_unidade_id');
+                    }
+                }
+                sel.value = unidadeFiltroAtiva;
+            } catch (e) {
+                console.error('Erro ao carregar unidades:', e);
+            }
+        }
+
+        function aplicarFiltroUnidade(valor) {
+            unidadeFiltroAtiva = valor || '';
+            if (unidadeFiltroAtiva) {
+                sessionStorage.setItem('chamados_unidade_id', unidadeFiltroAtiva);
+            } else {
+                sessionStorage.removeItem('chamados_unidade_id');
+            }
+            paginaAtivos = 1;
+            paginaFinalizados = 1;
+            atualizarOverviewChamados();
         }
 
         function montarAcoesChamado(chamado) {
@@ -1205,7 +1294,18 @@
 
         function debounceBusca(valor) {
             clearTimeout(buscaTimer);
-            buscaTimer = setTimeout(() => { buscaAtiva = valor.trim(); paginaAtivos = 1; paginaFinalizados = 1; renderChamadosTable(chamadosState); }, 200);
+            buscaTimer = setTimeout(() => {
+                buscaAtiva = valor.trim();
+                paginaAtivos = 1;
+                paginaFinalizados = 1;
+                // Busca no servidor (acha protocolos fora do recorte de finalizados)
+                // e também filtra o que já está em memória.
+                if (buscaAtiva.length >= 2 || buscaAtiva.length === 0) {
+                    atualizarOverviewChamados();
+                } else {
+                    renderChamadosTable(chamadosState);
+                }
+            }, 300);
         }
 
         let paginaAtivos = 1;
@@ -1402,7 +1502,7 @@
 
         async function atualizarOverviewChamados() {
             try {
-                const response = await fetch(`/api/chamados/overview?t=${Date.now()}`, { cache: 'no-store' });
+                const response = await fetch(`/api/chamados/overview?${overviewQuery()}`, { cache: 'no-store' });
                 const result = await response.json();
 
                 if (!result.success) {
@@ -1468,9 +1568,10 @@
             }
         }
 
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
             renderChamadosTable(chamadosState);
             carregarGestores();
+            await carregarSeletorUnidades();
             atualizarOverviewChamados();
             iniciarAutoRefreshChamados();
             carregarBannerMeusChamados();

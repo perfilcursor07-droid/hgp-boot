@@ -49,24 +49,28 @@ app.use(session({
 }));
 
 // Recarrega unidade/local do banco a cada request (evita sessão desatualizada após editar usuário)
+// Admin COM unidades vinculadas: filtra por elas.
+// Admin SEM unidades vinculadas: null = vê todas (super-admin).
 async function refreshUserScope(req) {
     if (!req.session?.userId) return;
 
-    if (req.session.nivelAcesso === 'administrador') {
-        req.session.unidadeIds = null; // null = todas
-        req.session.localIds = null;
-        return;
-    }
+    const isAdmin = req.session.nivelAcesso === 'administrador';
 
     try {
         const [unids] = await db.query(
             'SELECT unidade_id FROM admin_unidades WHERE admin_id = ?',
             [req.session.userId]
         );
-        req.session.unidadeIds = unids.map(u => u.unidade_id);
+        if (unids.length > 0) {
+            req.session.unidadeIds = unids.map(u => u.unidade_id);
+        } else if (isAdmin) {
+            req.session.unidadeIds = null; // sem vínculo = vê todas
+        } else {
+            req.session.unidadeIds = []; // sem vínculo e não-admin = só legado
+        }
     } catch (e) {
         console.error('Erro ao carregar unidades do usuário:', e.message);
-        req.session.unidadeIds = null;
+        req.session.unidadeIds = isAdmin ? null : [];
     }
 
     try {
@@ -82,6 +86,7 @@ async function refreshUserScope(req) {
 }
 
 // Filtro de chamados por unidade/local do usuário logado
+// options.unidadeId: filtro extra do seletor (já validado contra o escopo)
 function buildChamadosListWhere(req, options = {}) {
     let sql = 'WHERE 1=1';
     const params = [];
@@ -92,18 +97,21 @@ function buildChamadosListWhere(req, options = {}) {
     }
 
     const ids = req?.session?.unidadeIds;
-    if (!Array.isArray(ids)) {
-        return { sql, params }; // administrador: sem filtro
-    }
+    const unidadeIdFiltro = options.unidadeId != null ? Number(options.unidadeId) : null;
 
-    if (ids.length === 0) {
+    if (unidadeIdFiltro && !Number.isNaN(unidadeIdFiltro)) {
+        // Seletor explícito: restringe a uma unidade (já validada)
+        sql += ' AND unidade_id = ?';
+        params.push(unidadeIdFiltro);
+    } else if (!Array.isArray(ids)) {
+        // null = admin sem vínculos: sem filtro
+    } else if (ids.length === 0) {
         sql += ' AND unidade_id IS NULL';
-        return { sql, params };
+    } else {
+        const placeholders = ids.map(() => '?').join(',');
+        sql += ` AND (unidade_id IS NULL OR unidade_id IN (${placeholders}))`;
+        params.push(...ids);
     }
-
-    const placeholders = ids.map(() => '?').join(',');
-    sql += ` AND (unidade_id IS NULL OR unidade_id IN (${placeholders}))`;
-    params.push(...ids);
 
     const localIds = req?.session?.localIds;
     if (Array.isArray(localIds) && localIds.length > 0) {
@@ -113,6 +121,43 @@ function buildChamadosListWhere(req, options = {}) {
     }
 
     return { sql, params };
+}
+
+// Valida unidade_id da query contra o escopo do usuário. Retorna Number ou null.
+function resolveUnidadeFiltro(req) {
+    const raw = req.query?.unidade_id;
+    if (raw === undefined || raw === null || raw === '' || raw === 'todas' || raw === 'all') {
+        return null;
+    }
+    const id = Number(raw);
+    if (!id || Number.isNaN(id)) return null;
+
+    const ids = req.session?.unidadeIds;
+    if (!Array.isArray(ids)) {
+        // Admin full: qualquer unidade ativa é válida
+        return id;
+    }
+    if (ids.map(Number).includes(id)) return id;
+    return null; // fora do escopo → ignora
+}
+
+async function listarUnidadesDoEscopo(req) {
+    const ids = req.session?.unidadeIds;
+    if (!Array.isArray(ids)) {
+        const [rows] = await db.query(
+            'SELECT id, nome, codigo FROM unidades WHERE ativo = TRUE ORDER BY nome'
+        );
+        return { todas: true, unidades: rows };
+    }
+    if (ids.length === 0) {
+        return { todas: false, unidades: [] };
+    }
+    const ph = ids.map(() => '?').join(',');
+    const [rows] = await db.query(
+        `SELECT id, nome, codigo FROM unidades WHERE ativo = TRUE AND id IN (${ph}) ORDER BY nome`,
+        ids
+    );
+    return { todas: false, unidades: rows };
 }
 
 app.use(async (req, res, next) => {
@@ -575,24 +620,73 @@ async function obterClienteWhatsAppParaChamado(chamado) {
 }
 
 const listChamadosOverview = async (req = null) => {
+    const unidadeId = req ? resolveUnidadeFiltro(req) : null;
     const { sql, params } = req?.session
-        ? buildChamadosListWhere(req)
+        ? buildChamadosListWhere(req, { unidadeId })
         : { sql: 'WHERE 1=1', params: [] };
 
-    const [chamados] = await db.query(`
+    // Ativos NUNCA podem ficar de fora (antes LIMIT 200 por criado_em
+    // escondia chamados antigos ainda em_atendimento — ex.: SESAU-0806-WYW).
+    const [ativos] = await db.query(`
         SELECT *
         FROM chamados
         ${sql}
+          AND status IN ('pendente', 'aberto', 'em_atendimento')
         ORDER BY criado_em DESC
-        LIMIT 200
     `, params);
 
-    const contagem = chamados.reduce((acc, chamado) => {
-        const status = chamado.status || 'pendente';
-        acc.total += 1;
-        acc[status] = (acc[status] || 0) + 1;
-        return acc;
-    }, { total: 0, aberto: 0, pendente: 0, em_atendimento: 0, finalizado: 0 });
+    const [finalizados] = await db.query(`
+        SELECT *
+        FROM chamados
+        ${sql}
+          AND status = 'finalizado'
+        ORDER BY COALESCE(encerrado_em, criado_em) DESC
+        LIMIT 100
+    `, params);
+
+    // Busca por protocolo/nome: inclui matches fora do recorte de finalizados
+    const busca = String(req?.query?.q || '').trim();
+    let buscaExtra = [];
+    if (busca.length >= 2) {
+        const like = `%${busca}%`;
+        const idsCarregados = new Set([...ativos, ...finalizados].map((c) => c.id));
+        const [encontrados] = await db.query(`
+            SELECT *
+            FROM chamados
+            ${sql}
+              AND (
+                    protocolo LIKE ?
+                 OR solicitante_nome LIKE ?
+                 OR setor LIKE ?
+                 OR categoria LIKE ?
+              )
+            ORDER BY criado_em DESC
+            LIMIT 50
+        `, [...params, like, like, like, like]);
+        buscaExtra = encontrados.filter((c) => !idsCarregados.has(c.id));
+    }
+
+    const chamados = [...ativos, ...finalizados, ...buscaExtra];
+
+    // Contagem real no banco (não só dos registros carregados)
+    const [counts] = await db.query(`
+        SELECT
+            COUNT(*) AS total,
+            COALESCE(SUM(status = 'aberto'), 0) AS aberto,
+            COALESCE(SUM(status = 'pendente'), 0) AS pendente,
+            COALESCE(SUM(status = 'em_atendimento'), 0) AS em_atendimento,
+            COALESCE(SUM(status = 'finalizado'), 0) AS finalizado
+        FROM chamados
+        ${sql}
+    `, params);
+
+    const contagem = {
+        total: Number(counts[0]?.total || 0),
+        aberto: Number(counts[0]?.aberto || 0),
+        pendente: Number(counts[0]?.pendente || 0),
+        em_atendimento: Number(counts[0]?.em_atendimento || 0),
+        finalizado: Number(counts[0]?.finalizado || 0)
+    };
 
     return { chamados, contagem };
 };
@@ -674,28 +768,8 @@ app.post('/login', async (req, res) => {
         req.session.nivelAcesso = user.nivel_acesso;
         req.session.nomeCompleto = user.nome_completo;
 
-        // Carregar unidades vinculadas (admin sempre vê todas)
-        if (user.nivel_acesso === 'administrador') {
-            req.session.unidadeIds = null; // null = todas
-            req.session.localIds = null;
-        } else {
-            const [unids] = await db.query(
-                'SELECT unidade_id FROM admin_unidades WHERE admin_id = ?',
-                [user.id]
-            );
-            req.session.unidadeIds = unids.map(u => u.unidade_id);
-
-            // Carregar locais vinculados
-            try {
-                const [locs] = await db.query(
-                    'SELECT local_id FROM admin_locais WHERE admin_id = ?',
-                    [user.id]
-                );
-                req.session.localIds = locs.length > 0 ? locs.map(l => l.local_id) : null;
-            } catch (e) {
-                req.session.localIds = null;
-            }
-        }
+        // Carregar unidades/locais (admin com vínculos respeita o filtro; sem vínculos = todas)
+        await refreshUserScope(req);
         
         // Redirecionar baseado no nível de acesso
         if (user.nivel_acesso === 'gestor' || user.nivel_acesso === 'visualizador') {
@@ -1655,6 +1729,21 @@ app.get('/meus-chamados', isAuthenticated, async (req, res) => {
     }
 });
 
+app.get('/api/me/unidades', isAuthenticated, async (req, res) => {
+    try {
+        const escopo = await listarUnidadesDoEscopo(req);
+        res.json({
+            success: true,
+            todas: escopo.todas,
+            unidades: escopo.unidades,
+            selected: resolveUnidadeFiltro(req)
+        });
+    } catch (error) {
+        console.error('Erro ao listar unidades do usuário:', error);
+        res.status(500).json({ success: false, message: 'Erro ao carregar unidades' });
+    }
+});
+
 app.get('/chamados', isAuthenticated, async (req, res) => {
     try {
         // Garantir que nivelAcesso existe na sessão
@@ -2066,12 +2155,49 @@ app.post('/api/avaliacoes/:id/responder', isAuthenticated, async (req, res) => {
 
 app.get('/relatorios', isAuthenticated, isAdmin, async (req, res) => {
     try {
-        res.render('relatorios', { username: req.session.username });
+        res.render('relatorios', {
+            username: req.session.username,
+            nivelAcesso: req.session.nivelAcesso || 'administrador'
+        });
     } catch (error) {
         console.error('Erro ao carregar relatórios:', error);
-        res.render('relatorios', { username: req.session.username });
+        res.render('relatorios', {
+            username: req.session.username,
+            nivelAcesso: req.session.nivelAcesso || 'administrador'
+        });
     }
 });
+
+// Monta WHERE do relatório: período + escopo de unidade + seletor + categoria
+function buildRelatorioWhere(req) {
+    const { dataInicio, dataFim, categoria } = req.query;
+    let sql = 'WHERE DATE(c.criado_em) BETWEEN ? AND ?';
+    const params = [dataInicio, dataFim];
+
+    const unidadeId = resolveUnidadeFiltro(req);
+    const ids = req.session?.unidadeIds;
+
+    if (unidadeId) {
+        sql += ' AND c.unidade_id = ?';
+        params.push(unidadeId);
+    } else if (Array.isArray(ids)) {
+        if (ids.length === 0) {
+            sql += ' AND c.unidade_id IS NULL';
+        } else {
+            const ph = ids.map(() => '?').join(',');
+            sql += ` AND (c.unidade_id IS NULL OR c.unidade_id IN (${ph}))`;
+            params.push(...ids);
+        }
+    }
+
+    const cat = String(categoria || '').trim();
+    if (cat) {
+        sql += ' AND c.categoria = ?';
+        params.push(cat);
+    }
+
+    return { sql, params, dataInicio, dataFim, categoria: cat || null, unidadeId };
+}
 
 app.get('/api/relatorios/chamados', isAuthenticated, isAdmin, async (req, res) => {
     try {
@@ -2081,91 +2207,194 @@ app.get('/api/relatorios/chamados', isAuthenticated, isAdmin, async (req, res) =
             return res.status(400).json({ success: false, message: 'Informe dataInicio e dataFim' });
         }
 
-        // Filtro de unidade do usuário
-        const ids = req.session.unidadeIds;
-        let unidWhere = '';
-        const unidParams = [];
-        if (Array.isArray(ids)) {
-            if (ids.length === 0) {
-                unidWhere = ' AND unidade_id IS NULL';
-            } else {
-                const ph = ids.map(() => '?').join(',');
-                unidWhere = ` AND (unidade_id IS NULL OR unidade_id IN (${ph}))`;
-                unidParams.push(...ids);
-            }
-        }
+        const { sql: where, params } = buildRelatorioWhere(req);
 
-        // Total por período
         const [totalPeriodo] = await db.query(`
             SELECT COUNT(*) as total,
-                   SUM(CASE WHEN status = 'aberto' THEN 1 ELSE 0 END) as abertos,
-                   SUM(CASE WHEN status = 'pendente' THEN 1 ELSE 0 END) as pendentes,
-                   SUM(CASE WHEN status = 'em_atendimento' THEN 1 ELSE 0 END) as em_atendimento,
-                   SUM(CASE WHEN status = 'finalizado' THEN 1 ELSE 0 END) as finalizados
-            FROM chamados
-            WHERE DATE(criado_em) BETWEEN ? AND ? ${unidWhere}
-        `, [dataInicio, dataFim, ...unidParams]);
+                   SUM(CASE WHEN c.status = 'aberto' THEN 1 ELSE 0 END) as abertos,
+                   SUM(CASE WHEN c.status = 'pendente' THEN 1 ELSE 0 END) as pendentes,
+                   SUM(CASE WHEN c.status = 'em_atendimento' THEN 1 ELSE 0 END) as em_atendimento,
+                   SUM(CASE WHEN c.status = 'finalizado' THEN 1 ELSE 0 END) as finalizados,
+                   ROUND(AVG(CASE
+                       WHEN c.status = 'finalizado' AND c.encerrado_em IS NOT NULL
+                       THEN TIMESTAMPDIFF(MINUTE, c.criado_em, c.encerrado_em)
+                   END)) as sla_medio_minutos
+            FROM chamados c
+            ${where}
+        `, params);
 
         const [porSetor] = await db.query(`
-            SELECT setor, COUNT(*) as total,
-                   SUM(CASE WHEN status = 'finalizado' THEN 1 ELSE 0 END) as finalizados,
-                   SUM(CASE WHEN status != 'finalizado' THEN 1 ELSE 0 END) as abertos
-            FROM chamados
-            WHERE DATE(criado_em) BETWEEN ? AND ? ${unidWhere}
-            GROUP BY setor
+            SELECT c.setor, COUNT(*) as total,
+                   SUM(CASE WHEN c.status = 'finalizado' THEN 1 ELSE 0 END) as finalizados,
+                   SUM(CASE WHEN c.status != 'finalizado' THEN 1 ELSE 0 END) as abertos
+            FROM chamados c
+            ${where}
+            GROUP BY c.setor
             ORDER BY total DESC
-        `, [dataInicio, dataFim, ...unidParams]);
+        `, params);
 
         const [porCategoria] = await db.query(`
-            SELECT categoria, COUNT(*) as total,
-                   SUM(CASE WHEN status = 'finalizado' THEN 1 ELSE 0 END) as finalizados,
-                   SUM(CASE WHEN status != 'finalizado' THEN 1 ELSE 0 END) as abertos
-            FROM chamados
-            WHERE DATE(criado_em) BETWEEN ? AND ? ${unidWhere}
-            GROUP BY categoria
+            SELECT c.categoria, COUNT(*) as total,
+                   SUM(CASE WHEN c.status = 'finalizado' THEN 1 ELSE 0 END) as finalizados,
+                   SUM(CASE WHEN c.status != 'finalizado' THEN 1 ELSE 0 END) as abertos
+            FROM chamados c
+            ${where}
+            GROUP BY c.categoria
             ORDER BY total DESC
-        `, [dataInicio, dataFim, ...unidParams]);
+        `, params);
 
         const [porAtendente] = await db.query(`
-            SELECT COALESCE(atendente_nome, tecnico_nome, 'Sem atendente') as atendente,
+            SELECT COALESCE(c.atendente_nome, c.tecnico_nome, 'Sem atendente') as atendente,
                    COUNT(*) as total,
-                   SUM(CASE WHEN status = 'finalizado' THEN 1 ELSE 0 END) as finalizados,
-                   SUM(CASE WHEN status = 'em_atendimento' THEN 1 ELSE 0 END) as em_atendimento,
-                   SUM(CASE WHEN status NOT IN ('finalizado','em_atendimento') THEN 1 ELSE 0 END) as pendentes
-            FROM chamados
-            WHERE DATE(criado_em) BETWEEN ? AND ? ${unidWhere}
+                   SUM(CASE WHEN c.status = 'finalizado' THEN 1 ELSE 0 END) as finalizados,
+                   SUM(CASE WHEN c.status = 'em_atendimento' THEN 1 ELSE 0 END) as em_atendimento,
+                   SUM(CASE WHEN c.status NOT IN ('finalizado','em_atendimento') THEN 1 ELSE 0 END) as pendentes,
+                   ROUND(AVG(CASE
+                       WHEN c.status = 'finalizado' AND c.encerrado_em IS NOT NULL
+                       THEN TIMESTAMPDIFF(MINUTE, c.criado_em, c.encerrado_em)
+                   END)) as sla_medio_minutos
+            FROM chamados c
+            ${where}
             GROUP BY atendente
             ORDER BY total DESC
-        `, [dataInicio, dataFim, ...unidParams]);
+        `, params);
 
         const [porDia] = await db.query(`
-            SELECT DATE_FORMAT(criado_em, '%Y-%m-%d') as dia, COUNT(*) as total
-            FROM chamados
-            WHERE DATE(criado_em) BETWEEN ? AND ? ${unidWhere}
+            SELECT DATE_FORMAT(c.criado_em, '%Y-%m-%d') as dia, COUNT(*) as total
+            FROM chamados c
+            ${where}
             GROUP BY dia
             ORDER BY dia ASC
-        `, [dataInicio, dataFim, ...unidParams]);
+        `, params);
 
         const [porSetorCategoria] = await db.query(`
-            SELECT setor, categoria, COUNT(*) as total
-            FROM chamados
-            WHERE DATE(criado_em) BETWEEN ? AND ? ${unidWhere}
-            GROUP BY setor, categoria
-            ORDER BY setor, total DESC
-        `, [dataInicio, dataFim, ...unidParams]);
+            SELECT c.setor, c.categoria, COUNT(*) as total
+            FROM chamados c
+            ${where}
+            GROUP BY c.setor, c.categoria
+            ORDER BY c.setor, total DESC
+        `, params);
+
+        const [detalhes] = await db.query(`
+            SELECT c.id, c.protocolo, c.solicitante_nome, c.setor, c.categoria, c.status,
+                   COALESCE(c.atendente_nome, c.tecnico_nome) AS atendente_nome,
+                   c.unidade_id, u.nome AS unidade_nome, u.codigo AS unidade_codigo,
+                   c.criado_em, c.iniciado_em, c.encerrado_em, c.observacoes,
+                   TIMESTAMPDIFF(
+                       MINUTE,
+                       c.criado_em,
+                       COALESCE(c.encerrado_em, NOW())
+                   ) AS sla_minutos
+            FROM chamados c
+            LEFT JOIN unidades u ON u.id = c.unidade_id
+            ${where}
+            ORDER BY c.criado_em DESC
+            LIMIT 1000
+        `, params);
+
+        // Categorias disponíveis no escopo (sem filtro de categoria, para popular o select)
+        const unidadeId = resolveUnidadeFiltro(req);
+        const ids = req.session?.unidadeIds;
+        let catWhere = 'WHERE 1=1';
+        const catParams = [];
+        if (unidadeId) {
+            catWhere += ' AND unidade_id = ?';
+            catParams.push(unidadeId);
+        } else if (Array.isArray(ids)) {
+            if (ids.length === 0) {
+                catWhere += ' AND unidade_id IS NULL';
+            } else {
+                const ph = ids.map(() => '?').join(',');
+                catWhere += ` AND (unidade_id IS NULL OR unidade_id IN (${ph}))`;
+                catParams.push(...ids);
+            }
+        }
+        const [categoriasRows] = await db.query(
+            `SELECT DISTINCT categoria FROM chamados ${catWhere} AND categoria IS NOT NULL AND categoria != '' ORDER BY categoria`,
+            catParams
+        );
+
+        const resumo = totalPeriodo[0] || {};
+        resumo.slaMedioMinutos = resumo.sla_medio_minutos != null ? Number(resumo.sla_medio_minutos) : null;
 
         res.json({
             success: true,
-            resumo: totalPeriodo[0],
+            resumo,
             porSetor,
             porCategoria,
             porAtendente,
             porDia,
-            porSetorCategoria
+            porSetorCategoria,
+            detalhes,
+            categorias: categoriasRows.map(r => r.categoria)
         });
     } catch (error) {
         console.error('Erro ao gerar relatório:', error);
         res.status(500).json({ success: false, message: 'Erro ao gerar relatório' });
+    }
+});
+
+app.get('/api/relatorios/chamados.csv', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+        const { dataInicio, dataFim } = req.query;
+        if (!dataInicio || !dataFim) {
+            return res.status(400).send('Informe dataInicio e dataFim');
+        }
+
+        const { sql: where, params } = buildRelatorioWhere(req);
+
+        const [rows] = await db.query(`
+            SELECT c.protocolo, c.solicitante_nome, c.setor, c.categoria, c.status,
+                   COALESCE(c.atendente_nome, c.tecnico_nome, '') AS atendente_nome,
+                   COALESCE(u.codigo, u.nome, '') AS unidade,
+                   c.criado_em, c.encerrado_em, c.observacoes,
+                   TIMESTAMPDIFF(MINUTE, c.criado_em, COALESCE(c.encerrado_em, NOW())) AS sla_minutos
+            FROM chamados c
+            LEFT JOIN unidades u ON u.id = c.unidade_id
+            ${where}
+            ORDER BY c.criado_em DESC
+            LIMIT 5000
+        `, params);
+
+        const esc = (v) => {
+            const s = v == null ? '' : String(v);
+            if (/[",\n\r;]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+            return s;
+        };
+        const fmtDt = (d) => {
+            if (!d) return '';
+            const dt = new Date(d);
+            if (Number.isNaN(dt.getTime())) return '';
+            return dt.toLocaleString('pt-BR');
+        };
+
+        const header = [
+            'Protocolo', 'Solicitante', 'Setor', 'Categoria', 'Status',
+            'Atendente', 'Unidade', 'Criado em', 'Encerrado em', 'SLA (minutos)', 'Observacoes'
+        ].join(';');
+
+        const lines = rows.map(r => [
+            esc(r.protocolo),
+            esc(r.solicitante_nome),
+            esc(r.setor),
+            esc(r.categoria),
+            esc(r.status),
+            esc(r.atendente_nome),
+            esc(r.unidade),
+            esc(fmtDt(r.criado_em)),
+            esc(fmtDt(r.encerrado_em)),
+            esc(r.sla_minutos),
+            esc(r.observacoes)
+        ].join(';'));
+
+        const csv = '\uFEFF' + header + '\n' + lines.join('\n');
+        const filename = `relatorio-chamados-${dataInicio}_${dataFim}.csv`;
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(csv);
+    } catch (error) {
+        console.error('Erro ao exportar CSV:', error);
+        res.status(500).send('Erro ao exportar CSV');
     }
 });
 

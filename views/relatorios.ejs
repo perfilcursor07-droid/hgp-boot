@@ -52,6 +52,64 @@
         }
         .btn-gerar:hover { opacity: 0.9; transform: translateY(-1px); }
         .btn-gerar:disabled { background: #cbd5e1; cursor: not-allowed; transform: none; }
+        .btn-export {
+            padding: 8px 16px;
+            background: #fff;
+            color: #15803d;
+            border: 1.5px solid #86efac;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-export:hover { background: #f0fdf4; }
+        .btn-export:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .rel-preset {
+            display: inline-flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .rel-preset button {
+            padding: 6px 12px;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #475569;
+            cursor: pointer;
+        }
+        .rel-preset button.active {
+            background: #0f172a;
+            color: #fff;
+            border-color: #0f172a;
+        }
+        .rel-filtros select {
+            padding: 8px 10px;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #334155;
+            background: white;
+            min-width: 150px;
+        }
+        .rc-sla::before { background: #0ea5e9; }
+        .rc-sla .num { color: #0284c7; font-size: 20px !important; }
+
+        .rel-detalhe-wrap { max-height: 480px; overflow: auto; }
+        .rel-detalhe-wrap .rel-tbl { margin: 0; }
+        .badge-status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 700;
+        }
+        .bs-pendente { background: #fef3c7; color: #b45309; }
+        .bs-aberto { background: #dcfce7; color: #15803d; }
+        .bs-em_atendimento { background: #dbeafe; color: #1d4ed8; }
+        .bs-finalizado { background: #ede9fe; color: #6d28d9; }
 
         /* Resumo cards compactos */
         .rel-resumo {
@@ -299,11 +357,16 @@
 
         @media print {
             .sidebar, .sidebar-overlay, .sidebar-toggle-btn,
-            .topbar, .rel-filtros, .btn-print { display: none !important; }
+            .topbar, .rel-filtros, .btn-print, .btn-export { display: none !important; }
             .main-content { margin-left: 0 !important; }
             .content { padding: 10px !important; }
             .card { box-shadow: none !important; border: 1px solid #ddd; }
             .rel-panel { break-inside: avoid; }
+            .rel-detalhe-wrap { max-height: none !important; overflow: visible !important; }
+        }
+
+        @media (max-width: 1100px) {
+            .rel-resumo[style] { grid-template-columns: repeat(3, 1fr) !important; }
         }
     </style>
 </head>
@@ -320,6 +383,7 @@
                     <h2>📈 Relatórios</h2>
                 </div>
                 <div class="topbar-actions">
+                    <button onclick="exportarCsv()" class="btn-export" id="btnExport" disabled>⬇ Exportar CSV</button>
                     <button onclick="window.print()" class="btn-print">🖨️ Imprimir</button>
                 </div>
             </div>
@@ -327,6 +391,15 @@
             <div class="content">
                 <div class="card" style="padding: 20px;">
                     <div class="rel-filtros">
+                        <div style="flex:1 1 100%;">
+                            <label>Período rápido</label>
+                            <div class="rel-preset" id="presetBtns">
+                                <button type="button" data-preset="hoje" onclick="aplicarPreset('hoje')">Hoje</button>
+                                <button type="button" data-preset="7dias" onclick="aplicarPreset('7dias')">Últimos 7 dias</button>
+                                <button type="button" data-preset="mes" class="active" onclick="aplicarPreset('mes')">Este mês</button>
+                                <button type="button" data-preset="custom" onclick="aplicarPreset('custom')">Personalizado</button>
+                            </div>
+                        </div>
                         <div>
                             <label>Início</label>
                             <input type="date" id="dataInicio">
@@ -334,6 +407,18 @@
                         <div>
                             <label>Fim</label>
                             <input type="date" id="dataFim">
+                        </div>
+                        <div id="relUnidadeWrap" style="display:none;">
+                            <label>Unidade</label>
+                            <select id="filtroUnidadeRel">
+                                <option value="">Todas do escopo</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>Categoria</label>
+                            <select id="filtroCategoria">
+                                <option value="">Todas</option>
+                            </select>
                         </div>
                         <button id="btnGerar" class="btn-gerar" onclick="gerarRelatorio()">Gerar Relatório</button>
                     </div>
@@ -350,36 +435,142 @@
     </div>
 
     <script>
-        (function() {
-            const h = new Date();
-            const p = new Date(h.getFullYear(), h.getMonth(), 1);
-            document.getElementById('dataInicio').value = p.toISOString().split('T')[0];
-            document.getElementById('dataFim').value = h.toISOString().split('T')[0];
-        })();
-
         const COLORS = {
             abertos: '#22c55e', pendentes: '#f97316',
             atendimento: '#3b82f6', finalizados: '#8b5cf6',
             bars: ['#25D366','#34B7F1','#f97316','#8b5cf6','#ec4899','#eab308','#06b6d4','#ef4444']
         };
 
+        function toISODate(d) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        function aplicarPreset(preset) {
+            const hoje = new Date();
+            const di = document.getElementById('dataInicio');
+            const df = document.getElementById('dataFim');
+            document.querySelectorAll('#presetBtns button').forEach(b => {
+                b.classList.toggle('active', b.dataset.preset === preset);
+            });
+
+            if (preset === 'hoje') {
+                di.value = toISODate(hoje);
+                df.value = toISODate(hoje);
+            } else if (preset === '7dias') {
+                const ini = new Date(hoje);
+                ini.setDate(ini.getDate() - 6);
+                di.value = toISODate(ini);
+                df.value = toISODate(hoje);
+            } else if (preset === 'mes') {
+                di.value = toISODate(new Date(hoje.getFullYear(), hoje.getMonth(), 1));
+                df.value = toISODate(hoje);
+            }
+        }
+
+        function buildQueryParams() {
+            const params = new URLSearchParams();
+            params.set('dataInicio', document.getElementById('dataInicio').value);
+            params.set('dataFim', document.getElementById('dataFim').value);
+            const unid = document.getElementById('filtroUnidadeRel')?.value;
+            if (unid) params.set('unidade_id', unid);
+            const cat = document.getElementById('filtroCategoria')?.value;
+            if (cat) params.set('categoria', cat);
+            return params;
+        }
+
+        async function carregarUnidadesRel() {
+            try {
+                const res = await fetch('/api/me/unidades');
+                const data = await res.json();
+                if (!data.success) return;
+                const wrap = document.getElementById('relUnidadeWrap');
+                const sel = document.getElementById('filtroUnidadeRel');
+                if (!wrap || !sel) return;
+
+                const mostrar = data.todas || (data.unidades && data.unidades.length > 1);
+                if (!mostrar) {
+                    wrap.style.display = 'none';
+                    if (!data.todas && data.unidades?.length === 1) {
+                        sel.innerHTML = `<option value="${data.unidades[0].id}">${data.unidades[0].codigo || data.unidades[0].nome}</option>`;
+                        sel.value = String(data.unidades[0].id);
+                    }
+                    return;
+                }
+
+                wrap.style.display = 'block';
+                const saved = sessionStorage.getItem('relatorios_unidade_id') || '';
+                sel.innerHTML = '<option value="">Todas do escopo</option>' +
+                    (data.unidades || []).map(u =>
+                        `<option value="${u.id}">${u.codigo || u.nome}</option>`
+                    ).join('');
+                if (saved && (data.unidades || []).some(u => String(u.id) === saved)) {
+                    sel.value = saved;
+                }
+                sel.onchange = () => {
+                    if (sel.value) sessionStorage.setItem('relatorios_unidade_id', sel.value);
+                    else sessionStorage.removeItem('relatorios_unidade_id');
+                };
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function atualizarSelectCategorias(lista) {
+            const sel = document.getElementById('filtroCategoria');
+            if (!sel) return;
+            const atual = sel.value;
+            sel.innerHTML = '<option value="">Todas</option>' +
+                (lista || []).map(c => `<option value="${String(c).replace(/"/g, '&quot;')}">${c}</option>`).join('');
+            if (atual && (lista || []).includes(atual)) sel.value = atual;
+        }
+
+        function fmtSla(minutos) {
+            if (minutos == null || minutos === '' || Number.isNaN(Number(minutos))) return '—';
+            const m = Math.max(0, Math.round(Number(minutos)));
+            if (m < 60) return m + 'min';
+            const h = Math.floor(m / 60);
+            const r = m % 60;
+            if (h < 24) return r ? (h + 'h ' + r + 'min') : (h + 'h');
+            const d = Math.floor(h / 24);
+            const rh = h % 24;
+            return rh ? (d + 'd ' + rh + 'h') : (d + 'd');
+        }
+
+        function fmtDateTime(v) {
+            if (!v) return '—';
+            const d = new Date(v);
+            if (Number.isNaN(d.getTime())) return '—';
+            return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function escHtml(s) {
+            return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
         async function gerarRelatorio() {
             const di = document.getElementById('dataInicio').value;
             const df = document.getElementById('dataFim').value;
             const btn = document.getElementById('btnGerar');
             const box = document.getElementById('relatorioContent');
+            const btnExport = document.getElementById('btnExport');
 
             if (!di || !df) { alert('Selecione as datas'); return; }
 
             btn.disabled = true;
             btn.textContent = '⏳ Gerando...';
+            btnExport.disabled = true;
             box.innerHTML = '<div class="rel-empty"><span>⏳</span><p>Carregando...</p></div>';
 
             try {
-                const res = await fetch(`/api/relatorios/chamados?dataInicio=${di}&dataFim=${df}`);
+                const res = await fetch('/api/relatorios/chamados?' + buildQueryParams());
                 const data = await res.json();
-                if (!data.success) throw new Error();
+                if (!data.success) throw new Error(data.message || 'Erro');
+                if (data.categorias) atualizarSelectCategorias(data.categorias);
                 render(data, di, df);
+                btnExport.disabled = false;
             } catch (e) {
                 box.innerHTML = '<div class="rel-empty"><span>❌</span><p>Erro ao gerar relatório</p></div>';
             } finally {
@@ -388,9 +579,16 @@
             }
         }
 
-        function fmtDate(s) { const [y,m,d]=s.split('-'); return `${d}/${m}/${y}`; }
+        function exportarCsv() {
+            const di = document.getElementById('dataInicio').value;
+            const df = document.getElementById('dataFim').value;
+            if (!di || !df) { alert('Selecione as datas'); return; }
+            window.location.href = '/api/relatorios/chamados.csv?' + buildQueryParams();
+        }
 
-        function donutSVG(values, colors, size) {
+        function fmtDate(s) { const [y,m,d]=s.split('-'); return d + '/' + m + '/' + y; }
+
+        function donutSVG(values, colors) {
             const total = values.reduce((a,b) => a+b, 0);
             if (total === 0) return '';
             const r = 40, cx = 55, cy = 55, circ = 2 * Math.PI * r;
@@ -400,14 +598,10 @@
                 if (v === 0) return;
                 const pct = v / total;
                 const dash = pct * circ;
-                paths += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${colors[i]}" stroke-width="14" stroke-dasharray="${dash} ${circ - dash}" stroke-dashoffset="${-offset}" stroke-linecap="round" style="transition: stroke-dasharray 0.6s ease"/>`;
+                paths += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' + colors[i] + '" stroke-width="14" stroke-dasharray="' + dash + ' ' + (circ - dash) + '" stroke-dashoffset="' + (-offset) + '" stroke-linecap="round"/>';
                 offset += dash;
             });
-            return `<svg class="donut-svg" viewBox="0 0 110 110">
-                <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#f1f5f9" stroke-width="14"/>
-                ${paths}
-                <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="18" font-weight="700" fill="#1e293b">${total}</text>
-            </svg>`;
+            return '<svg class="donut-svg" viewBox="0 0 110 110"><circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="#f1f5f9" stroke-width="14"/>' + paths + '<text x="' + cx + '" y="' + cy + '" text-anchor="middle" dominant-baseline="central" font-size="18" font-weight="700" fill="#1e293b">' + total + '</text></svg>';
         }
 
         function render(data, di, df) {
@@ -419,134 +613,126 @@
                 return;
             }
 
-            const maxDia = Math.max(...data.porDia.map(d => d.total), 1);
-            const maxSetor = Math.max(...data.porSetor.map(s => s.total), 1);
-            const maxCat = Math.max(...data.porCategoria.map(c => c.total), 1);
+            const maxDia = Math.max(...(data.porDia || []).map(d => d.total), 1);
+            const maxSetor = Math.max(...(data.porSetor || []).map(s => s.total), 1);
 
-            let h = `<p class="rel-periodo">Período: ${fmtDate(di)} — ${fmtDate(df)}</p>`;
+            let h = '<p class="rel-periodo">Período: ' + fmtDate(di) + ' — ' + fmtDate(df) + '</p>';
 
-            // Resumo compacto
-            h += `<div class="rel-resumo">
-                <div class="rel-resumo-card rc-total"><div class="num">${r.total}</div><div class="lbl">Total</div></div>
-                <div class="rel-resumo-card rc-abertos"><div class="num">${r.abertos}</div><div class="lbl">Abertos</div></div>
-                <div class="rel-resumo-card rc-pendentes"><div class="num">${r.pendentes}</div><div class="lbl">Pendentes</div></div>
-                <div class="rel-resumo-card rc-atendimento"><div class="num">${r.em_atendimento}</div><div class="lbl">Em Atendimento</div></div>
-                <div class="rel-resumo-card rc-finalizados"><div class="num">${r.finalizados}</div><div class="lbl">Finalizados</div></div>
-            </div>`;
+            h += '<div class="rel-resumo" style="grid-template-columns: repeat(6, 1fr);">' +
+                '<div class="rel-resumo-card rc-total"><div class="num">' + r.total + '</div><div class="lbl">Total</div></div>' +
+                '<div class="rel-resumo-card rc-abertos"><div class="num">' + (r.abertos||0) + '</div><div class="lbl">Abertos</div></div>' +
+                '<div class="rel-resumo-card rc-pendentes"><div class="num">' + (r.pendentes||0) + '</div><div class="lbl">Pendentes</div></div>' +
+                '<div class="rel-resumo-card rc-atendimento"><div class="num">' + (r.em_atendimento||0) + '</div><div class="lbl">Em Atendimento</div></div>' +
+                '<div class="rel-resumo-card rc-finalizados"><div class="num">' + (r.finalizados||0) + '</div><div class="lbl">Finalizados</div></div>' +
+                '<div class="rel-resumo-card rc-sla"><div class="num">' + fmtSla(r.slaMedioMinutos ?? r.sla_medio_minutos) + '</div><div class="lbl">SLA médio</div></div>' +
+            '</div>';
 
-            // Grid 2 colunas: gráfico por dia + donut
-            h += `<div class="rel-grid">`;
+            h += '<div class="rel-grid">';
 
-            // Gráfico por dia
-            if (data.porDia.length > 0) {
-                h += `<div class="rel-panel">
-                    <div class="rel-panel-head">📅 Chamados por Dia</div>
-                    <div class="chart-wrap"><div class="chart-bars">`;
+            if ((data.porDia || []).length > 0) {
+                h += '<div class="rel-panel"><div class="rel-panel-head">📅 Chamados por Dia</div><div class="chart-wrap"><div class="chart-bars">';
                 data.porDia.forEach((d, i) => {
                     const pct = (d.total / maxDia) * 100;
-                    const [,m,dia] = d.dia.split('-');
+                    const parts = d.dia.split('-');
                     const color = COLORS.bars[i % COLORS.bars.length];
-                    h += `<div class="chart-col">
-                        <span class="chart-val">${d.total}</span>
-                        <div class="chart-bar" style="height:${Math.max(pct,4)}%; background:${color};" data-tooltip="${dia}/${m}: ${d.total} chamados"></div>
-                        <span class="chart-day">${dia}/${m}</span>
-                    </div>`;
+                    h += '<div class="chart-col"><span class="chart-val">' + d.total + '</span>' +
+                        '<div class="chart-bar" style="height:' + Math.max(pct,4) + '%; background:' + color + ';" data-tooltip="' + parts[2] + '/' + parts[1] + ': ' + d.total + ' chamados"></div>' +
+                        '<span class="chart-day">' + parts[2] + '/' + parts[1] + '</span></div>';
                 });
-                h += `</div></div></div>`;
+                h += '</div></div></div>';
             }
 
-            // Donut status
-            h += `<div class="rel-panel">
-                <div class="rel-panel-head">📊 Distribuição por Status</div>
-                <div class="donut-wrap">
-                    ${donutSVG(
-                        [Number(r.abertos), Number(r.pendentes), Number(r.em_atendimento), Number(r.finalizados)],
-                        [COLORS.abertos, COLORS.pendentes, COLORS.atendimento, COLORS.finalizados]
-                    )}
-                    <div class="donut-legend">
-                        <div class="donut-legend-item"><span class="donut-dot" style="background:${COLORS.abertos}"></span>Abertos<strong>${r.abertos}</strong></div>
-                        <div class="donut-legend-item"><span class="donut-dot" style="background:${COLORS.pendentes}"></span>Pendentes<strong>${r.pendentes}</strong></div>
-                        <div class="donut-legend-item"><span class="donut-dot" style="background:${COLORS.atendimento}"></span>Em Atendimento<strong>${r.em_atendimento}</strong></div>
-                        <div class="donut-legend-item"><span class="donut-dot" style="background:${COLORS.finalizados}"></span>Finalizados<strong>${r.finalizados}</strong></div>
-                    </div>
-                </div>
-            </div>`;
+            h += '<div class="rel-panel"><div class="rel-panel-head">📊 Distribuição por Status</div><div class="donut-wrap">' +
+                donutSVG(
+                    [Number(r.abertos||0), Number(r.pendentes||0), Number(r.em_atendimento||0), Number(r.finalizados||0)],
+                    [COLORS.abertos, COLORS.pendentes, COLORS.atendimento, COLORS.finalizados]
+                ) +
+                '<div class="donut-legend">' +
+                '<div class="donut-legend-item"><span class="donut-dot" style="background:' + COLORS.abertos + '"></span>Abertos<strong>' + (r.abertos||0) + '</strong></div>' +
+                '<div class="donut-legend-item"><span class="donut-dot" style="background:' + COLORS.pendentes + '"></span>Pendentes<strong>' + (r.pendentes||0) + '</strong></div>' +
+                '<div class="donut-legend-item"><span class="donut-dot" style="background:' + COLORS.atendimento + '"></span>Em Atendimento<strong>' + (r.em_atendimento||0) + '</strong></div>' +
+                '<div class="donut-legend-item"><span class="donut-dot" style="background:' + COLORS.finalizados + '"></span>Finalizados<strong>' + (r.finalizados||0) + '</strong></div>' +
+                '</div></div></div>';
 
-            h += `</div>`; // fecha rel-grid
+            h += '</div>';
 
-            // Grid 2 colunas: setor + categoria
-            h += `<div class="rel-grid">`;
-
-            // Por categoria (full width, com visual melhorado)
-            if (data.porCategoria.length > 0) {
-                h += `<div class="rel-panel rel-panel-full">
-                    <div class="rel-panel-head">🏷️ Chamados por Categoria</div>
-                    <div style="display:flex;gap:12px;flex-wrap:wrap;padding:16px;">`;
+            if ((data.porCategoria || []).length > 0) {
+                h += '<div class="rel-grid"><div class="rel-panel rel-panel-full"><div class="rel-panel-head">🏷️ Chamados por Categoria</div><div style="display:flex;gap:12px;flex-wrap:wrap;padding:16px;">';
                 data.porCategoria.forEach((c, i) => {
                     const color = COLORS.bars[i % COLORS.bars.length];
                     const pct = Number(r.total) > 0 ? Math.round((c.total / Number(r.total)) * 100) : 0;
-                    h += `<div style="flex:1;min-width:140px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;border-left:4px solid ${color};">
-                        <div style="font-size:24px;font-weight:700;color:#1e293b;">${c.total}</div>
-                        <div style="font-size:12px;color:#64748b;margin-top:2px;">${c.categoria}</div>
-                        <div style="font-size:11px;color:#94a3b8;margin-top:4px;">${pct}% do total</div>
-                    </div>`;
+                    h += '<div style="flex:1;min-width:140px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;border-left:4px solid ' + color + ';">' +
+                        '<div style="font-size:24px;font-weight:700;color:#1e293b;">' + c.total + '</div>' +
+                        '<div style="font-size:12px;color:#64748b;margin-top:2px;">' + escHtml(c.categoria) + '</div>' +
+                        '<div style="font-size:11px;color:#94a3b8;margin-top:4px;">' + pct + '% do total</div></div>';
                 });
-                h += `</div></div>`;
+                h += '</div></div></div>';
             }
 
-            h += `</div>`;
-
-            // Por setor COM breakdown de categorias (full width)
-            if (data.porSetor.length > 0 && data.porSetorCategoria) {
-                // Agrupar categorias por setor
+            if ((data.porSetor || []).length > 0 && data.porSetorCategoria) {
                 const catPorSetor = {};
                 (data.porSetorCategoria || []).forEach(sc => {
                     if (!catPorSetor[sc.setor]) catPorSetor[sc.setor] = [];
                     catPorSetor[sc.setor].push(sc);
                 });
 
-                h += `<div class="rel-grid"><div class="rel-panel rel-panel-full">
-                    <div class="rel-panel-head">🏢 Chamados por Setor (com detalhamento por categoria)</div>
-                    <table class="rel-tbl"><thead><tr>
-                        <th>Setor</th><th class="c">Total</th><th>Categorias</th><th style="width:25%"></th>
-                    </tr></thead><tbody>`;
+                h += '<div class="rel-grid"><div class="rel-panel rel-panel-full"><div class="rel-panel-head">🏢 Chamados por Setor (com detalhamento por categoria)</div>' +
+                    '<table class="rel-tbl"><thead><tr><th>Setor</th><th class="c">Total</th><th>Categorias</th><th style="width:25%"></th></tr></thead><tbody>';
                 data.porSetor.forEach((s, i) => {
                     const pct = (s.total / maxSetor) * 100;
                     const color = COLORS.bars[i % COLORS.bars.length];
                     const cats = catPorSetor[s.setor] || [];
-                    const catsHtml = cats.map(c => `<span style="display:inline-block;padding:2px 8px;margin:2px;border-radius:12px;font-size:10px;font-weight:600;background:rgba(37,211,102,0.1);color:#16a34a;">${c.categoria} (${c.total})</span>`).join('');
-                    h += `<tr>
-                        <td class="b">${s.setor}</td>
-                        <td class="c b">${s.total}</td>
-                        <td>${catsHtml}</td>
-                        <td><div class="hbar"><div class="hbar-track"><div class="hbar-fill" style="width:${pct}%; background:${color};"></div></div></div></td>
-                    </tr>`;
+                    const catsHtml = cats.map(c => '<span style="display:inline-block;padding:2px 8px;margin:2px;border-radius:12px;font-size:10px;font-weight:600;background:rgba(37,211,102,0.1);color:#16a34a;">' + escHtml(c.categoria) + ' (' + c.total + ')</span>').join('');
+                    h += '<tr><td class="b">' + escHtml(s.setor) + '</td><td class="c b">' + s.total + '</td><td>' + catsHtml + '</td>' +
+                        '<td><div class="hbar"><div class="hbar-track"><div class="hbar-fill" style="width:' + pct + '%; background:' + color + ';"></div></div></div></td></tr>';
                 });
-                h += `</tbody></table></div></div>`;
+                h += '</tbody></table></div></div>';
             }
 
-            // Por atendente (full width)
-            if (data.porAtendente.length > 0) {
-                h += `<div class="rel-grid"><div class="rel-panel rel-panel-full">
-                    <div class="rel-panel-head">👤 Por Atendente</div>
-                    <table class="rel-tbl"><thead><tr>
-                        <th>Atendente</th><th class="c">Total</th><th class="c">Finalizados</th><th class="c">Em Atend.</th><th class="c">Pendentes</th>
-                    </tr></thead><tbody>`;
+            if ((data.porAtendente || []).length > 0) {
+                h += '<div class="rel-grid"><div class="rel-panel rel-panel-full"><div class="rel-panel-head">👤 Por Atendente (nome completo)</div>' +
+                    '<table class="rel-tbl"><thead><tr><th>Atendente</th><th class="c">Total</th><th class="c">Finalizados</th><th class="c">Em Atend.</th><th class="c">Pendentes</th><th class="c">SLA médio</th></tr></thead><tbody>';
                 data.porAtendente.forEach(a => {
                     const pctFin = Number(a.total) > 0 ? Math.round((Number(a.finalizados) / Number(a.total)) * 100) : 0;
-                    h += `<tr>
-                        <td class="b">${a.atendente}</td>
-                        <td class="c b">${a.total}</td>
-                        <td class="c" style="color:#16a34a">${a.finalizados} <small style="color:#94a3b8">(${pctFin}%)</small></td>
-                        <td class="c" style="color:#2563eb">${a.em_atendimento}</td>
-                        <td class="c" style="color:#ea580c">${a.pendentes}</td>
-                    </tr>`;
+                    h += '<tr><td class="b">' + escHtml(a.atendente) + '</td><td class="c b">' + a.total + '</td>' +
+                        '<td class="c" style="color:#16a34a">' + a.finalizados + ' <small style="color:#94a3b8">(' + pctFin + '%)</small></td>' +
+                        '<td class="c" style="color:#2563eb">' + a.em_atendimento + '</td>' +
+                        '<td class="c" style="color:#ea580c">' + a.pendentes + '</td>' +
+                        '<td class="c">' + fmtSla(a.sla_medio_minutos) + '</td></tr>';
                 });
-                h += `</tbody></table></div></div>`;
+                h += '</tbody></table></div></div>';
+            }
+
+            if ((data.detalhes || []).length > 0) {
+                h += '<div class="rel-grid"><div class="rel-panel rel-panel-full"><div class="rel-panel-head">📋 Detalhamento (' + data.detalhes.length + (data.detalhes.length >= 1000 ? '+' : '') + ' chamados)</div>' +
+                    '<div class="rel-detalhe-wrap"><table class="rel-tbl"><thead><tr>' +
+                    '<th>Protocolo</th><th>Solicitante</th><th>Setor</th><th>Categoria</th><th>Status</th><th>Atendente</th><th>Unidade</th><th>Criado</th><th>Encerrado</th><th>SLA</th>' +
+                    '</tr></thead><tbody>';
+                data.detalhes.forEach(c => {
+                    const st = c.status || '';
+                    h += '<tr>' +
+                        '<td class="b" style="font-family:monospace;font-size:11px;">' + escHtml(c.protocolo) + '</td>' +
+                        '<td>' + escHtml(c.solicitante_nome) + '</td>' +
+                        '<td>' + escHtml(c.setor) + '</td>' +
+                        '<td>' + escHtml(c.categoria) + '</td>' +
+                        '<td><span class="badge-status bs-' + st + '">' + escHtml(st.replace('_', ' ')) + '</span></td>' +
+                        '<td class="b">' + escHtml(c.atendente_nome || '—') + '</td>' +
+                        '<td>' + escHtml(c.unidade_codigo || c.unidade_nome || '—') + '</td>' +
+                        '<td style="white-space:nowrap;font-size:11px;">' + fmtDateTime(c.criado_em) + '</td>' +
+                        '<td style="white-space:nowrap;font-size:11px;">' + fmtDateTime(c.encerrado_em) + '</td>' +
+                        '<td class="c">' + fmtSla(c.sla_minutos) + '</td></tr>';
+                });
+                h += '</tbody></table></div></div></div>';
             }
 
             box.innerHTML = h;
         }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            aplicarPreset('mes');
+            await carregarUnidadesRel();
+            gerarRelatorio();
+        });
     </script>
 </body>
 </html>
