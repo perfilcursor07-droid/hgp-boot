@@ -3917,6 +3917,48 @@ app.get('/api/chamados/:id/chat', isAuthenticated, async (req, res) => {
 });
 
 // API - Enviar mensagem do técnico para o solicitante
+// Ao enviar mensagem/mídia: se o chamado ainda está pendente/aberto, o técnico
+// que digitou assume automaticamente o atendimento (sem notificação extra no WA).
+async function assumirAtendimentoAoResponder(chamado, req) {
+    if (!chamado || !req?.session?.userId) return { assumiu: false, chamado };
+    if (req.session.nivelAcesso === 'visualizador') return { assumiu: false, chamado };
+    if (chamado.status === 'finalizado') return { assumiu: false, chamado };
+
+    const atendenteId = req.session.userId;
+    const atendenteNome = req.session.nomeCompleto || req.session.username;
+    const precisaAssumir =
+        chamado.status === 'pendente' ||
+        chamado.status === 'aberto' ||
+        (chamado.status === 'em_atendimento' && !chamado.atendente_id);
+
+    if (!precisaAssumir) return { assumiu: false, chamado };
+
+    // Não roubar chamado que já está com outro técnico
+    if (chamado.status === 'em_atendimento' && chamado.atendente_id && Number(chamado.atendente_id) !== Number(atendenteId)) {
+        return { assumiu: false, chamado };
+    }
+
+    await db.query(
+        `UPDATE chamados
+         SET status = 'em_atendimento',
+             atendente_id = ?,
+             atendente_nome = ?,
+             iniciado_em = COALESCE(iniciado_em, NOW())
+         WHERE id = ?`,
+        [atendenteId, atendenteNome, chamado.id]
+    );
+
+    return {
+        assumiu: true,
+        chamado: {
+            ...chamado,
+            status: 'em_atendimento',
+            atendente_id: atendenteId,
+            atendente_nome: atendenteNome
+        }
+    };
+}
+
 app.post('/api/chamados/:id/chat/enviar', isAuthenticated, async (req, res) => {
     try {
         const chamadoId = req.params.id;
@@ -3928,11 +3970,13 @@ app.post('/api/chamados/:id/chat/enviar', isAuthenticated, async (req, res) => {
         }
 
         // Buscar dados do chamado
-        const [chamado] = await db.query('SELECT * FROM chamados WHERE id = ?', [chamadoId]);
+        const [chamadoRows] = await db.query('SELECT * FROM chamados WHERE id = ?', [chamadoId]);
 
-        if (chamado.length === 0) {
+        if (chamadoRows.length === 0) {
             return res.status(404).json({ success: false, message: 'Chamado não encontrado' });
         }
+
+        const { assumiu, chamado } = await assumirAtendimentoAoResponder(chamadoRows[0], req);
 
         // Salvar mensagem no banco
         await db.query(
@@ -3942,22 +3986,22 @@ app.post('/api/chamados/:id/chat/enviar', isAuthenticated, async (req, res) => {
         );
 
         // Enviar mensagem pelo WhatsApp (escolhendo cliente correto da instância)
-        const wpp = await obterClienteWhatsAppParaChamado(chamado[0]);
-        if (wpp.isConnected && wpp.client && chamado[0].chat_origem) {
+        const wpp = await obterClienteWhatsAppParaChamado(chamado);
+        if (wpp.isConnected && wpp.client && chamado.chat_origem) {
             try {
                 const mensagemWhatsApp = `💬 *MENSAGEM DO ATENDIMENTO*\n\n` +
-                    `📌 *Protocolo:* ${chamado[0].protocolo}\n` +
+                    `📌 *Protocolo:* ${chamado.protocolo}\n` +
                     `👤 *${remetenteNome}:*\n\n` +
                     `${mensagem.trim()}`;
                 
-                await wpp.client.sendMessage(chamado[0].chat_origem, mensagemWhatsApp, { immediate: true });
+                await wpp.client.sendMessage(chamado.chat_origem, mensagemWhatsApp, { immediate: true });
                 
-                res.json({ success: true, message: 'Mensagem enviada com sucesso' });
+                res.json({ success: true, message: 'Mensagem enviada com sucesso', assumiu });
             } catch (error) {
                 console.error('Erro ao enviar mensagem WhatsApp:', error);
                 res.status(500).json({ success: false, message: 'Erro ao enviar mensagem pelo WhatsApp: ' + error.message });
             }
-        } else if (!chamado[0].chat_origem) {
+        } else if (!chamado.chat_origem) {
             res.status(400).json({ success: false, message: 'Chamado sem chat_origem definido (não é possível enviar via WhatsApp)' });
         } else {
             res.status(400).json({ success: false, message: 'WhatsApp da instância deste chamado não está conectado. Verifique em /instancias' });
@@ -4025,10 +4069,12 @@ app.post('/api/chamados/:id/chat/enviar-midia', isAuthenticated, (req, res, next
             }
         }
 
-        const [chamado] = await db.query('SELECT * FROM chamados WHERE id = ?', [chamadoId]);
-        if (chamado.length === 0) {
+        const [chamadoRows] = await db.query('SELECT * FROM chamados WHERE id = ?', [chamadoId]);
+        if (chamadoRows.length === 0) {
             return res.status(404).json({ success: false, message: 'Chamado não encontrado' });
         }
+
+        const { assumiu, chamado } = await assumirAtendimentoAoResponder(chamadoRows[0], req);
 
         await db.query(
             `INSERT INTO chat_messages (chamado_id, remetente_tipo, remetente_nome, mensagem, message_type, media_url, media_mime_type, media_filename)
@@ -4036,21 +4082,21 @@ app.post('/api/chamados/:id/chat/enviar-midia', isAuthenticated, (req, res, next
             [chamadoId, remetenteNome, legenda || `[${messageType}]`, messageType, mediaUrl, mimeType, req.file.originalname]
         );
 
-        const wppMd = await obterClienteWhatsAppParaChamado(chamado[0]);
-        if (wppMd.isConnected && wppMd.client && chamado[0].chat_origem) {
+        const wppMd = await obterClienteWhatsAppParaChamado(chamado);
+        if (wppMd.isConnected && wppMd.client && chamado.chat_origem) {
             try {
                 const filePath = path.join(__dirname, 'public', 'uploads', 'chat-media', req.file.filename);
                 const fileData = await fs.readFile(filePath);
                 const base64 = fileData.toString('base64');
                 const media = new MessageMedia(mimeType, base64, req.file.originalname);
-                const caption = legenda ? `📌 ${chamado[0].protocolo}\n\n${legenda}` : `📌 ${chamado[0].protocolo}`;
-                await wppMd.client.sendMessage(chamado[0].chat_origem, media, { caption });
+                const caption = legenda ? `📌 ${chamado.protocolo}\n\n${legenda}` : `📌 ${chamado.protocolo}`;
+                await wppMd.client.sendMessage(chamado.chat_origem, media, { caption });
             } catch (waError) {
                 console.error('Erro ao enviar mídia pelo WhatsApp:', waError.message);
             }
         }
 
-        res.json({ success: true, message: 'Mídia enviada com sucesso' });
+        res.json({ success: true, message: 'Mídia enviada com sucesso', assumiu });
     } catch (error) {
         console.error('Erro ao enviar mídia (detalhe):', error);
         res.status(500).json({

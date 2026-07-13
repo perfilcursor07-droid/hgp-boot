@@ -2984,6 +2984,17 @@
                 if (result.success) {
                     chatIsFirstLoad = true;
                     await carregarMensagensChat(chamadoId);
+                    if (result.assumiu) {
+                        const c = chamadosState.find(item => Number(item.id) === Number(chamadoId));
+                        if (c) {
+                            c.status = 'em_atendimento';
+                            c.atendente_nome = c.atendente_nome || 'Você';
+                        }
+                        const btnEncerrarChat = document.getElementById('btnEncerrarNoChat');
+                        if (btnEncerrarChat) btnEncerrarChat.style.display = 'flex';
+                        atualizarOverviewChamados();
+                        carregarBannerMeusChamados();
+                    }
                 } else {
                     // Falhou — devolver o texto ao campo para o atendente tentar de novo
                     inputMsg.value = mensagem;
@@ -3022,6 +3033,17 @@
                     removerMidiaPreview();
                     chatIsFirstLoad = true;
                     await carregarMensagensChat(chamadoId);
+                    if (result.assumiu) {
+                        const c = chamadosState.find(item => Number(item.id) === Number(chamadoId));
+                        if (c) {
+                            c.status = 'em_atendimento';
+                            c.atendente_nome = c.atendente_nome || 'Você';
+                        }
+                        const btnEncerrarChat = document.getElementById('btnEncerrarNoChat');
+                        if (btnEncerrarChat) btnEncerrarChat.style.display = 'flex';
+                        atualizarOverviewChamados();
+                        carregarBannerMeusChamados();
+                    }
                 } else {
                     mostrarToast('✗ ' + result.message, 'error');
                 }
