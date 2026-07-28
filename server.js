@@ -193,6 +193,9 @@ let whatsappChatbotController = null;
 let currentQR = null;
 let whatsappState = 'disconnected';
 let whatsappLastError = null;
+let hgpReconnectTimer = null;
+let hgpReconnectAttempts = 0;
+const HGP_RECONNECT_MAX = 20;
 
 const candidateBrowserPaths = [
     process.env.PUPPETEER_EXECUTABLE_PATH,
@@ -223,7 +226,11 @@ const buildPuppeteerConfig = () => {
             '--disable-dev-shm-usage',
             '--disable-gpu',
             '--no-zygote',
-            '--no-first-run'
+            '--no-first-run',
+            '--disable-extensions',
+            '--disable-background-networking',
+            '--disable-software-rasterizer',
+            '--mute-audio'
         ]
     };
 
@@ -232,6 +239,59 @@ const buildPuppeteerConfig = () => {
     }
 
     return config;
+};
+
+const hgpSessionPath = () => path.join(__dirname, '.wwebjs_auth', 'session-admin-session');
+
+const hgpTemSessaoSalva = () => {
+    try {
+        return fsSync.existsSync(hgpSessionPath());
+    } catch (e) {
+        return false;
+    }
+};
+
+const cancelarReconexaoHgp = () => {
+    if (hgpReconnectTimer) {
+        clearTimeout(hgpReconnectTimer);
+        hgpReconnectTimer = null;
+    }
+};
+
+const motivoHgpSemReconexao = (reason) => {
+    const r = String(reason || '');
+    return /LOGOUT|UNPAIRED|logged out|auth_failure|ban|banned/i.test(r);
+};
+
+const agendarReconexaoHgp = (reason = '') => {
+    if (motivoHgpSemReconexao(reason)) {
+        console.log(`[HGP] Sem auto-reconexão (${reason}). É preciso ler o QR de novo em /instancias.`);
+        cancelarReconexaoHgp();
+        hgpReconnectAttempts = 0;
+        return;
+    }
+    if (!hgpTemSessaoSalva()) {
+        console.log('[HGP] Sem pasta de sessão salva — aguardando pareamento via QR.');
+        return;
+    }
+    if (whatsappState === 'connected' || whatsappState === 'connecting') return;
+    if (hgpReconnectAttempts >= HGP_RECONNECT_MAX) {
+        console.error(`[HGP] Limite de ${HGP_RECONNECT_MAX} reconexões atingido. Pare o processo e reconecte pelo painel.`);
+        return;
+    }
+
+    cancelarReconexaoHgp();
+    hgpReconnectAttempts += 1;
+    const delay = Math.min(60000, 3000 * hgpReconnectAttempts);
+    console.log(`[HGP] Reconectando em ${Math.round(delay / 1000)}s (tentativa ${hgpReconnectAttempts}/${HGP_RECONNECT_MAX}) — motivo: ${reason || 'desconhecido'}`);
+    hgpReconnectTimer = setTimeout(() => {
+        hgpReconnectTimer = null;
+        if (whatsappState === 'connected' || whatsappState === 'connecting') return;
+        iniciarWhatsAppLegacy().catch((err) => {
+            console.error('[HGP] Falha na auto-reconexão:', err.message);
+            agendarReconexaoHgp(err.message);
+        });
+    }, delay);
 };
 
 const formatWhatsAppError = (error) => {
@@ -849,6 +909,8 @@ async function iniciarWhatsAppLegacy() {
     if (whatsappState === 'connected') return { ok: true, alreadyConnected: true };
     if (whatsappState === 'connecting' && whatsappClient) return { ok: true, connecting: true };
 
+    cancelarReconexaoHgp();
+
     if (whatsappClient) {
         try { await whatsappClient.destroy(); } catch (e) {}
         whatsappClient = null;
@@ -860,7 +922,8 @@ async function iniciarWhatsAppLegacy() {
 
     whatsappClient = new Client({
         authStrategy: new LocalAuth({ clientId: 'admin-session' }),
-        puppeteer: buildPuppeteerConfig()
+        puppeteer: buildPuppeteerConfig(),
+        restartOnAuthFail: false
     });
 
     whatsappChatbotController = attachChatbot(whatsappClient, { managedByServer: true });
@@ -874,13 +937,16 @@ async function iniciarWhatsAppLegacy() {
             ['admin-session', currentQR, false, currentQR, false]
         );
         await syncLegacyInstanciaStatus('qr_ready', currentQR);
+        console.log('[HGP] QR Code gerado — escaneie no painel /instancias');
     });
 
     whatsappClient.on('ready', async () => {
-        console.log('WhatsApp SESAU conectado!');
+        console.log('[HGP] WhatsApp conectado ✓');
         whatsappState = 'connected';
         whatsappLastError = null;
         currentQR = null;
+        hgpReconnectAttempts = 0;
+        cancelarReconexaoHgp();
         await db.query(
             'UPDATE whatsapp_sessions SET is_connected = ?, last_connected = NOW(), qr_code = NULL WHERE session_name = ?',
             [true, 'admin-session']
@@ -889,18 +955,20 @@ async function iniciarWhatsAppLegacy() {
     });
 
     whatsappClient.on('auth_failure', async (message) => {
-        console.error('Falha de autenticação do WhatsApp:', message);
+        console.error('[HGP] Falha de autenticação:', message);
         whatsappLastError = `Falha de autenticação do WhatsApp: ${message}`;
         await resetWhatsAppRuntime();
+        agendarReconexaoHgp(`auth_failure: ${message}`);
     });
 
     whatsappClient.on('disconnected', async (reason) => {
-        console.log('WhatsApp SESAU desconectado:', reason);
+        console.log('[HGP] WhatsApp desconectado:', reason);
         whatsappLastError = `WhatsApp desconectado: ${reason}`;
         if (whatsappClient) {
             try { await whatsappClient.destroy(); } catch (e) {}
         }
         await resetWhatsAppRuntime();
+        agendarReconexaoHgp(reason);
     });
 
     whatsappClient.on('message', async (message) => {
@@ -920,14 +988,15 @@ async function iniciarWhatsAppLegacy() {
                 );
             }
         } catch (error) {
-            console.error('Erro ao registrar mensagem do WhatsApp:', error);
+            console.error('[HGP] Erro ao registrar mensagem:', error);
         }
     });
 
     whatsappClient.initialize().catch(async (error) => {
-        console.error('Erro ao inicializar cliente WhatsApp:', error);
+        console.error('[HGP] Erro ao inicializar cliente:', error);
         whatsappLastError = formatWhatsAppError(error);
         await resetWhatsAppRuntime();
+        agendarReconexaoHgp(error.message || 'initialize_failed');
     });
 
     return { ok: true, started: true };
@@ -4251,16 +4320,24 @@ async function startServer() {
 
         // Auto-reconectar HGP (legacy) se já existe sessão salva
         try {
-            const legacySessionPath = path.join(__dirname, '.wwebjs_auth', 'session-admin-session');
-            if (fsSync.existsSync(legacySessionPath)) {
+            if (hgpTemSessaoSalva()) {
                 console.log('[HGP] Auto-reconectando WhatsApp legado...');
                 iniciarWhatsAppLegacy().catch(err => {
                     console.error('[HGP] Erro auto-reconnect:', err.message);
+                    agendarReconexaoHgp(err.message);
                 });
             }
         } catch (e) {
             console.error('[HGP] Erro check auto-reconnect:', e.message);
         }
+
+        // Watchdog: se HGP cair sem o evento 'disconnected' disparar, tenta de novo
+        setInterval(() => {
+            if (whatsappState === 'disconnected' && hgpTemSessaoSalva() && !hgpReconnectTimer) {
+                console.log('[HGP] Watchdog: sessão desconectada com pasta salva — agendando reconexão');
+                agendarReconexaoHgp('watchdog');
+            }
+        }, 120000);
 
         app.listen(PORT, () => {
             console.log(`Servidor rodando em http://localhost:${PORT}`);
