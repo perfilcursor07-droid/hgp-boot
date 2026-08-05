@@ -399,6 +399,45 @@
             return prompt;
         }
 
+        const SIM_CAMPOS_BLOQUEIO_HOSPITAL = ['unidade', 'setor'];
+        const SIM_MENSAGEM_BLOQUEIO_HOSPITAL = '❌ Esta central não realiza abertura de chamados para hospitais. Procure o canal de atendimento interno da sua unidade hospitalar.';
+        const SIM_TERMOS_HGP_PERMITIDOS = [
+            /\bhgp\b/,
+            /\bhospital\s+geral\s+publico\b/,
+            /\bhospital\s+geral\s+de\s+palmas\b/
+        ];
+        const SIM_TERMOS_HOSPITAL_BLOQUEADOS = [
+            /\bhrg\b/,
+            /\bhrgua\b/,
+            /\bhra\b/,
+            /\bunacon\b/,
+            /\bpronto\s*socorro\b/,
+            /\bregional\s+de\s+gurupi\b/,
+            /\bregional\s+de\s+guarai\b/,
+            /\bregional\s+de\s+miracema\b/,
+            /\bregional\s+de\s+araguaina\b/,
+            /\bhospital\s+regional\b/,
+            /\bhospital\s+de\s+referencia\b/
+        ];
+
+        function simNormalizarTextoBusca(valor) {
+            return String(valor || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, ' ')
+                .trim();
+        }
+
+        function simContemHospitalBloqueado(valor) {
+            const texto = simNormalizarTextoBusca(valor);
+            if (!texto) return false;
+            if (SIM_TERMOS_HOSPITAL_BLOQUEADOS.some((termo) => termo.test(texto))) return true;
+
+            const mencionaHospital = /\bhospital\b/.test(texto);
+            const ehHgpPermitido = SIM_TERMOS_HGP_PERMITIDOS.some((termo) => termo.test(texto));
+            return mencionaHospital && !ehHgpPermitido;
+        }
         function validarCampo(v, tipo, opcoes) {
             v = String(v||'').trim();
             if (!v) return false;
@@ -505,6 +544,12 @@
                         return;
                     }
                     // Para opcoes, salvar o label da opção escolhida
+                    if (SIM_CAMPOS_BLOQUEIO_HOSPITAL.includes(campo.key) && simContemHospitalBloqueado(texto)) {
+                        simBotMsg(SIM_MENSAGEM_BLOQUEIO_HOSPITAL);
+                        simEstado = { step: 'fim' };
+                        document.getElementById('simInfo').textContent = 'Hospital bloqueado.';
+                        return;
+                    }
                     if (campo.tipo === 'opcoes' && Array.isArray(campo.opcoes)) {
                         const escolhida = campo.opcoes.find(o => String(o.id) === texto);
                         simEstado.dados[campo.key] = escolhida ? escolhida.label : texto;
