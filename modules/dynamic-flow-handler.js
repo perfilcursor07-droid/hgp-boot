@@ -32,12 +32,150 @@ const TERMOS_HOSPITAL_BLOQUEADOS = [
     /\bhra\b/,
     /\bunacon\b/,
     /\bpronto\s*socorro\b/,
-    /\bregional\s+de\s+gurupi\b/,
-    /\bregional\s+de\s+guarai\b/,
-    /\bregional\s+de\s+miracema\b/,
-    /\bregional\s+de\s+araguaina\b/,
     /\bhospital\s+regional\b/,
     /\bhospital\s+de\s+referencia\b/
+];
+const MUNICIPIOS_TOCANTINS_BLOQUEADOS = [
+    "abreulandia",
+    "aguiarnopolis",
+    "alianca do tocantins",
+    "almas",
+    "alvorada",
+    "ananas",
+    "angico",
+    "aparecida do rio negro",
+    "aragominas",
+    "araguacema",
+    "araguacu",
+    "araguaina",
+    "araguana",
+    "araguatins",
+    "arapoema",
+    "arraias",
+    "augustinopolis",
+    "aurora do tocantins",
+    "axixa do tocantins",
+    "babaculandia",
+    "bandeirantes do tocantins",
+    "barra do ouro",
+    "barrolandia",
+    "bernardo sayao",
+    "bom jesus do tocantins",
+    "brasilandia do tocantins",
+    "brejinho de nazare",
+    "buriti do tocantins",
+    "cachoeirinha",
+    "campos lindos",
+    "cariri do tocantins",
+    "carmolandia",
+    "carrasco bonito",
+    "caseara",
+    "centenario",
+    "chapada da natividade",
+    "chapada de areia",
+    "colinas do tocantins",
+    "colmeia",
+    "combinado",
+    "conceicao do tocantins",
+    "couto magalhaes",
+    "cristalandia",
+    "crixas do tocantins",
+    "darcinopolis",
+    "dianopolis",
+    "divinopolis do tocantins",
+    "dois irmaos do tocantins",
+    "duere",
+    "esperantina",
+    "fatima",
+    "figueiropolis",
+    "filadelfia",
+    "formoso do araguaia",
+    "goianorte",
+    "goiatins",
+    "guarai",
+    "gurupi",
+    "ipueiras",
+    "itacaja",
+    "itaguatins",
+    "itapiratins",
+    "itapora do tocantins",
+    "jau do tocantins",
+    "juarina",
+    "lagoa da confusao",
+    "lagoa do tocantins",
+    "lajeado",
+    "lavandeira",
+    "lizarda",
+    "luzinopolis",
+    "marianopolis do tocantins",
+    "mateiros",
+    "maurilandia do tocantins",
+    "miracema do tocantins",
+    "miranorte",
+    "monte do carmo",
+    "monte santo do tocantins",
+    "muricilandia",
+    "natividade",
+    "nazare",
+    "nova olinda",
+    "nova rosalandia",
+    "novo acordo",
+    "novo alegre",
+    "novo jardim",
+    "oliveira de fatima",
+    "palmas",
+    "palmeirante",
+    "palmeiras do tocantins",
+    "palmeiropolis",
+    "paraiso do tocantins",
+    "parana",
+    "pau d arco",
+    "pedro afonso",
+    "peixe",
+    "pequizeiro",
+    "pindorama do tocantins",
+    "piraque",
+    "pium",
+    "ponte alta do bom jesus",
+    "ponte alta do tocantins",
+    "porto alegre do tocantins",
+    "porto nacional",
+    "praia norte",
+    "presidente kennedy",
+    "pugmil",
+    "recursolandia",
+    "riachinho",
+    "rio da conceicao",
+    "rio dos bois",
+    "rio sono",
+    "sampaio",
+    "sandolandia",
+    "santa fe do araguaia",
+    "santa maria do tocantins",
+    "santa rita do tocantins",
+    "santa rosa do tocantins",
+    "santa tereza do tocantins",
+    "santa terezinha do tocantins",
+    "sao bento do tocantins",
+    "sao felix do tocantins",
+    "sao miguel do tocantins",
+    "sao salvador do tocantins",
+    "sao sebastiao do tocantins",
+    "sao valerio",
+    "silvanopolis",
+    "sitio novo do tocantins",
+    "sucupira",
+    "tabocao",
+    "taguatinga",
+    "taipas do tocantins",
+    "talisma",
+    "tocantinia",
+    "tocantinopolis",
+    "tupirama",
+    "tupiratins",
+    "wanderlandia",
+    "xambioa",
+    "fortaleza do tabocao"
 ];
 
 function normalizarTextoBusca(valor) {
@@ -49,20 +187,33 @@ function normalizarTextoBusca(valor) {
         .trim();
 }
 
+function termoNormalizadoPresente(texto, termo) {
+    const escaped = termo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp('\\b' + escaped + '\\b').test(texto);
+}
+
 function contemHospitalBloqueado(valor) {
     const texto = normalizarTextoBusca(valor);
     if (!texto) return false;
+
+    const municipioBloqueado = MUNICIPIOS_TOCANTINS_BLOQUEADOS
+        .find((municipio) => termoNormalizadoPresente(texto, municipio));
+    const ehHgpPermitido = TERMOS_HGP_PERMITIDOS.some((termo) => termo.test(texto));
+
+    if (ehHgpPermitido && (!municipioBloqueado || municipioBloqueado === 'palmas')) {
+        return false;
+    }
 
     if (TERMOS_HOSPITAL_BLOQUEADOS.some((termo) => termo.test(texto))) {
         return true;
     }
 
-    const mencionaHospital = /\bhospital\b/.test(texto);
-    const ehHgpPermitido = TERMOS_HGP_PERMITIDOS.some((termo) => termo.test(texto));
+    if (municipioBloqueado) {
+        return true;
+    }
 
-    return mencionaHospital && !ehHgpPermitido;
+    return /\bhospital\b/.test(texto);
 }
-
 function dadosTemHospitalBloqueado(dados = {}) {
     return CAMPOS_BLOQUEIO_HOSPITAL.some((campo) => contemHospitalBloqueado(dados[campo]));
 }
@@ -164,16 +315,19 @@ function attachDynamicFlow(client, options = {}) {
     const COOLDOWN_POS_TICKET = 60 * 1000; // 1 min após criar chamado
 
     const log = (msg) => console.log(`[DynamicFlow:${instanciaNome}] ${msg}`);
+    async function bloquearHospitalEVoltarMenu(sessionId, chatId) {
+        estados.set(sessionId, { step: 'menu' });
+        clearTimeout(inactivityTimers.get(sessionId));
+        inactivityTimers.delete(sessionId);
+        await client.sendMessage(chatId, MENSAGEM_BLOQUEIO_HOSPITAL + '\n\n' + montarMenuPrincipal());
+        resetInactivityTimer(sessionId, chatId);
+    }
 
     // Cria chamado final + notifica + salva perfil + limpa estado
     async function criarChamadoFinal(est, sessionId, contato, chatId) {
         try {
             if (dadosTemHospitalBloqueado(est.dados)) {
-                await client.sendMessage(chatId, MENSAGEM_BLOQUEIO_HOSPITAL);
-                estados.delete(sessionId);
-                bloquearSessao(sessionId);
-                clearTimeout(inactivityTimers.get(sessionId));
-                inactivityTimers.delete(sessionId);
+                await bloquearHospitalEVoltarMenu(sessionId, chatId);
                 return;
             }
             const { id, protocolo } = await salvarChamado(est, sessionId, contato);
@@ -769,11 +923,7 @@ function attachDynamicFlow(client, options = {}) {
                         est.dados[campo.key] = escolhida ? escolhida.label : texto;
                     } else {
                         if (CAMPOS_BLOQUEIO_HOSPITAL.includes(campo.key) && contemHospitalBloqueado(texto)) {
-                            await client.sendMessage(chatId, MENSAGEM_BLOQUEIO_HOSPITAL);
-                            estados.delete(sessionId);
-                            bloquearSessao(sessionId);
-                            clearTimeout(inactivityTimers.get(sessionId));
-                            inactivityTimers.delete(sessionId);
+                            await bloquearHospitalEVoltarMenu(sessionId, chatId);
                             return;
                         }
 
