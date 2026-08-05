@@ -12,8 +12,7 @@ const FLUXO_DEFAULT = {
             { id: '3', label: 'Telefonia VOIP',          categoria: 'Telefonia VOIP',          camposBloco: 'padrao' },
             { id: '4', label: 'Intranet',                categoria: 'Intranet',                camposBloco: 'padrao', submenu: 'intranet' },
             { id: '5', label: 'Abrir Garantia Positivo', categoria: 'Garantia Positivo',       camposBloco: 'garantia' },
-            { id: '6', label: 'Visita Técnica Hospital/Anexos', categoria: 'Visita Técnica',  camposBloco: 'padrao' },
-            { id: '7', label: 'Outros',                  categoria: 'Outros',                  camposBloco: 'padrao' }
+            { id: '6', label: 'Outros',                  categoria: 'Outros',                  camposBloco: 'padrao' }
         ]
     },
     submenus: {
@@ -89,7 +88,7 @@ const FLUXO_DEFAULT = {
             const [r] = await db.query(
                 `INSERT INTO bot_flows_v2 (nome, descricao, definicao_json, is_default, ativo)
                  VALUES (?, ?, ?, TRUE, TRUE)`,
-                [FLUXO_DEFAULT.nome, 'Fluxo padrão de serviços com 7 categorias e submenu de intranet', JSON.stringify(FLUXO_DEFAULT)]
+                [FLUXO_DEFAULT.nome, 'Fluxo padrão de serviços com 6 categorias e submenu de intranet', JSON.stringify(FLUXO_DEFAULT)]
             );
             console.log('✓ Fluxo padrão inserido (id=' + r.insertId + ')');
         }

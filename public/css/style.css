@@ -1290,11 +1290,29 @@ body.sidebar-collapsed .sidebar-toggle-btn .toggle-chevron {
         display: inline-flex;
     }
 
+    .sidebar-toggle-btn {
+        display: none !important;
+    }
+
     .sidebar {
-        width: min(84vw, 290px);
-        transform: translateX(-110%);
+        width: min(88vw, 320px);
+        max-width: 320px;
+        padding-top: env(safe-area-inset-top);
+        transform: translateX(-105%);
         transition: transform 0.28s ease;
         box-shadow: 0 20px 50px rgba(15, 23, 42, 0.24);
+        /* No mobile o drawer nunca usa sidebar-collapsed do desktop */
+        z-index: 1200;
+    }
+
+    /* Garante que collapsed do desktop não trave o drawer no celular */
+    body.sidebar-collapsed .sidebar {
+        transform: translateX(-105%);
+    }
+
+    body.sidebar-open .sidebar,
+    body.sidebar-collapsed.sidebar-open .sidebar {
+        transform: translateX(0) !important;
     }
 
     .menu-item:hover,
@@ -1303,36 +1321,66 @@ body.sidebar-collapsed .sidebar-toggle-btn .toggle-chevron {
     }
 
     .main-content {
-        margin-left: 0;
+        margin-left: 0 !important;
     }
 
-    body.sidebar-open .sidebar {
-        transform: translateX(0);
+    body.sidebar-collapsed .main-content {
+        margin-left: 0 !important;
     }
 
     body.sidebar-open .sidebar-overlay {
         opacity: 1;
         visibility: visible;
         pointer-events: auto;
-    }
-
-    .topbar,
-    .content {
-        padding: 18px;
+        z-index: 1100;
     }
 
     .topbar {
         position: sticky;
         top: 0;
         z-index: 900;
+        padding: 12px 14px !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 10px !important;
     }
 
-    .topbar-actions {
+    .topbar-title-group {
+        width: auto;
+        flex: 1;
+        min-width: 0;
         gap: 10px;
     }
 
+    .topbar h2 {
+        font-size: 18px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .topbar-actions {
+        width: auto;
+        flex-shrink: 0;
+        justify-content: flex-end;
+        gap: 8px;
+    }
+
+    .menu-toggle {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        flex-shrink: 0;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+    }
+
+    .content {
+        padding: 14px;
+    }
+
     .sidebar-shell {
-        padding: 16px 14px 14px;
+        padding: 14px 12px max(14px, env(safe-area-inset-bottom));
+        gap: 10px;
     }
 
     .dashboard-hero,
@@ -1552,19 +1600,7 @@ body.sidebar-collapsed .sidebar-toggle-btn .toggle-chevron {
     }
 
 @media (max-width: 768px) {
-    .topbar {
-        align-items: flex-start;
-        flex-direction: column;
-        gap: 12px;
-    }
-
-    .topbar-title-group,
     .topbar-actions {
-        width: 100%;
-    }
-
-    .topbar-actions {
-        justify-content: flex-start;
         flex-wrap: wrap;
     }
 

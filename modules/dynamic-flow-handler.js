@@ -19,6 +19,53 @@ function gerarProtocolo(prefixo = 'HGP') {
 
 // Campos que são "pessoais" e devem ser memorizados entre chamados
 const CAMPOS_PESSOAIS = ['nome_completo', 'cpf', 'email', 'telefone'];
+const CAMPOS_BLOQUEIO_HOSPITAL = ['unidade', 'setor'];
+const MENSAGEM_BLOQUEIO_HOSPITAL = '❌ Esta central não realiza abertura de chamados para hospitais. Procure o canal de atendimento interno da sua unidade hospitalar.';
+const TERMOS_HGP_PERMITIDOS = [
+    /\bhgp\b/,
+    /\bhospital\s+geral\s+publico\b/,
+    /\bhospital\s+geral\s+de\s+palmas\b/
+];
+const TERMOS_HOSPITAL_BLOQUEADOS = [
+    /\bhrg\b/,
+    /\bhrgua\b/,
+    /\bhra\b/,
+    /\bunacon\b/,
+    /\bpronto\s*socorro\b/,
+    /\bregional\s+de\s+gurupi\b/,
+    /\bregional\s+de\s+guarai\b/,
+    /\bregional\s+de\s+miracema\b/,
+    /\bregional\s+de\s+araguaina\b/,
+    /\bhospital\s+regional\b/,
+    /\bhospital\s+de\s+referencia\b/
+];
+
+function normalizarTextoBusca(valor) {
+    return String(valor || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+}
+
+function contemHospitalBloqueado(valor) {
+    const texto = normalizarTextoBusca(valor);
+    if (!texto) return false;
+
+    if (TERMOS_HOSPITAL_BLOQUEADOS.some((termo) => termo.test(texto))) {
+        return true;
+    }
+
+    const mencionaHospital = /\bhospital\b/.test(texto);
+    const ehHgpPermitido = TERMOS_HGP_PERMITIDOS.some((termo) => termo.test(texto));
+
+    return mencionaHospital && !ehHgpPermitido;
+}
+
+function dadosTemHospitalBloqueado(dados = {}) {
+    return CAMPOS_BLOQUEIO_HOSPITAL.some((campo) => contemHospitalBloqueado(dados[campo]));
+}
 
 function extrairTelefoneDoSession(sessionId) {
     return String(sessionId || '').replace(/@.*$/, '').replace(/\D/g, '');
@@ -121,6 +168,14 @@ function attachDynamicFlow(client, options = {}) {
     // Cria chamado final + notifica + salva perfil + limpa estado
     async function criarChamadoFinal(est, sessionId, contato, chatId) {
         try {
+            if (dadosTemHospitalBloqueado(est.dados)) {
+                await client.sendMessage(chatId, MENSAGEM_BLOQUEIO_HOSPITAL);
+                estados.delete(sessionId);
+                bloquearSessao(sessionId);
+                clearTimeout(inactivityTimers.get(sessionId));
+                inactivityTimers.delete(sessionId);
+                return;
+            }
             const { id, protocolo } = await salvarChamado(est, sessionId, contato);
             await client.sendMessage(
                 chatId,
@@ -713,6 +768,15 @@ function attachDynamicFlow(client, options = {}) {
                         const escolhida = campo.opcoes.find(o => String(o.id) === texto);
                         est.dados[campo.key] = escolhida ? escolhida.label : texto;
                     } else {
+                        if (CAMPOS_BLOQUEIO_HOSPITAL.includes(campo.key) && contemHospitalBloqueado(texto)) {
+                            await client.sendMessage(chatId, MENSAGEM_BLOQUEIO_HOSPITAL);
+                            estados.delete(sessionId);
+                            bloquearSessao(sessionId);
+                            clearTimeout(inactivityTimers.get(sessionId));
+                            inactivityTimers.delete(sessionId);
+                            return;
+                        }
+
                         // Validação IA para campos de descrição (texto_longo ou key 'descricao')
                         if (campo.tipo === 'texto_longo' || campo.key === 'descricao') {
                             const validacao = await validarDescricao(texto, est.categoria || '');
