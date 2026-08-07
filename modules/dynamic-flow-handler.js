@@ -21,6 +21,7 @@ function gerarProtocolo(prefixo = 'HGP') {
 const CAMPOS_PESSOAIS = ['nome_completo', 'cpf', 'email', 'telefone'];
 const CAMPOS_BLOQUEIO_HOSPITAL = ['unidade', 'setor'];
 const MENSAGEM_BLOQUEIO_HOSPITAL = '❌ Esta central não realiza abertura de chamados para hospitais. Procure o canal de atendimento interno da sua unidade hospitalar.';
+const LABEL_NOME_HOSPITAL = 'Nome do Hospital';
 const TERMOS_HGP_PERMITIDOS = [
     /\bhgp\b/,
     /\bhospital\s+geral\s+publico\b/,
@@ -214,8 +215,25 @@ function contemHospitalBloqueado(valor) {
 
     return /\bhospital\b/.test(texto);
 }
-function dadosTemHospitalBloqueado(dados = {}) {
+function dadosTemHospitalBloqueado(dados = {}, permitirHospitais = false) {
+    if (permitirHospitais) return false;
     return CAMPOS_BLOQUEIO_HOSPITAL.some((campo) => contemHospitalBloqueado(dados[campo]));
+}
+
+function fluxoPermiteHospitais(flowDefinition = {}) {
+    return flowDefinition.permitirHospitais === true || flowDefinition.aceitaHospitais === true;
+}
+
+function unidadeSelecionadaEhHospital(dados = {}) {
+    const unidade = normalizarTextoBusca(dados.unidade);
+    return /\bhospitais?\b/.test(unidade);
+}
+
+function labelCampoParaEstado(campo, estado) {
+    if (campo?.key === 'setor' && unidadeSelecionadaEhHospital(estado?.dados)) {
+        return LABEL_NOME_HOSPITAL;
+    }
+    return campo?.label || '';
 }
 
 function extrairTelefoneDoSession(sessionId) {
@@ -313,6 +331,7 @@ function attachDynamicFlow(client, options = {}) {
     const inactivityTimers = new Map();
     const INACTIVITY_TIMEOUT = (flowDefinition.inatividadeMinutos || 10) * 60 * 1000;
     const COOLDOWN_POS_TICKET = 60 * 1000; // 1 min após criar chamado
+    const permiteHospitais = fluxoPermiteHospitais(flowDefinition);
 
     const log = (msg) => console.log(`[DynamicFlow:${instanciaNome}] ${msg}`);
     async function bloquearHospitalEVoltarMenu(sessionId, chatId) {
@@ -326,7 +345,7 @@ function attachDynamicFlow(client, options = {}) {
     // Cria chamado final + notifica + salva perfil + limpa estado
     async function criarChamadoFinal(est, sessionId, contato, chatId) {
         try {
-            if (dadosTemHospitalBloqueado(est.dados)) {
+            if (dadosTemHospitalBloqueado(est.dados, permiteHospitais)) {
                 await bloquearHospitalEVoltarMenu(sessionId, chatId);
                 return;
             }
@@ -399,9 +418,10 @@ function attachDynamicFlow(client, options = {}) {
         return flowDefinition.blocos?.[blocoKey] || flowDefinition.blocos?.padrao;
     }
 
-    function montarPromptCampo(campo) {
+    function montarPromptCampo(campo, estado = null) {
         const obrig = campo.obrigatorio ? '' : ' _(opcional, envie - para pular)_';
-        let prompt = `📝 *${campo.label}*${obrig}`;
+        const label = labelCampoParaEstado(campo, estado);
+        let prompt = `📝 *${label}*${obrig}`;
 
         // Texto de ajuda/dica do campo (mostrado após o label)
         if (campo.ajuda) {
@@ -814,7 +834,7 @@ function attachDynamicFlow(client, options = {}) {
                         est.step = 'preenchimento';
                         est.campoIdx = 0;
                         const primeiroCampo = bloco.campos[0];
-                        await client.sendMessage(chatId, `📋 Categoria: *${opcao.label}*\n\nVamos coletar seus dados.\n\n` + montarPromptCampo(primeiroCampo));
+                        await client.sendMessage(chatId, `📋 Categoria: *${opcao.label}*\n\nVamos coletar seus dados.\n\n` + montarPromptCampo(primeiroCampo, est));
                     }
                 }
                 resetInactivityTimer(sessionId, chatId);
@@ -847,7 +867,7 @@ function attachDynamicFlow(client, options = {}) {
                     est.step = 'preenchimento';
                     est.campoIdx = 0;
                     const primeiroCampo = bloco.campos[0];
-                    await client.sendMessage(chatId, `📋 Sistema selecionado: *${opcao.label}*\n\nVamos coletar seus dados.\n\n` + montarPromptCampo(primeiroCampo));
+                    await client.sendMessage(chatId, `📋 Sistema selecionado: *${opcao.label}*\n\nVamos coletar seus dados.\n\n` + montarPromptCampo(primeiroCampo, est));
                 }
                 resetInactivityTimer(sessionId, chatId);
                 return;
@@ -865,7 +885,7 @@ function attachDynamicFlow(client, options = {}) {
                         await criarChamadoFinal(est, sessionId, contato, chatId);
                         return;
                     }
-                    await client.sendMessage(chatId, `✅ Dados confirmados!\n\nAgora preciso só dos dados específicos do chamado.\n\n` + montarPromptCampo(proximo));
+                    await client.sendMessage(chatId, `✅ Dados confirmados!\n\nAgora preciso só dos dados específicos do chamado.\n\n` + montarPromptCampo(proximo, est));
                     resetInactivityTimer(sessionId, chatId);
                     return;
                 }
@@ -875,7 +895,7 @@ function attachDynamicFlow(client, options = {}) {
                     est.step = 'preenchimento';
                     est.campoIdx = 0;
                     const primeiro = est.bloco.campos[0];
-                    await client.sendMessage(chatId, `✏️ Vamos editar seus dados.\n\n` + montarPromptCampo(primeiro));
+                    await client.sendMessage(chatId, `✏️ Vamos editar seus dados.\n\n` + montarPromptCampo(primeiro, est));
                     resetInactivityTimer(sessionId, chatId);
                     return;
                 }
@@ -912,7 +932,7 @@ function attachDynamicFlow(client, options = {}) {
                         }
                         await client.sendMessage(
                             chatId,
-                            `❌ Valor inválido para *${campo.label}*.${dica}\n\n` + montarPromptCampo(campo)
+                            `❌ Valor inválido para *${labelCampoParaEstado(campo, est)}*.${dica}\n\n` + montarPromptCampo(campo, est)
                         );
                         resetInactivityTimer(sessionId, chatId);
                         return;
@@ -922,7 +942,7 @@ function attachDynamicFlow(client, options = {}) {
                         const escolhida = campo.opcoes.find(o => String(o.id) === texto);
                         est.dados[campo.key] = escolhida ? escolhida.label : texto;
                     } else {
-                        if (CAMPOS_BLOQUEIO_HOSPITAL.includes(campo.key) && contemHospitalBloqueado(texto)) {
+                        if (!permiteHospitais && CAMPOS_BLOQUEIO_HOSPITAL.includes(campo.key) && contemHospitalBloqueado(texto)) {
                             await bloquearHospitalEVoltarMenu(sessionId, chatId);
                             return;
                         }
@@ -952,7 +972,7 @@ function attachDynamicFlow(client, options = {}) {
                 // Próximo campo
                 if (est.campoIdx < est.bloco.campos.length) {
                     const proximo = est.bloco.campos[est.campoIdx];
-                    await client.sendMessage(chatId, montarPromptCampo(proximo));
+                    await client.sendMessage(chatId, montarPromptCampo(proximo, est));
                     resetInactivityTimer(sessionId, chatId);
                     return;
                 }

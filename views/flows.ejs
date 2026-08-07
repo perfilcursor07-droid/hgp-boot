@@ -383,9 +383,21 @@
             return simFlow.blocos?.[key] || simFlow.blocos?.padrao;
         }
 
-        function montarPromptCampo(c) {
+        function simUnidadeSelecionadaEhHospital(dados = {}) {
+            const unidade = simNormalizarTextoBusca(dados.unidade);
+            return /\bhospitais?\b/.test(unidade);
+        }
+
+        function simLabelCampoParaEstado(c, estado) {
+            if (c?.key === 'setor' && simUnidadeSelecionadaEhHospital(estado?.dados)) {
+                return 'Nome do Hospital';
+            }
+            return c?.label || '';
+        }
+
+        function montarPromptCampo(c, estado = null) {
             const op = c.obrigatorio ? '' : ' _(opcional, envie - para pular)_';
-            let prompt = `📝 *${c.label}*${op}`;
+            let prompt = `📝 *${simLabelCampoParaEstado(c, estado)}*${op}`;
             if (c.ajuda) {
                 prompt += `\n\n_${c.ajuda}_`;
             }
@@ -401,6 +413,9 @@
 
         const SIM_CAMPOS_BLOQUEIO_HOSPITAL = ['unidade', 'setor'];
         const SIM_MENSAGEM_BLOQUEIO_HOSPITAL = '❌ Esta central não realiza abertura de chamados para hospitais. Procure o canal de atendimento interno da sua unidade hospitalar.';
+        function simFluxoPermiteHospitais() {
+            return simFlow?.permitirHospitais === true || simFlow?.aceitaHospitais === true;
+        }
         const SIM_TERMOS_HGP_PERMITIDOS = [
             /\bhgp\b/,
             /\bhospital\s+geral\s+publico\b/,
@@ -658,8 +673,8 @@
                     simEstado.campoIdx = 0;
                     simEstado.dados = {};
                     const campo = simEstado.bloco.campos[0];
-                    simBotMsg(`📋 Categoria: *${opc.label}*\n\nVamos coletar seus dados.\n\n` + montarPromptCampo(campo));
-                    document.getElementById('simInfo').textContent = `Coletando ${campo.label}...`;
+                    simBotMsg(`📋 Categoria: *${opc.label}*\n\nVamos coletar seus dados.\n\n` + montarPromptCampo(campo, simEstado));
+                    document.getElementById('simInfo').textContent = `Coletando ${simLabelCampoParaEstado(campo, simEstado)}...`;
                 }
                 return;
             }
@@ -678,8 +693,8 @@
                 simEstado.campoIdx = 0;
                 simEstado.dados = {};
                 const campo = simEstado.bloco.campos[0];
-                simBotMsg(`📋 Sistema: *${opc.label}*\n\nVamos coletar seus dados.\n\n` + montarPromptCampo(campo));
-                document.getElementById('simInfo').textContent = `Coletando ${campo.label}...`;
+                simBotMsg(`📋 Sistema: *${opc.label}*\n\nVamos coletar seus dados.\n\n` + montarPromptCampo(campo, simEstado));
+                document.getElementById('simInfo').textContent = `Coletando ${simLabelCampoParaEstado(campo, simEstado)}...`;
                 return;
             }
 
@@ -696,11 +711,11 @@
                         else if (campo.tipo === 'opcoes') dica = '\n_Digite o número correspondente à opção desejada._';
                         else if (campo.tipo === 'texto_longo') dica = '\n_Por favor, descreva com mais detalhes (mínimo 5 caracteres)._';
 
-                        simBotMsg(`❌ Valor inválido para *${campo.label}*.${dica}\n\n` + montarPromptCampo(campo));
+                        simBotMsg(`❌ Valor inválido para *${simLabelCampoParaEstado(campo, simEstado)}*.${dica}\n\n` + montarPromptCampo(campo, simEstado));
                         return;
                     }
                     // Para opcoes, salvar o label da opção escolhida
-                    if (SIM_CAMPOS_BLOQUEIO_HOSPITAL.includes(campo.key) && simContemHospitalBloqueado(texto)) {
+                    if (!simFluxoPermiteHospitais() && SIM_CAMPOS_BLOQUEIO_HOSPITAL.includes(campo.key) && simContemHospitalBloqueado(texto)) {
                         simEstado = { step: 'menu' };
                         simBotMsg(SIM_MENSAGEM_BLOQUEIO_HOSPITAL + '\n\n' + montarMenuPrincipal());
                         document.getElementById('simInfo').textContent = 'Aguardando opção do menu...';
@@ -719,8 +734,8 @@
 
                 if (simEstado.campoIdx < simEstado.bloco.campos.length) {
                     const proximo = simEstado.bloco.campos[simEstado.campoIdx];
-                    simBotMsg(montarPromptCampo(proximo));
-                    document.getElementById('simInfo').textContent = `Coletando ${proximo.label}...`;
+                    simBotMsg(montarPromptCampo(proximo, simEstado));
+                    document.getElementById('simInfo').textContent = `Coletando ${simLabelCampoParaEstado(proximo, simEstado)}...`;
                     return;
                 }
 

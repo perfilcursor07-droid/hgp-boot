@@ -316,24 +316,6 @@
                                 <% } %>
                             <% } %>
                         </div>
-                        <div class="conn-actions">
-                            <% const ehAdminLegacy = (typeof isLegacyInstance === 'undefined' || isLegacyInstance) && nivelAcesso === 'administrador'; %>
-                            <% if (ehAdminLegacy) { %>
-                                <% if (!session || !session.is_connected) { %>
-                                    <button id="connectBtn" class="btn-connect">🔗 Conectar</button>
-                                <% } %>
-                                <% if (session && session.is_connected) { %>
-                                    <button id="disconnectBtn" class="btn-disconnect">⛔ Desconectar</button>
-                                <% } else { %>
-                                    <button id="disconnectBtn" class="btn-disconnect" style="display:none;">⛔ Desconectar</button>
-                                <% } %>
-                            <% } %>
-                        </div>
-                        <div id="qrcode-container" style="display:none;">
-                            <h4>📱 Escaneie o QR Code</h4>
-                            <img id="qrcode" src="" alt="QR Code">
-                            <p>Abra o WhatsApp no celular para conectar.</p>
-                        </div>
                     </div>
 
                     <div class="conn-card">
