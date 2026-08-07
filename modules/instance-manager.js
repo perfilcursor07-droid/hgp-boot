@@ -10,16 +10,20 @@ const fsSync = require('fs');
 const path = require('path');
 const db = require('../config/database');
 const { attachDynamicFlow } = require('./dynamic-flow-handler');
+const { normalizarFluxoSesau } = require('./flow-normalizer');
 
 // Pool de instâncias ativas em memória: instanciaId -> { client, controller, status, qr, ... }
 const pool = new Map();
 
-async function carregarFlowDefinition(flowId) {
+async function carregarFlowDefinition(flowId, meta = {}) {
     if (!flowId) return null;
-    const [rows] = await db.query('SELECT definicao_json FROM bot_flows_v2 WHERE id = ? AND ativo = TRUE', [flowId]);
+    const [rows] = await db.query('SELECT nome, definicao_json FROM bot_flows_v2 WHERE id = ? AND ativo = TRUE', [flowId]);
     if (rows.length === 0) return null;
     try {
-        return JSON.parse(rows[0].definicao_json);
+        return normalizarFluxoSesau(JSON.parse(rows[0].definicao_json), {
+            ...meta,
+            flowNome: rows[0].nome
+        });
     } catch (e) {
         console.error('Erro ao parsear definição do flow:', e);
         return null;
@@ -46,7 +50,12 @@ async function iniciarInstancia(instanciaId) {
         }
     }
 
-    const [rows] = await db.query('SELECT * FROM instancias WHERE id = ?', [instanciaId]);
+    const [rows] = await db.query(`
+        SELECT i.*, u.codigo AS unidade_codigo, u.nome AS unidade_nome
+        FROM instancias i
+        LEFT JOIN unidades u ON u.id = i.unidade_id
+        WHERE i.id = ?
+    `, [instanciaId]);
     if (rows.length === 0) throw new Error('Instância não encontrada');
     const inst = rows[0];
 
@@ -58,7 +67,10 @@ async function iniciarInstancia(instanciaId) {
         throw new Error('Instância sem fluxo vinculado. Vincule um fluxo antes de conectar.');
     }
 
-    const flowDefinition = await carregarFlowDefinition(inst.flow_id);
+    const flowDefinition = await carregarFlowDefinition(inst.flow_id, {
+        unidadeCodigo: inst.unidade_codigo,
+        unidadeNome: inst.unidade_nome
+    });
     if (!flowDefinition) throw new Error('Fluxo da instância não encontrado ou inativo');
 
     const client = new BaileysClient({ clientId: inst.session_name });

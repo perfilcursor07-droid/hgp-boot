@@ -18,6 +18,7 @@ const { ensureSchema } = require('./config/ensureSchema');
 const { attachChatbot } = require('./chatbot-handler');
 const instanceManager = require('./modules/instance-manager');
 const mediaManager = require('./modules/media-manager');
+const { normalizarFluxoSesau } = require('./modules/flow-normalizer');
 
 const uploadChatMedia = multer({
     storage: multer.diskStorage({
@@ -1437,7 +1438,19 @@ app.get('/api/flows/:id', isAuthenticated, isAdminOnly, async (req, res) => {
         const [rows] = await db.query('SELECT * FROM bot_flows_v2 WHERE id = ?', [req.params.id]);
         if (rows.length === 0) return res.json({ success: false, message: 'Não encontrado' });
         const flow = rows[0];
-        try { flow.definicao = JSON.parse(flow.definicao_json); } catch (e) { flow.definicao = null; }
+        try {
+            const [unidadesFlow] = await db.query(`
+                SELECT DISTINCT u.codigo, u.nome
+                FROM instancias i
+                LEFT JOIN unidades u ON u.id = i.unidade_id
+                WHERE i.flow_id = ?
+            `, [req.params.id]);
+            flow.definicao = normalizarFluxoSesau(JSON.parse(flow.definicao_json), {
+                flowNome: flow.nome,
+                unidadeCodigos: unidadesFlow.map((u) => u.codigo),
+                unidadeNomes: unidadesFlow.map((u) => u.nome)
+            });
+        } catch (e) { flow.definicao = null; }
         delete flow.definicao_json;
         res.json({ success: true, flow });
     } catch (e) {

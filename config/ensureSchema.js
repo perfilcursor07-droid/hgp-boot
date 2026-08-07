@@ -1,3 +1,5 @@
+const { OPCOES_UNIDADE_SESAU, normalizarFluxoSesau } = require('../modules/flow-normalizer');
+
 async function columnExists(connection, tableName, columnName) {
     const [rows] = await connection.query(
         `SELECT 1
@@ -66,6 +68,86 @@ async function ensureForeignKey(connection, tableName, constraintName, definitio
 
     await connection.query(`ALTER TABLE ${tableName} ADD CONSTRAINT ${constraintName} ${definition}`);
     return true;
+}
+
+function codigoLocalSesau(label) {
+    return String(label || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+}
+
+async function ensureFluxoSesauHospitais(connection) {
+    const changes = [];
+    const [flows] = await connection.query(`
+        SELECT
+            f.id,
+            f.nome,
+            f.definicao_json,
+            GROUP_CONCAT(DISTINCT u.codigo SEPARATOR ',') AS unidade_codigos,
+            GROUP_CONCAT(DISTINCT u.nome SEPARATOR ',') AS unidade_nomes
+        FROM bot_flows_v2 f
+        LEFT JOIN instancias i ON i.flow_id = f.id
+        LEFT JOIN unidades u ON u.id = i.unidade_id
+        WHERE f.ativo = TRUE
+        GROUP BY f.id, f.nome, f.definicao_json
+    `);
+
+    for (const row of flows) {
+        const unidadeCodigos = String(row.unidade_codigos || '').split(',').filter(Boolean);
+        const unidadeNomes = String(row.unidade_nomes || '').split(',').filter(Boolean);
+        let flow;
+
+        try {
+            flow = typeof row.definicao_json === 'string'
+                ? JSON.parse(row.definicao_json)
+                : row.definicao_json;
+        } catch (e) {
+            continue;
+        }
+
+        const antes = JSON.stringify(flow);
+        normalizarFluxoSesau(flow, {
+            flowNome: row.nome,
+            unidadeCodigos,
+            unidadeNomes
+        });
+
+        const depois = JSON.stringify(flow);
+        if (depois !== antes) {
+            await connection.query(
+                'UPDATE bot_flows_v2 SET definicao_json = ? WHERE id = ?',
+                [depois, row.id]
+            );
+            changes.push(`bot_flows_v2.${row.id}.sesau_hospitais`);
+        }
+    }
+
+    const [unidadesSesau] = await connection.query(`
+        SELECT id
+        FROM unidades
+        WHERE ativo = TRUE
+          AND (UPPER(codigo) = 'SESAU' OR LOWER(nome) LIKE '%sesau%')
+    `);
+
+    for (const unidade of unidadesSesau) {
+        for (const opcao of OPCOES_UNIDADE_SESAU) {
+            await connection.query(
+                `INSERT INTO unidade_locais (unidade_id, nome, codigo, ativo)
+                 VALUES (?, ?, ?, TRUE)
+                 ON DUPLICATE KEY UPDATE codigo = VALUES(codigo), ativo = TRUE`,
+                [unidade.id, opcao.label, codigoLocalSesau(opcao.label)]
+            );
+        }
+    }
+
+    if (unidadesSesau.length > 0) {
+        changes.push('unidade_locais.sesau_hospitais');
+    }
+
+    return changes;
 }
 
 const DEFAULT_CHATBOT_FLOW = {
@@ -706,6 +788,12 @@ async function ensureSchema(connection) {
     try {
         await connection.query(`ALTER TABLE chamados ADD COLUMN local_id INT NULL AFTER unidade_id, ADD INDEX idx_chamados_local (local_id)`);
     } catch (e) { /* coluna já existe */ }
+
+    try {
+        changes.push(...await ensureFluxoSesauHospitais(connection));
+    } catch (e) {
+        console.error('Erro ao atualizar Fluxo SESAU para hospitais:', e.message);
+    }
 
     return changes;
 }
