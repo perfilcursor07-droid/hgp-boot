@@ -10,13 +10,21 @@ const FLUXO_HGP = {
         titulo: '🤖 *MENU PRINCIPAL — HGP*',
         opcoes: [
             { id: '1', label: 'Soul MV',           categoria: 'Soul MV',           camposBloco: 'padrao' },
-            { id: '2', label: 'Impressora',        categoria: 'Impressora',        camposBloco: 'padrao' },
+            { id: '2', label: 'Impressora',        categoria: 'Impressora',        camposBloco: 'padrao', submenu: 'impressora' },
             { id: '3', label: 'Suporte Técnico',   categoria: 'Suporte Técnico',   camposBloco: 'padrao' },
             { id: '4', label: 'Telefonia / VOIP',  categoria: 'Telefonia / VOIP',  camposBloco: 'padrao' },
             { id: '5', label: 'Outras',            categoria: 'Outras Solicitações', camposBloco: 'padrao' }
         ]
     },
-    submenus: {},
+    submenus: {
+        impressora: {
+            titulo: '🖨️ *IMPRESSORA*',
+            opcoes: [
+                { id: '1', label: 'Problema Técnico Geral' },
+                { id: '2', label: 'Disponibilidade de toner' }
+            ]
+        }
+    },
     blocos: {
         padrao: {
             campos: [

@@ -71,6 +71,11 @@ function attachChatbot(client, options = {}) {
     const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
     const menuPrincipal = '1️⃣ Soul MV\n2️⃣ Impressora\n3️⃣ Suporte Técnico\n4️⃣ Telefonia / VOIP\n5️⃣ Outras\n6️⃣ Ramais\n\n_Ou envie CANCELAR._';
+    const submenuImpressoraMap = {
+        '1': 'Problema Técnico Geral',
+        '2': 'Disponibilidade de toner'
+    };
+    const menuImpressora = '🖨️ *IMPRESSORA*\n\n*1* - Problema Técnico Geral\n*2* - Disponibilidade de toner\n\n_Digite o número da opção._';
 
     async function resolverIdChatPorNumero(numeroBruto) {
         const variacoes = gerarVariacoesNumero(numeroBruto);
@@ -533,6 +538,57 @@ function attachChatbot(client, options = {}) {
         return '⚠️ Antes de enviar áudio, imagem, vídeo ou outra mensagem, por favor escolha uma das opções do menu digitando o número correspondente.';
     }
 
+    function rotuloCategoria(est) {
+        const cat = categoriasMap[est.opcao] || '';
+        return est.subcategoria ? `${cat} — ${est.subcategoria}` : cat;
+    }
+
+    async function iniciarColetaAposCategoria(est, sessionId, chatId) {
+        const telefoneUsuario = String(sessionId || '').replace(/@.*$/, '').replace(/\D/g, '');
+        if (telefoneUsuario) {
+            try {
+                const [perfilRows] = await db.query(
+                    'SELECT dados_json FROM bot_user_profiles WHERE telefone = ? LIMIT 1',
+                    [telefoneUsuario]
+                );
+                if (perfilRows.length > 0) {
+                    let perfil;
+                    try {
+                        const raw = perfilRows[0].dados_json;
+                        perfil = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                    } catch (e) { perfil = null; }
+
+                    if (perfil && (perfil.nome_completo || perfil.telefone)) {
+                        est.step = 'confirmar_perfil';
+                        est.perfilSalvo = perfil;
+                        const linhas = [
+                            `📋 Categoria: *${rotuloCategoria(est)}*`,
+                            '',
+                            '👋 *Olá novamente!* Já tenho seus dados pessoais salvos:',
+                            ''
+                        ];
+                        if (perfil.nome_completo) linhas.push(`• *NOME COMPLETO:* ${perfil.nome_completo}`);
+                        if (perfil.telefone) linhas.push(`• *TELEFONE:* ${perfil.telefone}`);
+                        linhas.push('', '*1* - Confirmar e seguir');
+                        linhas.push('*2* - Editar meus dados');
+                        linhas.push('', '_Digite o número da opção._');
+                        await client.sendMessage(chatId, linhas.join('\n'));
+                        resetInactivityTimer(sessionId, chatId);
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.error('Erro ao buscar perfil do usuário:', e.message);
+            }
+        }
+
+        est.step = 1;
+        await client.sendMessage(chatId, 'Para garantir a precisão e agilidade no seu atendimento, solicitamos o preenchimento detalhado dos campos abaixo de acordo com a sua necessidade.');
+        await delay(500);
+        await client.sendMessage(chatId, '👤 Seu *Nome Completo*:');
+        resetInactivityTimer(sessionId, chatId);
+    }
+
     function detectarExtensaoMidia(media, msg) {
         const extOriginal = path.extname(media?.filename || '');
         if (extOriginal) {
@@ -864,51 +920,26 @@ function attachChatbot(client, options = {}) {
                     return;
                 }
                 est.opcao = texto;
-                est.step = 1;
 
-                // Verificar se há perfil salvo pelo telefone do usuário
-                const telefoneUsuario = String(sessionId || '').replace(/@.*$/, '').replace(/\D/g, '');
-                if (telefoneUsuario) {
-                    try {
-                        const [perfilRows] = await db.query(
-                            'SELECT dados_json FROM bot_user_profiles WHERE telefone = ? LIMIT 1',
-                            [telefoneUsuario]
-                        );
-                        if (perfilRows.length > 0) {
-                            let perfil;
-                            try {
-                                const raw = perfilRows[0].dados_json;
-                                perfil = typeof raw === 'string' ? JSON.parse(raw) : raw;
-                            } catch (e) { perfil = null; }
-
-                            if (perfil && (perfil.nome_completo || perfil.telefone)) {
-                                est.step = 'confirmar_perfil';
-                                est.perfilSalvo = perfil;
-                                const linhas = [
-                                    `📋 Categoria: *${categoriasMap[est.opcao]}*`,
-                                    '',
-                                    '👋 *Olá novamente!* Já tenho seus dados pessoais salvos:',
-                                    ''
-                                ];
-                                if (perfil.nome_completo) linhas.push(`• *NOME COMPLETO:* ${perfil.nome_completo}`);
-                                if (perfil.telefone) linhas.push(`• *TELEFONE:* ${perfil.telefone}`);
-                                linhas.push('', '*1* - Confirmar e seguir');
-                                linhas.push('*2* - Editar meus dados');
-                                linhas.push('', '_Digite o número da opção._');
-                                await client.sendMessage(chatId, linhas.join('\n'));
-                                resetInactivityTimer(sessionId, chatId);
-                                return;
-                            }
-                        }
-                    } catch (e) {
-                        console.error('Erro ao buscar perfil do usuário:', e.message);
-                    }
+                if (texto === '2') {
+                    est.step = 0.6;
+                    await client.sendMessage(chatId, menuImpressora);
+                    resetInactivityTimer(sessionId, chatId);
+                    return;
                 }
 
-                await client.sendMessage(chatId, 'Para garantir a precisão e agilidade no seu atendimento, solicitamos o preenchimento detalhado dos campos abaixo de acordo com a sua necessidade.');
-                await delay(500);
-                await client.sendMessage(chatId, '👤 Seu *Nome Completo*:');
-                resetInactivityTimer(sessionId, chatId);
+                await iniciarColetaAposCategoria(est, sessionId, chatId);
+                return;
+            }
+
+            if (est.step === 0.6) {
+                if (!submenuImpressoraMap[texto]) {
+                    await client.sendMessage(chatId, '❌ Opção inválida.\n\n' + menuImpressora);
+                    resetInactivityTimer(sessionId, chatId);
+                    return;
+                }
+                est.subcategoria = submenuImpressoraMap[texto];
+                await iniciarColetaAposCategoria(est, sessionId, chatId);
                 return;
             }
 
@@ -981,7 +1012,10 @@ function attachChatbot(client, options = {}) {
             if (est.step === 4) {
                 est.tel = msg.body;
                 est.step = 5;
-                await client.sendMessage(chatId, '📝 Descreva o *Problema*:');
+                const promptDesc = est.subcategoria === 'Disponibilidade de toner'
+                    ? '📝 Informe o *toner para retirada*:\n_Ex: modelo/cor, quantidade e se é urgente._'
+                    : '📝 Descreva o *Problema*:';
+                await client.sendMessage(chatId, promptDesc);
                 resetInactivityTimer(sessionId, chatId);
                 return;
             }
@@ -989,18 +1023,30 @@ function attachChatbot(client, options = {}) {
             if (est.step === 5) {
                 clearInactivityTimer(sessionId);
                 
-                // Validar descrição com IA antes de aceitar
                 const categoria = categoriasMap[est.opcao] || '';
-                const validacao = await validarDescricao(msg.body, categoria);
-                
-                if (!validacao.aprovado) {
-                    // Descrição insuficiente — pedir mais detalhes
-                    await client.sendMessage(chatId, validacao.mensagem);
-                    resetInactivityTimer(sessionId, chatId);
-                    return; // Não avança, fica no step 5 esperando nova descrição
+                const ehToner = est.subcategoria === 'Disponibilidade de toner';
+
+                if (ehToner) {
+                    if (!msg.body || msg.body.trim().length < 3) {
+                        await client.sendMessage(
+                            chatId,
+                            '⚠️ Descreva o toner necessário com um pouco mais de detalhe.\n\n💡 *Exemplo:* "Toner preto acabou, preciso retirar 2 unidades"'
+                        );
+                        resetInactivityTimer(sessionId, chatId);
+                        return;
+                    }
+                } else {
+                    const validacao = await validarDescricao(msg.body, categoria);
+                    if (!validacao.aprovado) {
+                        await client.sendMessage(chatId, validacao.mensagem);
+                        resetInactivityTimer(sessionId, chatId);
+                        return;
+                    }
                 }
-                
-                est.desc = msg.body;
+
+                est.desc = est.subcategoria
+                    ? `[${est.subcategoria}] ${msg.body}`
+                    : msg.body;
                 const protocolo = `HGP-${dayjs().format('DDMM')}-${Math.random().toString(36).substring(2, 5).toUpperCase()}`;
                 
                 // Obter dados do WhatsApp
@@ -1009,7 +1055,7 @@ function attachChatbot(client, options = {}) {
                 
                 const relatorio = `🛠️ *CHAMADO TI HGP*\n` +
                     `📌 *Protocolo:* ${protocolo}\n` +
-                    `📂 *Categoria:* ${categoriasMap[est.opcao]}\n\n` +
+                    `📂 *Categoria:* ${rotuloCategoria(est)}\n\n` +
                     `👤 *Solicitante Informado:* ${est.nome}\n` +
                     `📱 *Telefone Informado:* ${est.tel}\n\n` +
                     `📲 *Nome no WhatsApp:* ${nomeWhatsApp}\n` +
@@ -1017,7 +1063,7 @@ function attachChatbot(client, options = {}) {
                     `🏢 *Setor:* ${est.setor}\n` +
                     `🌐 *IP:* ${est.ip}\n` +
                     (est.codImpressora ? `🖨️ *Cód. Impressora:* ${est.codImpressora}\n` : '') +
-                    `📝 *Problema:* ${est.desc}`;
+                    `📝 *${ehToner ? 'Solicitação' : 'Problema'}:* ${est.desc}`;
 
                 let tecnicoResponsavel = null;
                 let statusChamado = 'pendente';
