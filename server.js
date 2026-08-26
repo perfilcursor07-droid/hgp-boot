@@ -236,7 +236,10 @@ const buildPuppeteerConfig = () => {
             '--disable-extensions',
             '--disable-background-networking',
             '--disable-software-rasterizer',
-            '--mute-audio'
+            '--mute-audio',
+            '--renderer-process-limit=1',
+            '--disable-component-extensions-with-background-pages',
+            '--js-flags=--max-old-space-size=192'
         ],
         handleSIGINT: false,
         handleSIGTERM: false,
