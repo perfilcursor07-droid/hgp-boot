@@ -16,6 +16,7 @@ const multer = require('multer');
 const db = require('./config/database');
 const { ensureSchema } = require('./config/ensureSchema');
 const { attachChatbot } = require('./chatbot-handler');
+const { entregarMensagem } = require('./modules/whatsapp-entrega');
 const instanceManager = require('./modules/instance-manager');
 const mediaManager = require('./modules/media-manager');
 const { normalizarFluxoSesau } = require('./modules/flow-normalizer');
@@ -196,7 +197,11 @@ let whatsappState = 'disconnected';
 let whatsappLastError = null;
 let hgpReconnectTimer = null;
 let hgpReconnectAttempts = 0;
-const HGP_RECONNECT_MAX = 20;
+let hgpConnectingSince = 0;
+let hgpAttemptsResetAt = Date.now();
+let hgpForcando = false;
+const HGP_RECONNECT_MAX = 40;
+const HGP_ATTEMPTS_RESET_MS = 10 * 60 * 1000;
 
 const candidateBrowserPaths = [
     process.env.PUPPETEER_EXECUTABLE_PATH,
@@ -232,7 +237,10 @@ const buildPuppeteerConfig = () => {
             '--disable-background-networking',
             '--disable-software-rasterizer',
             '--mute-audio'
-        ]
+        ],
+        handleSIGINT: false,
+        handleSIGTERM: false,
+        handleSIGHUP: false
     };
 
     if (executablePath) {
@@ -261,7 +269,17 @@ const cancelarReconexaoHgp = () => {
 
 const motivoHgpSemReconexao = (reason) => {
     const r = String(reason || '');
-    return /LOGOUT|UNPAIRED|logged out|auth_failure|ban|banned/i.test(r);
+    return /LOGOUT|UNPAIRED|logged out|ban|banned/i.test(r);
+};
+
+const resetarContadorReconexaoSeExpirou = () => {
+    if (Date.now() - hgpAttemptsResetAt > HGP_ATTEMPTS_RESET_MS) {
+        if (hgpReconnectAttempts > 0) {
+            console.log('[HGP] Contador de reconexões resetado após 10 min');
+        }
+        hgpReconnectAttempts = 0;
+        hgpAttemptsResetAt = Date.now();
+    }
 };
 
 const agendarReconexaoHgp = (reason = '') => {
@@ -276,12 +294,23 @@ const agendarReconexaoHgp = (reason = '') => {
         return;
     }
     if (whatsappState === 'connected' || whatsappState === 'connecting') return;
+
+    resetarContadorReconexaoSeExpirou();
+
     if (hgpReconnectAttempts >= HGP_RECONNECT_MAX) {
-        console.error(`[HGP] Limite de ${HGP_RECONNECT_MAX} reconexões atingido. Pare o processo e reconecte pelo painel.`);
+        console.error(`[HGP] Limite de ${HGP_RECONNECT_MAX} reconexões na janela atual. Nova tentativa em 10 min.`);
+        cancelarReconexaoHgp();
+        hgpReconnectTimer = setTimeout(() => {
+            hgpReconnectTimer = null;
+            hgpReconnectAttempts = 0;
+            hgpAttemptsResetAt = Date.now();
+            agendarReconexaoHgp('retry-apos-limite');
+        }, HGP_ATTEMPTS_RESET_MS);
         return;
     }
 
-    cancelarReconexaoHgp();
+    if (hgpReconnectTimer) return;
+
     hgpReconnectAttempts += 1;
     const delay = Math.min(60000, 3000 * hgpReconnectAttempts);
     console.log(`[HGP] Reconectando em ${Math.round(delay / 1000)}s (tentativa ${hgpReconnectAttempts}/${HGP_RECONNECT_MAX}) — motivo: ${reason || 'desconhecido'}`);
@@ -293,6 +322,91 @@ const agendarReconexaoHgp = (reason = '') => {
             agendarReconexaoHgp(err.message);
         });
     }, delay);
+};
+
+const forcarReconexaoHgp = async (reason = '') => {
+    if (hgpForcando) return;
+    if (motivoHgpSemReconexao(reason)) {
+        agendarReconexaoHgp(reason);
+        return;
+    }
+    if (whatsappState === 'connecting' && currentQR) {
+        return;
+    }
+    hgpForcando = true;
+    console.log(`[HGP] Forçando reconexão (${reason})`);
+    cancelarReconexaoHgp();
+    try {
+        if (whatsappClient) {
+            try { await whatsappClient.destroy(); } catch (e) {}
+        }
+        await resetWhatsAppRuntime();
+        agendarReconexaoHgp(reason);
+    } finally {
+        setTimeout(() => { hgpForcando = false; }, 4000);
+    }
+};
+
+const anexarWatchdogChrome = (client) => {
+    try {
+        if (client.pupPage) {
+            client.pupPage.on('close', () => {
+                console.error('[HGP] Página do Chrome fechou');
+                if (whatsappState === 'connected' || whatsappState === 'connecting') {
+                    forcarReconexaoHgp('puppeteer_page_closed').catch(() => {});
+                }
+            });
+        }
+        if (client.pupBrowser) {
+            client.pupBrowser.on('disconnected', () => {
+                console.error('[HGP] Chrome desconectou');
+                if (whatsappState === 'connected' || whatsappState === 'connecting') {
+                    forcarReconexaoHgp('puppeteer_browser_disconnected').catch(() => {});
+                }
+            });
+        }
+    } catch (e) {
+        console.warn('[HGP] Não foi possível anexar watchdog do Chrome:', e.message);
+    }
+};
+
+const verificarSaudeHgp = async () => {
+    try {
+        resetarContadorReconexaoSeExpirou();
+        if (!hgpTemSessaoSalva()) return;
+
+        if (whatsappState === 'connecting') {
+            if (currentQR) return;
+            if (hgpConnectingSince && Date.now() - hgpConnectingSince > 120000) {
+                await forcarReconexaoHgp('connecting_travado');
+            }
+            return;
+        }
+
+        if (!whatsappClient || whatsappState === 'disconnected' || whatsappState === 'error') {
+            if (!hgpReconnectTimer) agendarReconexaoHgp('watchdog-desconectado');
+            return;
+        }
+
+        if (whatsappState !== 'connected') return;
+
+        let state = null;
+        try {
+            state = await Promise.race([
+                whatsappClient.getState(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('getState timeout')), 12000))
+            ]);
+        } catch (e) {
+            await forcarReconexaoHgp(`getState: ${e.message}`);
+            return;
+        }
+
+        if (state && state !== 'CONNECTED') {
+            await forcarReconexaoHgp(`estado=${state}`);
+        }
+    } catch (e) {
+        console.error('[HGP] Watchdog erro:', e.message);
+    }
 };
 
 const formatWhatsAppError = (error) => {
@@ -918,13 +1032,17 @@ async function iniciarWhatsAppLegacy() {
     }
 
     whatsappState = 'connecting';
+    hgpConnectingSince = Date.now();
     currentQR = null;
     whatsappLastError = null;
 
     whatsappClient = new Client({
         authStrategy: new LocalAuth({ clientId: 'admin-session' }),
         puppeteer: buildPuppeteerConfig(),
-        restartOnAuthFail: false
+        restartOnAuthFail: false,
+        authTimeoutMs: 120000,
+        takeoverOnConflict: true,
+        takeoverTimeoutMs: 10000
     });
 
     whatsappChatbotController = attachChatbot(whatsappClient, { managedByServer: true });
@@ -944,15 +1062,25 @@ async function iniciarWhatsAppLegacy() {
     whatsappClient.on('ready', async () => {
         console.log('[HGP] WhatsApp conectado ✓');
         whatsappState = 'connected';
+        hgpConnectingSince = 0;
         whatsappLastError = null;
         currentQR = null;
         hgpReconnectAttempts = 0;
+        hgpAttemptsResetAt = Date.now();
         cancelarReconexaoHgp();
+        anexarWatchdogChrome(whatsappClient);
         await db.query(
             'UPDATE whatsapp_sessions SET is_connected = ?, last_connected = NOW(), qr_code = NULL WHERE session_name = ?',
             [true, 'admin-session']
         );
         await syncLegacyInstanciaStatus('connected', null);
+    });
+
+    whatsappClient.on('change_state', (state) => {
+        console.log('[HGP] change_state:', state);
+        if (['CONFLICT', 'UNLAUNCHED', 'TIMEOUT'].includes(String(state || ''))) {
+            forcarReconexaoHgp(`change_state:${state}`).catch(() => {});
+        }
     });
 
     whatsappClient.on('auth_failure', async (message) => {
@@ -3653,7 +3781,7 @@ app.post('/api/chamados/:id/encaminhar', isAuthenticated, async (req, res) => {
                     `📊 *Status:* Em Atendimento\n\n` +
                     `Seu chamado foi encaminhado e está sendo atendido.`;
 
-                await wppEnc.client.sendMessage(chamado[0].chat_origem, mensagemSolicitante);
+                await entregarMensagem(wppEnc.client, chamado[0].chat_origem, mensagemSolicitante);
             } catch (error) {
                 console.error('Erro ao enviar WhatsApp para solicitante:', error);
             }
@@ -3802,7 +3930,7 @@ app.post('/api/chamados/:id/atender', isAuthenticated, async (req, res) => {
                         `👤 *Atendente:* ${atendenteNome}\n` +
                         `📊 *Status:* Em Atendimento\n\n` +
                         `Seu chamado está sendo atendido. Em breve entraremos em contato.`;
-                    await wppAt.client.sendMessage(chamado[0].chat_origem, mensagem);
+                    await entregarMensagem(wppAt.client, chamado[0].chat_origem, mensagem);
                 }
             } catch (error) {
                 console.error('Erro ao enviar mensagem WhatsApp (atender):', error.message);
@@ -3888,8 +4016,8 @@ app.post('/api/chamados/:id/encerrar', isAuthenticated, async (req, res) => {
                     );
 
                     if (destinoSolicitante) {
-                        await wppEnc2.client.sendMessage(destinoSolicitante, mensagemEncerramento);
-                        notificacaoEnviada = true;
+                        const okEnc = await entregarMensagem(wppEnc2.client, destinoSolicitante, mensagemEncerramento);
+                        notificacaoEnviada = okEnc;
                     }
                 }
 
@@ -4076,7 +4204,10 @@ app.post('/api/chamados/:id/chat/enviar', isAuthenticated, async (req, res) => {
                     `👤 *${remetenteNome}:*\n\n` +
                     `${mensagem.trim()}`;
                 
-                await wpp.client.sendMessage(chamado.chat_origem, mensagemWhatsApp, { immediate: true });
+                const okEnvio = await entregarMensagem(wpp.client, chamado.chat_origem, mensagemWhatsApp, { options: { immediate: true } });
+                if (!okEnvio) {
+                    return res.status(500).json({ success: false, message: 'WhatsApp não conseguiu entregar a mensagem. Aguarde a reconexão e tente de novo.' });
+                }
                 
                 res.json({ success: true, message: 'Mensagem enviada com sucesso', assumiu });
             } catch (error) {
@@ -4172,7 +4303,7 @@ app.post('/api/chamados/:id/chat/enviar-midia', isAuthenticated, (req, res, next
                 const base64 = fileData.toString('base64');
                 const media = new MessageMedia(mimeType, base64, req.file.originalname);
                 const caption = legenda ? `📌 ${chamado.protocolo}\n\n${legenda}` : `📌 ${chamado.protocolo}`;
-                await wppMd.client.sendMessage(chamado.chat_origem, media, { caption });
+                await entregarMensagem(wppMd.client, chamado.chat_origem, media, { options: { caption } });
             } catch (waError) {
                 console.error('Erro ao enviar mídia pelo WhatsApp:', waError.message);
             }
@@ -4306,6 +4437,9 @@ app.get('/favicon.ico', (req, res) => {
 process.on('uncaughtException', (error) => {
     if (isIgnorableWhatsAppRuntimeError(error)) {
         logRuntimeError('Erro transitório ignorado do WhatsApp', error);
+        if (whatsappState === 'connected' || whatsappState === 'connecting') {
+            forcarReconexaoHgp(error.message || 'uncaughtException').catch(() => {});
+        }
         return;
     }
 
@@ -4315,6 +4449,9 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason) => {
     if (isIgnorableWhatsAppRuntimeError(reason)) {
         logRuntimeError('Promessa rejeitada transitória do WhatsApp', reason);
+        if (whatsappState === 'connected' || whatsappState === 'connecting') {
+            forcarReconexaoHgp(reason?.message || 'unhandledRejection').catch(() => {});
+        }
         return;
     }
 
@@ -4344,13 +4481,11 @@ async function startServer() {
             console.error('[HGP] Erro check auto-reconnect:', e.message);
         }
 
-        // Watchdog: se HGP cair sem o evento 'disconnected' disparar, tenta de novo
+        // Watchdog: detecta Chrome morto, estado zumbi e tenta religar sozinho
         setInterval(() => {
-            if (whatsappState === 'disconnected' && hgpTemSessaoSalva() && !hgpReconnectTimer) {
-                console.log('[HGP] Watchdog: sessão desconectada com pasta salva — agendando reconexão');
-                agendarReconexaoHgp('watchdog');
-            }
-        }, 120000);
+            verificarSaudeHgp().catch((e) => console.error('[HGP] Watchdog:', e.message));
+            instanceManager.reconectarInstanciasCaiadas().catch((e) => console.error('[InstanceManager] Watchdog:', e.message));
+        }, 45000);
 
         app.listen(PORT, () => {
             console.log(`Servidor rodando em http://localhost:${PORT}`);

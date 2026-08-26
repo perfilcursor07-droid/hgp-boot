@@ -6,6 +6,7 @@ const fsPromises = require('fs/promises');
 const { MessageMedia } = require('whatsapp-web.js');
 const db = require('./config/database');
 const { validarDescricao } = require('./modules/ai-description-validator');
+const { entregarMensagem, paresLidPn } = require('./modules/whatsapp-entrega');
 
 const GATILHO_TESTE = 'JOHNTESTE';
 const MEU_NUMERO_SIMULACAO = '5563984425197';
@@ -60,6 +61,7 @@ function attachChatbot(client, options = {}) {
     const mensagensProcessadas = new Map();
     const lidSessionMap = new Map(); // mapeia @lid -> sessionId estável
     const inactivityTimers = new Map(); // timers de inatividade por sessionId
+    let envioAtual = null; // { chat, msg, chatId, sessionId } da mensagem em processamento
     const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutos
     const categoriasMap = {
         '1': 'Soul MV',
@@ -94,41 +96,76 @@ function attachChatbot(client, options = {}) {
         return null;
     }
 
+    async function obterChatDaMensagem(msg) {
+        if (!msg || typeof msg.getChat !== 'function') return null;
+        try {
+            return await msg.getChat();
+        } catch (e) {
+            console.warn('[HGP] getChat falhou:', e.message);
+            return null;
+        }
+    }
+
     async function resolverDestinoMensagem(msg) {
         const contato = await msg.getContact();
         const origem = msg.from;
+        const chat = await obterChatDaMensagem(msg);
+        const chatIdDoChat = chat?.id?._serialized || origem;
 
-        if (!origem.endsWith('@lid')) {
-            return {
-                contato,
-                chatId: origem,
-                sessionId: origem
-            };
+        let pnJid = null;
+        try {
+            const pares = await paresLidPn(client, origem);
+            const par = pares[0];
+            const pn = par?.pn?._serialized || par?.pn || null;
+            if (pn && String(pn).includes('@c.us')) {
+                pnJid = String(pn);
+            }
+        } catch (e) {}
+
+        if (!pnJid && contato?.number) {
+            const digits = String(contato.number).replace(/\D/g, '');
+            if (digits.length >= 10 && digits.length <= 13) {
+                const resolvido = await resolverIdChatPorNumero(contato.number);
+                if (resolvido?.chatId) pnJid = resolvido.chatId;
+            }
         }
 
-        // Para @lid, verificar se já temos um sessionId mapeado
-        if (lidSessionMap.has(origem)) {
-            const cachedSessionId = lidSessionMap.get(origem);
-            return {
-                contato,
-                chatId: cachedSessionId,
-                sessionId: cachedSessionId
-            };
+        if (origem.endsWith('@lid')) {
+            if (lidSessionMap.has(origem)) {
+                const cached = lidSessionMap.get(origem);
+                return {
+                    contato,
+                    chat,
+                    chatId: chatIdDoChat || cached,
+                    sessionId: cached
+                };
+            }
+
+            const sessionId = pnJid || chatIdDoChat || origem;
+            lidSessionMap.set(origem, sessionId);
+            if (pnJid) lidSessionMap.set(pnJid, sessionId);
+
+            return { contato, chat, chatId: chatIdDoChat, sessionId };
         }
-
-        const numeroContato = contato.number || contato.id?.user || '';
-        const resolvido = await resolverIdChatPorNumero(numeroContato);
-        const chatId = resolvido?.chatId || origem;
-        const sessionId = resolvido?.chatId || normalizarNumeroBrasil(numeroContato) || origem;
-
-        // Cachear o mapeamento para manter consistência
-        lidSessionMap.set(origem, sessionId);
 
         return {
             contato,
-            chatId,
-            sessionId
+            chat,
+            chatId: chatIdDoChat || origem,
+            sessionId: origem
         };
+    }
+
+    async function enviarAoUsuario(content, destOverride = null) {
+        const destino = destOverride || envioAtual?.chatId;
+        const ok = await entregarMensagem(client, destino, content, {
+            chat: envioAtual?.chat,
+            msg: envioAtual?.msg
+        });
+        if (!ok) {
+            console.error(`[HGP] Mensagem NÃO entregue para ${destino}`);
+        }
+        return ok;
     }
 
     async function enviarMensagemDireta(numeroBruto, mensagem) {
@@ -138,8 +175,7 @@ function attachChatbot(client, options = {}) {
             return false;
         }
 
-        await client.sendMessage(resolvido.chatId, mensagem);
-        return true;
+        return entregarMensagem(client, resolvido.chatId, mensagem);
     }
 
     async function resolverDestinoSaida(sessionOrChatId) {
@@ -149,12 +185,16 @@ function attachChatbot(client, options = {}) {
             return null;
         }
 
-        if (destino.endsWith('@c.us') || destino.endsWith('@g.us')) {
+        if (destino.endsWith('@c.us') || destino.endsWith('@g.us') || destino.endsWith('@lid')) {
             return destino;
         }
 
+        if (lidSessionMap.has(destino)) {
+            return lidSessionMap.get(destino);
+        }
+
         const resolvido = await resolverIdChatPorNumero(destino);
-        return resolvido?.chatId || null;
+        return resolvido?.chatId || destino;
     }
 
     function liberarSessao(sessionId) {
@@ -187,9 +227,9 @@ function attachChatbot(client, options = {}) {
             if (!estAtual) return; // já foi limpo
 
             try {
-                await client.sendMessage(
-                    chatId,
-                    '⏰ Sua sessão foi encerrada por inatividade (30 minutos sem resposta). Se precisar, envie uma nova mensagem para iniciar o atendimento.'
+                await enviarAoUsuario(
+                    '⏰ Sua sessão foi encerrada por inatividade (30 minutos sem resposta). Se precisar, envie uma nova mensagem para iniciar o atendimento.',
+                    chatId
                 );
             } catch (erro) {
                 console.error(`Erro ao enviar mensagem de inatividade para ${sessionId}:`, erro.message);
@@ -233,12 +273,10 @@ function attachChatbot(client, options = {}) {
         const protocoloTxt = protocolo ? ` (${protocolo})` : '';
 
         try {
-            await client.sendMessage(
-                chatId,
-                `✅ Chamado${protocoloTxt} encerrado com sucesso. Obrigado pelo contato!`
-            );
+            await entregarMensagem(client, chatId, `✅ Chamado${protocoloTxt} encerrado com sucesso. Obrigado pelo contato!`);
             await delay(500);
-            await client.sendMessage(
+            await entregarMensagem(
+                client,
                 chatId,
                 `⭐ *Avalie nosso atendimento*\n\nDe 1 a 5, como foi o atendimento?\n\n1️⃣ Péssimo\n2️⃣ Ruim\n3️⃣ Regular\n4️⃣ Bom\n5️⃣ Excelente\n\n_Digite o número da sua avaliação._\n\n_Sistema versão 2.2 — Desenvolvido por Erick Vinicius (62) 98101-3083_`
             );
@@ -475,12 +513,21 @@ function attachChatbot(client, options = {}) {
     }
 
     async function buscarChamadoAtivo(sessionId) {
-        // Tentar busca exata primeiro
+        const candidatos = new Set([sessionId]);
+        for (const [lid, sid] of lidSessionMap.entries()) {
+            if (sid === sessionId || lid === sessionId) {
+                candidatos.add(lid);
+                candidatos.add(sid);
+            }
+        }
+
+        const lista = [...candidatos].filter(Boolean);
+        const ph = lista.map(() => '?').join(',');
         const [chamadosAtivos] = await db.query(
             `SELECT id, protocolo, atendente_nome, status FROM chamados
-             WHERE chat_origem = ? AND status IN ('pendente', 'aberto', 'em_atendimento')
+             WHERE chat_origem IN (${ph}) AND status IN ('pendente', 'aberto', 'em_atendimento')
              ORDER BY criado_em DESC LIMIT 1`,
-            [sessionId]
+            lista
         );
 
         if (chamadosAtivos.length > 0) {
@@ -572,7 +619,7 @@ function attachChatbot(client, options = {}) {
                         linhas.push('', '*1* - Confirmar e seguir');
                         linhas.push('*2* - Editar meus dados');
                         linhas.push('', '_Digite o número da opção._');
-                        await client.sendMessage(chatId, linhas.join('\n'));
+                        await enviarAoUsuario( linhas.join('\n'));
                         resetInactivityTimer(sessionId, chatId);
                         return;
                     }
@@ -583,9 +630,9 @@ function attachChatbot(client, options = {}) {
         }
 
         est.step = 1;
-        await client.sendMessage(chatId, 'Para garantir a precisão e agilidade no seu atendimento, solicitamos o preenchimento detalhado dos campos abaixo de acordo com a sua necessidade.');
+        await enviarAoUsuario( 'Para garantir a precisão e agilidade no seu atendimento, solicitamos o preenchimento detalhado dos campos abaixo de acordo com a sua necessidade.');
         await delay(500);
-        await client.sendMessage(chatId, '👤 Seu *Nome Completo*:');
+        await enviarAoUsuario( '👤 Seu *Nome Completo*:');
         resetInactivityTimer(sessionId, chatId);
     }
 
@@ -672,7 +719,8 @@ function attachChatbot(client, options = {}) {
             if (String(msg.type || '').includes('call_log')) return;
             if (mensagemJaProcessada(msg)) return;
 
-            const { contato, chatId, sessionId } = await resolverDestinoMensagem(msg);
+            const { contato, chatId, sessionId, chat } = await resolverDestinoMensagem(msg);
+            envioAtual = { chat, msg, chatId, sessionId };
             const texto = msg.body ? msg.body.trim().toUpperCase() : '';
             let est = estados.get(sessionId);
             let chamadoAtivo = null;
@@ -726,13 +774,15 @@ function attachChatbot(client, options = {}) {
                         const ehMidia = msg.hasMedia || ['audio', 'ptt', 'video', 'image', 'document', 'sticker'].includes(tipoMsg);
 
                         if (ehMidia && chamadoAtivo.status !== 'em_atendimento') {
-                            try {
-                                await msg.delete(true);
-                                console.log(`🗑️ Mídia deletada - chamado ${chamadoAtivo.protocolo} aguardando atendimento (${sessionId})`);
-                            } catch (delErr) {
-                                console.log(`⚠️ Não foi possível deletar mídia: ${delErr.message}`);
+                            if (!String(msg.from || '').endsWith('@lid')) {
+                                try {
+                                    await msg.delete(true);
+                                    console.log(`🗑️ Mídia deletada - chamado ${chamadoAtivo.protocolo} aguardando atendimento (${sessionId})`);
+                                } catch (delErr) {
+                                    console.log(`⚠️ Não foi possível deletar mídia: ${delErr.message}`);
+                                }
                             }
-                            await client.sendMessage(chatId, '🚫 *Mídia removida automaticamente.* Você só poderá enviar áudios, imagens e arquivos após um atendente iniciar o atendimento do seu chamado. Aguarde.');
+                            await enviarAoUsuario('🚫 *Mídia removida automaticamente.* Você só poderá enviar áudios, imagens e arquivos após um atendente iniciar o atendimento do seu chamado. Aguarde.');
                             return;
                         }
 
@@ -776,7 +826,7 @@ function attachChatbot(client, options = {}) {
             if (texto === 'CANCELAR') {
                 clearInactivityTimer(sessionId);
                 estados.delete(sessionId);
-                await client.sendMessage(chatId, '❌ Atendimento encerrado.');
+                await enviarAoUsuario( '❌ Atendimento encerrado.');
                 return;
             }
 
@@ -797,7 +847,7 @@ function attachChatbot(client, options = {}) {
                 if (texto !== GATILHO_TESTE && bloqueados.has(sessionId) && Date.now() < bloqueados.get(sessionId)) return;
 
                 if (mensagemAviso && texto !== GATILHO_TESTE) {
-                    await client.sendMessage(chatId, mensagemAviso);
+                    await enviarAoUsuario( mensagemAviso);
                     await delay(800);
                 }
 
@@ -805,19 +855,20 @@ function attachChatbot(client, options = {}) {
                     ? '🧪 *MODO SIMULAÇÃO*'
                     : `*🛠️ TI - HGP*\nOlá, *${contato.pushname || 'Prezado'}*.`;
 
-                await client.sendMessage(chatId, saudacao);
+                await enviarAoUsuario( saudacao);
                 await delay(500);
-                await client.sendMessage(chatId, menuPrincipal);
+                await enviarAoUsuario( menuPrincipal);
                 if (msg.hasMedia && texto !== GATILHO_TESTE) {
-                    // Deletar mídia enviada junto com a primeira mensagem
-                    try {
-                        await msg.delete(true);
-                        console.log(`🗑️ Mídia deletada na entrada do menu (${sessionId})`);
-                    } catch (delErr) {
-                        console.log(`⚠️ Não foi possível deletar mídia na entrada: ${delErr.message}`);
+                    if (!String(msg.from || '').endsWith('@lid')) {
+                        try {
+                            await msg.delete(true);
+                            console.log(`🗑️ Mídia deletada na entrada do menu (${sessionId})`);
+                        } catch (delErr) {
+                            console.log(`⚠️ Não foi possível deletar mídia na entrada: ${delErr.message}`);
+                        }
                     }
                     await delay(400);
-                    await client.sendMessage(chatId, '🚫 *Mídia removida.* Por favor, escolha uma das opções do menu digitando o número correspondente.');
+                    await enviarAoUsuario( '🚫 *Mídia removida.* Por favor, escolha uma das opções do menu digitando o número correspondente.');
                 }
                 estados.set(sessionId, { step: 0.5, nomeWhats: contato.pushname || 'Prezado', isTeste: texto === GATILHO_TESTE });
                 resetInactivityTimer(sessionId, chatId);
@@ -828,14 +879,15 @@ function attachChatbot(client, options = {}) {
             if (est && est.step !== undefined) {
                 const tipoMsg = String(msg.type || '').toLowerCase();
                 if (msg.hasMedia || ['audio', 'ptt', 'video', 'image', 'document', 'sticker', 'call_log'].includes(tipoMsg)) {
-                    // Deletar a mensagem de mídia automaticamente
-                    try {
-                        await msg.delete(true);
-                        console.log(`🗑️ Mídia deletada durante fluxo do bot (${sessionId})`);
-                    } catch (delErr) {
-                        console.log(`⚠️ Não foi possível deletar mídia: ${delErr.message}`);
+                    if (!String(msg.from || '').endsWith('@lid')) {
+                        try {
+                            await msg.delete(true);
+                            console.log(`🗑️ Mídia deletada durante fluxo do bot (${sessionId})`);
+                        } catch (delErr) {
+                            console.log(`⚠️ Não foi possível deletar mídia: ${delErr.message}`);
+                        }
                     }
-                    await client.sendMessage(chatId, '🚫 *Mídia removida automaticamente.* Durante o preenchimento do chamado, só é possível enviar mensagens de texto. Por favor, *digite* sua resposta.');
+                    await enviarAoUsuario( '🚫 *Mídia removida automaticamente.* Durante o preenchimento do chamado, só é possível enviar mensagens de texto. Por favor, *digite* sua resposta.');
                     resetInactivityTimer(sessionId, chatId);
                     return;
                 }
@@ -852,7 +904,7 @@ function attachChatbot(client, options = {}) {
                             [est.chamadoId, est.protocolo, nota, est.atendenteNome, est.solicitanteNome, sessionId]
                         );
                         const emojis = ['', '😞', '😕', '😐', '😊', '🤩'];
-                        await client.sendMessage(chatId, `${emojis[nota]} Obrigado pela avaliação! Sua nota: *${nota}/5*`);
+                        await enviarAoUsuario( `${emojis[nota]} Obrigado pela avaliação! Sua nota: *${nota}/5*`);
 
                         // Se nota baixa (1-3), pedir motivo
                         if (nota <= 3) {
@@ -861,20 +913,17 @@ function attachChatbot(client, options = {}) {
                                 avaliacaoId: r.insertId,
                                 protocolo: est.protocolo
                             });
-                            await client.sendMessage(
-                                chatId,
-                                '📝 Lamentamos que sua experiência não tenha sido boa. *Você gostaria de nos dizer o motivo?*\n\nDigite o motivo ou envie *NAO* para finalizar sem informar.'
-                            );
+                            await enviarAoUsuario('📝 Lamentamos que sua experiência não tenha sido boa. *Você gostaria de nos dizer o motivo?*\n\nDigite o motivo ou envie *NAO* para finalizar sem informar.');
                             return;
                         }
                     } catch (erro) {
                         registrarErro(erro, 'Erro ao salvar avaliação');
-                        await client.sendMessage(chatId, '✓ Obrigado pelo feedback!');
+                        await enviarAoUsuario( '✓ Obrigado pelo feedback!');
                     }
                     estados.delete(sessionId);
                     return;
                 } else {
-                    await client.sendMessage(chatId, '⚠️ Por favor, digite um número de *1 a 5* para avaliar.');
+                    await enviarAoUsuario( '⚠️ Por favor, digite um número de *1 a 5* para avaliar.');
                     return;
                 }
             }
@@ -883,12 +932,12 @@ function attachChatbot(client, options = {}) {
             if (est.step === 'avaliacao_motivo') {
                 const motivo = texto.trim();
                 if (motivo.toUpperCase() === 'NAO' || motivo.toUpperCase() === 'NÃO') {
-                    await client.sendMessage(chatId, '✓ Tudo bem! Obrigado pelo feedback.');
+                    await enviarAoUsuario( '✓ Tudo bem! Obrigado pelo feedback.');
                     estados.delete(sessionId);
                     return;
                 }
                 if (motivo.length < 3) {
-                    await client.sendMessage(chatId, '⚠️ Por favor, descreva o motivo com mais detalhes ou envie *NAO* para finalizar.');
+                    await enviarAoUsuario( '⚠️ Por favor, descreva o motivo com mais detalhes ou envie *NAO* para finalizar.');
                     return;
                 }
                 try {
@@ -896,10 +945,10 @@ function attachChatbot(client, options = {}) {
                         `UPDATE avaliacoes SET motivo_usuario = ? WHERE id = ?`,
                         [motivo, est.avaliacaoId]
                     );
-                    await client.sendMessage(chatId, '✅ Obrigado! Seu feedback foi registrado e será analisado pela equipe.');
+                    await enviarAoUsuario( '✅ Obrigado! Seu feedback foi registrado e será analisado pela equipe.');
                 } catch (erro) {
                     registrarErro(erro, 'Erro ao salvar motivo da avaliação');
-                    await client.sendMessage(chatId, '✓ Obrigado pelo feedback!');
+                    await enviarAoUsuario( '✓ Obrigado pelo feedback!');
                 }
                 estados.delete(sessionId);
                 return;
@@ -909,21 +958,21 @@ function attachChatbot(client, options = {}) {
                 if (texto === '6') {
                     const pdf = path.join(__dirname, 'RAMAIS TELEFÔNICOS - HGP.pdf');
                     if (fs.existsSync(pdf)) {
-                        await client.sendMessage(chatId, MessageMedia.fromFilePath(pdf));
+                        await enviarAoUsuario( MessageMedia.fromFilePath(pdf));
                     }
                     estados.delete(sessionId);
                     return;
                 }
 
                 if (!categoriasMap[texto]) {
-                    await client.sendMessage(chatId, mensagemEscolhaOpcao());
+                    await enviarAoUsuario( mensagemEscolhaOpcao());
                     return;
                 }
                 est.opcao = texto;
 
                 if (texto === '2') {
                     est.step = 0.6;
-                    await client.sendMessage(chatId, menuImpressora);
+                    await enviarAoUsuario( menuImpressora);
                     resetInactivityTimer(sessionId, chatId);
                     return;
                 }
@@ -934,7 +983,7 @@ function attachChatbot(client, options = {}) {
 
             if (est.step === 0.6) {
                 if (!submenuImpressoraMap[texto]) {
-                    await client.sendMessage(chatId, '❌ Opção inválida.\n\n' + menuImpressora);
+                    await enviarAoUsuario( '❌ Opção inválida.\n\n' + menuImpressora);
                     resetInactivityTimer(sessionId, chatId);
                     return;
                 }
@@ -950,22 +999,22 @@ function attachChatbot(client, options = {}) {
                     est.nome = est.perfilSalvo.nome_completo || '';
                     est.tel = est.perfilSalvo.telefone || '';
                     est.step = 2;
-                    await client.sendMessage(chatId, '✅ Dados confirmados!');
+                    await enviarAoUsuario( '✅ Dados confirmados!');
                     await delay(400);
-                    await client.sendMessage(chatId, '🏢 Seu *Setor e Ala*:');
+                    await enviarAoUsuario( '🏢 Seu *Setor e Ala*:');
                     resetInactivityTimer(sessionId, chatId);
                     return;
                 }
                 if (texto === '2') {
                     // Editar — começar do zero
                     est.step = 1;
-                    await client.sendMessage(chatId, '✏️ Vamos atualizar seus dados.');
+                    await enviarAoUsuario( '✏️ Vamos atualizar seus dados.');
                     await delay(400);
-                    await client.sendMessage(chatId, '👤 Seu *Nome Completo*:');
+                    await enviarAoUsuario( '👤 Seu *Nome Completo*:');
                     resetInactivityTimer(sessionId, chatId);
                     return;
                 }
-                await client.sendMessage(chatId, '❌ Opção inválida. Digite *1* para confirmar ou *2* para editar.');
+                await enviarAoUsuario( '❌ Opção inválida. Digite *1* para confirmar ou *2* para editar.');
                 resetInactivityTimer(sessionId, chatId);
                 return;
             }
@@ -973,7 +1022,7 @@ function attachChatbot(client, options = {}) {
             if (est.step === 1) {
                 est.nome = msg.body;
                 est.step = 2;
-                await client.sendMessage(chatId, '🏢 Seu *Setor e Ala*:');
+                await enviarAoUsuario( '🏢 Seu *Setor e Ala*:');
                 resetInactivityTimer(sessionId, chatId);
                 return;
             }
@@ -981,7 +1030,7 @@ function attachChatbot(client, options = {}) {
             if (est.step === 2) {
                 est.setor = msg.body;
                 est.step = 3;
-                await client.sendMessage(chatId, '🌐 *IP do computador:*\nFica no canto superior direito do seu papel de parede (Ex: 10.75.16.1).');
+                await enviarAoUsuario( '🌐 *IP do computador:*\nFica no canto superior direito do seu papel de parede (Ex: 10.75.16.1).');
                 resetInactivityTimer(sessionId, chatId);
                 return;
             }
@@ -991,12 +1040,12 @@ function attachChatbot(client, options = {}) {
                 // Se categoria for Impressora, pedir código
                 if (est.opcao === '2') {
                     est.step = 3.5;
-                    await client.sendMessage(chatId, '🖨️ *Código da impressora:*\nFica colado no próprio equipamento (Ex: TC1020).');
+                    await enviarAoUsuario( '🖨️ *Código da impressora:*\nFica colado no próprio equipamento (Ex: TC1020).');
                     resetInactivityTimer(sessionId, chatId);
                     return;
                 }
                 est.step = 4;
-                await client.sendMessage(chatId, '📱 *Telefone* de contato:');
+                await enviarAoUsuario( '📱 *Telefone* de contato:');
                 resetInactivityTimer(sessionId, chatId);
                 return;
             }
@@ -1004,7 +1053,7 @@ function attachChatbot(client, options = {}) {
             if (est.step === 3.5) {
                 est.codImpressora = msg.body;
                 est.step = 4;
-                await client.sendMessage(chatId, '📱 *Telefone* de contato:');
+                await enviarAoUsuario( '📱 *Telefone* de contato:');
                 resetInactivityTimer(sessionId, chatId);
                 return;
             }
@@ -1015,7 +1064,7 @@ function attachChatbot(client, options = {}) {
                 const promptDesc = est.subcategoria === 'Disponibilidade de toner'
                     ? '📝 Informe o *toner para retirada*:\n_Ex: modelo/cor, quantidade e se é urgente._'
                     : '📝 Descreva o *Problema*:';
-                await client.sendMessage(chatId, promptDesc);
+                await enviarAoUsuario( promptDesc);
                 resetInactivityTimer(sessionId, chatId);
                 return;
             }
@@ -1028,17 +1077,14 @@ function attachChatbot(client, options = {}) {
 
                 if (ehToner) {
                     if (!msg.body || msg.body.trim().length < 3) {
-                        await client.sendMessage(
-                            chatId,
-                            '⚠️ Descreva o toner necessário com um pouco mais de detalhe.\n\n💡 *Exemplo:* "Toner preto acabou, preciso retirar 2 unidades"'
-                        );
+                        await enviarAoUsuario('⚠️ Descreva o toner necessário com um pouco mais de detalhe.\n\n💡 *Exemplo:* "Toner preto acabou, preciso retirar 2 unidades"');
                         resetInactivityTimer(sessionId, chatId);
                         return;
                     }
                 } else {
                     const validacao = await validarDescricao(msg.body, categoria);
                     if (!validacao.aprovado) {
-                        await client.sendMessage(chatId, validacao.mensagem);
+                        await enviarAoUsuario( validacao.mensagem);
                         resetInactivityTimer(sessionId, chatId);
                         return;
                     }
@@ -1069,8 +1115,8 @@ function attachChatbot(client, options = {}) {
                 let statusChamado = 'pendente';
                 let atribuidoEm = null;
 
-                await client.sendMessage(chatId, relatorio);
-                await client.sendMessage(chatId, '✅ Registrado e enviado ao técnico.');
+                await enviarAoUsuario( relatorio);
+                await enviarAoUsuario( '✅ Registrado e enviado ao técnico.');
 
                 if (est.isTeste) {
                     await enviarMensagemDireta(MEU_NUMERO_SIMULACAO, `🧪 *TESTE DE ENVIO*:\n\n${relatorio}`);

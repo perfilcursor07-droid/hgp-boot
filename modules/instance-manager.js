@@ -183,6 +183,18 @@ async function iniciarInstancia(instanciaId) {
         console.log(`[Instance:${inst.nome}] Desconectado: ${reason}`);
         try { await client.destroy(); } catch (e) {}
         pool.delete(instanciaId);
+
+        const motivo = String(reason || '');
+        const precisaQr = /LOGOUT|BANIDO|UNPAIRED|logged out/i.test(motivo);
+        if (!precisaQr) {
+            console.log(`[Instance:${inst.nome}] Auto-reativando em 6s...`);
+            setTimeout(() => {
+                if (pool.has(instanciaId)) return;
+                iniciarInstancia(instanciaId).catch(err => {
+                    console.error(`[Instance:${inst.nome}] Falha ao auto-reativar:`, err.message);
+                });
+            }, 6000);
+        }
     });
 
     client.initialize().catch(async (e) => {
@@ -241,6 +253,42 @@ function listarInstanciasAtivas() {
 }
 
 // Sincroniza ao iniciar — reconecta automaticamente instâncias ativas
+async function reconectarInstanciasCaiadas() {
+    try {
+        const [insts] = await db.query(
+            `SELECT id, session_name, nome FROM instancias WHERE is_legacy = FALSE AND ativo = TRUE`
+        );
+        const sessionDir = path.join(__dirname, '..', '.baileys_auth');
+        for (const inst of insts) {
+            const sessionPath = path.join(sessionDir, inst.session_name);
+            if (!fsSync.existsSync(sessionPath)) continue;
+
+            const entry = pool.get(inst.id);
+            if (!entry) {
+                console.log(`[InstanceManager] Watchdog: ${inst.nome} fora do pool — reconectando`);
+                iniciarInstancia(inst.id).catch(err => {
+                    console.error(`[InstanceManager] Falha watchdog ${inst.nome}:`, err.message);
+                });
+                continue;
+            }
+
+            const caiuHa = entry.client?._disconnectedAt ? (Date.now() - entry.client._disconnectedAt) : 0;
+            const clienteCaiu = entry.client && entry.client.isConnected === false
+                && (entry.status === 'connected' || entry.status === 'error' || entry.status === 'disconnected')
+                && caiuHa > 90000;
+            if (clienteCaiu) {
+                console.log(`[InstanceManager] Watchdog: ${inst.nome} zumbi — reiniciando`);
+                try { await pararInstancia(inst.id); } catch (e) {}
+                iniciarInstancia(inst.id).catch(err => {
+                    console.error(`[InstanceManager] Falha watchdog ${inst.nome}:`, err.message);
+                });
+            }
+        }
+    } catch (e) {
+        console.error('[InstanceManager] Erro reconectarInstanciasCaiadas:', e.message);
+    }
+}
+
 async function syncOnStartup() {
     try {
         // Marcar todas como disconnected primeiro
@@ -278,5 +326,6 @@ module.exports = {
     obterCliente,
     obterController,
     listarInstanciasAtivas,
-    syncOnStartup
+    syncOnStartup,
+    reconectarInstanciasCaiadas
 };

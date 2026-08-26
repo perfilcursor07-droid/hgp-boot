@@ -102,6 +102,7 @@ class BaileysClient extends EventEmitter {
 
             if (connection === 'close') {
                 this.isConnected = false;
+                this._disconnectedAt = Date.now();
                 const statusCode = lastDisconnect?.error?.output?.statusCode;
                 const reason = lastDisconnect?.error?.message || '';
                 const nomeMotivo = Object.keys(DisconnectReason).find(k => DisconnectReason[k] === statusCode) || 'desconhecido';
@@ -122,8 +123,11 @@ class BaileysClient extends EventEmitter {
                 // connectionReplaced (440): OUTRO dispositivo/processo abriu a mesma
                 // sessão. Reconectar criaria uma guerra de conexões (e duplicação).
                 if (statusCode === DisconnectReason.connectionReplaced) {
-                    console.log(`[Baileys:${this.clientId}] Conexão substituída por outro processo/dispositivo. NÃO reconectando para evitar conflito.`);
-                    this.emit('disconnected', 'CONEXÃO SUBSTITUÍDA (outro processo abriu a mesma sessão)');
+                    console.log(`[Baileys:${this.clientId}] Conexão substituída — reconectando em 8s (outro processo provavelmente encerrou).`);
+                    this.reconnectAttempts++;
+                    setTimeout(() => {
+                        if (!this._destroyed) this._reconnect();
+                    }, 8000);
                     return;
                 }
 
@@ -146,6 +150,7 @@ class BaileysClient extends EventEmitter {
 
             if (connection === 'open') {
                 this.isConnected = true;
+                this._disconnectedAt = 0;
                 this.qrRetries = 0;
                 this.reconnectAttempts = 0;
                 console.log(`[Baileys:${this.clientId}] Conexão aberta ✓`);
@@ -205,6 +210,13 @@ class BaileysClient extends EventEmitter {
             timestamp: msg.messageTimestamp || Math.floor(Date.now() / 1000),
             id: { _serialized: msg.key.id || `${jid}-${Date.now()}` },
             async getContact() { return { pushname: pushName, name: pushName, number: jid.replace(/@.*$/, '') }; },
+            async getChat() {
+                return {
+                    id: { _serialized: jid },
+                    async sendMessage(content) { return self.sendMessage(jid, content, { immediate: true }); }
+                };
+            },
+            async reply(text) { return self.sendMessage(jid, text, { immediate: true }); },
             async delete(forEveryone) { try { await self.sock.sendMessage(jid, { delete: msg.key }); } catch (e) {} },
             async downloadMedia() { return null; }
         };
