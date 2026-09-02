@@ -379,6 +379,21 @@ function attachDynamicFlow(client, options = {}) {
 
         const timer = setTimeout(async () => {
             try {
+                const [ativos] = await db.query(
+                    `SELECT protocolo FROM chamados
+                     WHERE chat_origem = ? AND status IN ('pendente', 'aberto', 'em_atendimento')
+                     ORDER BY criado_em DESC LIMIT 1`,
+                    [sessionId]
+                );
+                if (ativos.length > 0) {
+                    estados.delete(sessionId);
+                    inactivityTimers.delete(sessionId);
+                    log(`Inatividade ignorada — chamado ${ativos[0].protocolo} em andamento`);
+                    return;
+                }
+            } catch (e) {}
+
+            try {
                 await client.sendMessage(chatId, '⏰ Sessão encerrada por inatividade. Envie qualquer mensagem para começar de novo.');
             } catch (e) {}
             estados.delete(sessionId);
@@ -704,13 +719,14 @@ function attachDynamicFlow(client, options = {}) {
 
             const est = estados.get(sessionId);
 
-            // ── Verificar chamado ativo (em atendimento) e salvar mensagem no chat ──
-            // Só verifica se NÃO está dentro de um fluxo (sem estado ou estado terminal)
-            if (!est || est.step === undefined) {
+            const emAvaliacao = est && (est.step === 'avaliacao' || est.step === 'avaliacao_motivo');
+
+            // Chamado em andamento: não encerrar sessão nem voltar ao menu
+            if (!emAvaliacao) {
                 try {
                     const [chamadosAtivos] = await db.query(
                         `SELECT id, protocolo, status FROM chamados
-                         WHERE chat_origem = ? AND status IN ('aberto', 'em_atendimento')
+                         WHERE chat_origem = ? AND status IN ('pendente', 'aberto', 'em_atendimento')
                          ORDER BY criado_em DESC LIMIT 1`,
                         [sessionId]
                     );
@@ -777,6 +793,9 @@ function attachDynamicFlow(client, options = {}) {
                         );
 
                         console.log(`[DynamicFlow:${instanciaNome}] Mensagem do solicitante salva no chamado ${chamadoAtivo.protocolo}`);
+                        estados.delete(sessionId);
+                        clearTimeout(inactivityTimers.get(sessionId));
+                        inactivityTimers.delete(sessionId);
                         return; // não processa como menu/fluxo
                     }
                 } catch (e) {
@@ -1048,6 +1067,13 @@ function attachDynamicFlow(client, options = {}) {
     const controller = {
         instanciaId,
         instanciaNome,
+        liberarSessao(sessionId) {
+            if (!sessionId) return;
+            estados.delete(sessionId);
+            bloqueados.delete(sessionId);
+            clearTimeout(inactivityTimers.get(sessionId));
+            inactivityTimers.delete(sessionId);
+        },
         // Reabrir fluxo após encerramento (chamado pela rota /encerrar)
         async reiniciarFluxoPorEncerramento(chatOrigem, dadosChamado) {
             try {

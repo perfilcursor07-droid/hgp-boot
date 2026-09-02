@@ -796,6 +796,30 @@ async function obterClienteWhatsAppParaChamado(chamado) {
     };
 }
 
+function obterControllerParaChamado(chamado) {
+    if (chamado?.instancia_id) {
+        const ctrl = instanceManager.obterController(chamado.instancia_id);
+        if (ctrl) return ctrl;
+    }
+    return whatsappChatbotController;
+}
+
+function encerrarFluxoBotDoChamado(chamado) {
+    const ctrl = obterControllerParaChamado(chamado);
+    if (!ctrl || typeof ctrl.liberarSessao !== 'function') return;
+    const ids = [chamado.chat_origem, chamado.telefone_whatsapp, chamado.telefone_contato]
+        .filter(Boolean)
+        .map(v => String(v).trim());
+    for (const id of ids) {
+        try { ctrl.liberarSessao(id); } catch (e) {}
+        const digits = id.replace(/@.*$/, '').replace(/\D/g, '');
+        if (digits) {
+            try { ctrl.liberarSessao(`${digits}@c.us`); } catch (e) {}
+            try { ctrl.liberarSessao(digits); } catch (e) {}
+        }
+    }
+}
+
 const listChamadosOverview = async (req = null) => {
     const unidadeId = req ? resolveUnidadeFiltro(req) : null;
     const { sql, params } = req?.session
@@ -3720,6 +3744,8 @@ app.post('/api/chamados/:id/encaminhar', isAuthenticated, async (req, res) => {
             [gestor[0].id, gestor[0].nome_completo, chamadoId]
         );
 
+        encerrarFluxoBotDoChamado(chamado[0]);
+
         // Enviar WhatsApp para o gestor (usar cliente da instância do chamado)
         const wppGes = await obterClienteWhatsAppParaChamado(chamado[0]);
         if (wppGes.isConnected && wppGes.client && gestor[0].telefone) {
@@ -3922,6 +3948,8 @@ app.post('/api/chamados/:id/atender', isAuthenticated, async (req, res) => {
 
         // Responder ao front IMEDIATAMENTE; o WhatsApp vai em segundo plano.
         res.json({ success: true, message: 'Atendimento iniciado com sucesso' });
+
+        encerrarFluxoBotDoChamado(chamado[0]);
 
         // Enviar mensagem pelo WhatsApp (fire-and-forget)
         (async () => {
@@ -4190,6 +4218,7 @@ app.post('/api/chamados/:id/chat/enviar', isAuthenticated, async (req, res) => {
         }
 
         const { assumiu, chamado } = await assumirAtendimentoAoResponder(chamadoRows[0], req);
+        encerrarFluxoBotDoChamado(chamado);
 
         // Salvar mensagem no banco
         await db.query(
@@ -4291,6 +4320,7 @@ app.post('/api/chamados/:id/chat/enviar-midia', isAuthenticated, (req, res, next
         }
 
         const { assumiu, chamado } = await assumirAtendimentoAoResponder(chamadoRows[0], req);
+        encerrarFluxoBotDoChamado(chamado);
 
         await db.query(
             `INSERT INTO chat_messages (chamado_id, remetente_tipo, remetente_nome, mensagem, message_type, media_url, media_mime_type, media_filename)

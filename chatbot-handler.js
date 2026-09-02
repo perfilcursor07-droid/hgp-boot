@@ -62,7 +62,8 @@ function attachChatbot(client, options = {}) {
     const lidSessionMap = new Map(); // mapeia @lid -> sessionId estável
     const inactivityTimers = new Map(); // timers de inatividade por sessionId
     let envioAtual = null; // { chat, msg, chatId, sessionId } da mensagem em processamento
-    const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutos
+    const INACTIVITY_MINUTES = 10;
+    const INACTIVITY_TIMEOUT = INACTIVITY_MINUTES * 60 * 1000;
     const categoriasMap = {
         '1': 'Soul MV',
         '2': 'Impressora',
@@ -215,28 +216,45 @@ function attachChatbot(client, options = {}) {
         }
     }
 
+    function pausarFluxoBot(sessionId) {
+        if (!sessionId) return;
+        estados.delete(sessionId);
+        clearInactivityTimer(sessionId);
+    }
+
     function resetInactivityTimer(sessionId, chatId) {
         clearInactivityTimer(sessionId);
 
         const est = estados.get(sessionId);
-        // Só ativar timer se o usuário está no meio do fluxo de criação (steps 0.5 a 5)
+        // Só ativar timer se o usuário está no meio do fluxo de criação
         if (!est || est.step === undefined) return;
+        if (est.step === 'avaliacao' || est.step === 'avaliacao_motivo') return;
 
         const timer = setTimeout(async () => {
             const estAtual = estados.get(sessionId);
-            if (!estAtual) return; // já foi limpo
+            if (!estAtual) return;
+
+            try {
+                const chamadoAindaAtivo = await buscarChamadoAtivo(sessionId);
+                if (chamadoAindaAtivo) {
+                    pausarFluxoBot(sessionId);
+                    console.log(`⏰ Inatividade ignorada — chamado ${chamadoAindaAtivo.protocolo} em andamento`);
+                    return;
+                }
+            } catch (e) {
+                console.error('Erro ao checar chamado na inatividade:', e.message);
+            }
 
             try {
                 await enviarAoUsuario(
-                    '⏰ Sua sessão foi encerrada por inatividade (30 minutos sem resposta). Se precisar, envie uma nova mensagem para iniciar o atendimento.',
+                    `⏰ Sua sessão foi encerrada por inatividade (${INACTIVITY_MINUTES} minutos sem resposta). Se precisar, envie uma nova mensagem para iniciar o atendimento.`,
                     chatId
                 );
             } catch (erro) {
                 console.error(`Erro ao enviar mensagem de inatividade para ${sessionId}:`, erro.message);
             }
 
-            estados.delete(sessionId);
-            inactivityTimers.delete(sessionId);
+            pausarFluxoBot(sessionId);
             console.log(`⏰ Sessão ${sessionId} encerrada por inatividade`);
         }, INACTIVITY_TIMEOUT);
 
@@ -512,10 +530,10 @@ function attachChatbot(client, options = {}) {
         console.log(`📢 Notificação do chamado ${dadosChamado.protocolo} enviada para ${usuarios.length} usuário(s)`);
     }
 
-    async function buscarChamadoAtivo(sessionId) {
-        const candidatos = new Set([sessionId]);
+    async function buscarChamadoAtivo(sessionId, extras = []) {
+        const candidatos = new Set([sessionId, ...extras]);
         for (const [lid, sid] of lidSessionMap.entries()) {
-            if (sid === sessionId || lid === sessionId) {
+            if (sid === sessionId || lid === sessionId || extras.includes(lid) || extras.includes(sid)) {
                 candidatos.add(lid);
                 candidatos.add(sid);
             }
@@ -762,14 +780,16 @@ function attachChatbot(client, options = {}) {
                 registrarErro(erro, 'Erro ao registrar contato automaticamente');
             }
 
-            // Verificar se existe chamado em atendimento para este chat e salvar mensagem
-            // Não salvar se o usuário está no meio do fluxo de criação de chamado
-            try {
-                if (!est || est.step === undefined) {
-                    chamadoAtivo = await buscarChamadoAtivo(sessionId);
+            const emAvaliacao = est && (est.step === 'avaliacao' || est.step === 'avaliacao_motivo');
 
-                    if (chamadoAtivo && !texto.startsWith(GATILHO_TESTE) && texto !== 'CANCELAR') {
-                        // Se o chamado NÃO está em atendimento, deletar mídia e avisar
+            // Chamado aberto/em atendimento: o bot NÃO pode encerrar sessão nem pedir menu
+            if (!emAvaliacao && texto !== GATILHO_TESTE) {
+                try {
+                    chamadoAtivo = await buscarChamadoAtivo(sessionId, [msg.from, chatId]);
+
+                    if (chamadoAtivo) {
+                        pausarFluxoBot(sessionId);
+
                         const tipoMsg = String(msg.type || '').toLowerCase();
                         const ehMidia = msg.hasMedia || ['audio', 'ptt', 'video', 'image', 'document', 'sticker'].includes(tipoMsg);
 
@@ -792,8 +812,7 @@ function attachChatbot(client, options = {}) {
                             registrarErro(erro, 'Erro ao salvar mídia do solicitante');
                             return null;
                         });
-                        
-                        // Salvar mensagem do solicitante no chat
+
                         await db.query(
                             `INSERT INTO chat_messages (
                                 chamado_id,
@@ -817,32 +836,21 @@ function attachChatbot(client, options = {}) {
                         );
 
                         console.log(`💬 Mensagem do solicitante salva no chamado ${chamadoAtivo.protocolo}`);
+                        return;
                     }
+                } catch (erro) {
+                    registrarErro(erro, 'Erro ao processar chamado ativo');
                 }
-            } catch (erro) {
-                registrarErro(erro, 'Erro ao salvar mensagem do solicitante no chat');
             }
 
             if (texto === 'CANCELAR') {
-                clearInactivityTimer(sessionId);
-                estados.delete(sessionId);
+                pausarFluxoBot(sessionId);
                 await enviarAoUsuario( '❌ Atendimento encerrado.');
                 return;
             }
 
-            // Verificar se existe chamado não finalizado - bloquear novo chamado
+            // Sem estado: enviar menu
             if (texto === GATILHO_TESTE || !est) {
-                try {
-                    if (!chamadoAtivo) {
-                        chamadoAtivo = await buscarChamadoAtivo(sessionId);
-                    }
-
-                    if (chamadoAtivo && texto !== GATILHO_TESTE) {
-                        return;
-                    }
-                } catch (erro) {
-                    registrarErro(erro, 'Erro ao verificar chamados ativos');
-                }
 
                 if (texto !== GATILHO_TESTE && bloqueados.has(sessionId) && Date.now() < bloqueados.get(sessionId)) return;
 
@@ -1187,7 +1195,7 @@ function attachChatbot(client, options = {}) {
                 if (!est.isTeste) {
                     bloqueados.set(sessionId, Date.now() + (15 * 60 * 1000));
                 }
-                estados.delete(sessionId);
+                pausarFluxoBot(sessionId);
             }
         } catch (erro) {
             registrarErro(erro, `Erro no fluxo do usuário ${msg.from}`);
