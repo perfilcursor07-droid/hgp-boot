@@ -489,6 +489,46 @@ const resetWhatsAppRuntime = async () => {
     await syncDisconnectedSession();
 };
 
+async function obterRuntimeLegacyStatus({ probe = false } = {}) {
+    let status = whatsappState || 'disconnected';
+
+    if (status === 'connected') {
+        return { status: 'connected', qr: null, lastError: whatsappLastError };
+    }
+
+    if (currentQR) {
+        return { status: 'qr_ready', qr: currentQR, lastError: whatsappLastError };
+    }
+
+    if (probe && whatsappClient && status === 'connecting') {
+        try {
+            const state = await Promise.race([
+                whatsappClient.getState(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('getState timeout')), 4000))
+            ]);
+            if (state === 'CONNECTED') {
+                whatsappState = 'connected';
+                hgpConnectingSince = 0;
+                whatsappLastError = null;
+                await syncLegacyInstanciaStatus('connected', null);
+                return { status: 'connected', qr: null, lastError: null };
+            }
+        } catch (e) {
+            // segue exibindo o estado conhecido abaixo
+        }
+    }
+
+    if (status === 'connecting') {
+        return { status: 'connecting', qr: null, lastError: whatsappLastError };
+    }
+
+    if (!hgpTemSessaoSalva()) {
+        status = 'disconnected';
+    }
+
+    return { status, qr: null, lastError: whatsappLastError };
+}
+
 const readChatbotFile = async () => fs.readFile(CHATBOT_FILE_PATH, 'utf8');
 
 const validateChatbotSource = async (source) => {
@@ -1013,11 +1053,12 @@ app.get('/dashboard', isAuthenticated, isAdmin, async (req, res) => {
 
         if (isAdminFull) {
             // Administrador: mostra a instância legada (HGP) como antes
+            const legacyRuntime = await obterRuntimeLegacyStatus({ probe: true });
             const [sessions] = await db.query('SELECT * FROM whatsapp_sessions ORDER BY id DESC LIMIT 1');
             session = sessions[0]
-                ? { ...sessions[0], is_connected: whatsappState === 'connected' }
+                ? { ...sessions[0], is_connected: legacyRuntime.status === 'connected' }
                 : null;
-            qrCode = currentQR;
+            qrCode = legacyRuntime.qr;
         } else if (ids.length > 0) {
             // Buscar instância(s) das unidades do usuário
             const ph = ids.map(() => '?').join(',');
@@ -1034,9 +1075,11 @@ app.get('/dashboard', isAuthenticated, isAdmin, async (req, res) => {
                 const inst = insts[0];
                 isLegacy = !!inst.is_legacy;
 
-                // Sincronizar status real da legada com o whatsappState antes de exibir
+                // Sincronizar status real da legada antes de exibir
+                let legacyRuntime = null;
                 if (isLegacy) {
-                    inst.status = whatsappState || 'disconnected';
+                    legacyRuntime = await obterRuntimeLegacyStatus({ probe: true });
+                    inst.status = legacyRuntime.status;
                 }
 
                 session = {
@@ -1048,7 +1091,7 @@ app.get('/dashboard', isAuthenticated, isAdmin, async (req, res) => {
                     instancia_id: inst.id,
                     is_legacy: isLegacy
                 };
-                qrCode = isLegacy ? currentQR : inst.qr_code;
+                qrCode = isLegacy ? legacyRuntime?.qr : inst.qr_code;
             }
         }
 
@@ -1208,12 +1251,13 @@ app.get('/whatsapp/status', isAuthenticated, async (req, res) => {
                 const inst = insts[0];
                 if (inst.is_legacy) {
                     // Legada: usa estado em memória
+                    const legacyRuntime = await obterRuntimeLegacyStatus({ probe: true });
                     return res.json({
-                        connected: whatsappState === 'connected',
-                        state: whatsappState,
-                        error: whatsappLastError,
-                        qrCode: whatsappState !== 'connected' ? currentQR : null,
-                        session: { session_name: 'admin-session', is_connected: whatsappState === 'connected' }
+                        connected: legacyRuntime.status === 'connected',
+                        state: legacyRuntime.status,
+                        error: legacyRuntime.lastError,
+                        qrCode: legacyRuntime.qr,
+                        session: { session_name: 'admin-session', is_connected: legacyRuntime.status === 'connected' }
                     });
                 }
                 // Nova instância: usa status do banco
@@ -1228,16 +1272,17 @@ app.get('/whatsapp/status', isAuthenticated, async (req, res) => {
         }
 
         // Administrador (sem unidade definida) ou sem instância: cai no comportamento padrão (legada)
+        const legacyRuntime = await obterRuntimeLegacyStatus({ probe: true });
         const [sessions] = await db.query('SELECT * FROM whatsapp_sessions WHERE session_name = ?', ['admin-session']);
         res.json({
-            connected: whatsappState === 'connected',
-            state: whatsappState,
-            error: whatsappLastError,
-            qrCode: whatsappState === 'connecting' ? currentQR : null,
+            connected: legacyRuntime.status === 'connected',
+            state: legacyRuntime.status,
+            error: legacyRuntime.lastError,
+            qrCode: legacyRuntime.qr,
             session: sessions[0]
                 ? {
                     ...sessions[0],
-                    is_connected: whatsappState === 'connected'
+                    is_connected: legacyRuntime.status === 'connected'
                 }
                 : null
         });
@@ -1741,10 +1786,12 @@ async function verificarAcessoInstancia(req, instanciaId) {
 // ─── INSTÂNCIAS ───────────────────────────────────────────────────
 app.get('/instancias', isAuthenticated, async (req, res) => {
     try {
-        // Sincronizar status da instância legada com o estado real do whatsappState
+        const legacyRuntime = await obterRuntimeLegacyStatus({ probe: true });
+
+        // Sincronizar status da instância legada com o estado real do runtime
         await db.query(
-            `UPDATE instancias SET status = ? WHERE session_name = 'admin-session'`,
-            [whatsappState || 'disconnected']
+            `UPDATE instancias SET status = ?, qr_code = ?, last_error = ? WHERE session_name = 'admin-session'`,
+            [legacyRuntime.status, legacyRuntime.qr, legacyRuntime.lastError]
         );
 
         // Filtro por unidade do usuário
@@ -1904,19 +1951,20 @@ app.post('/api/instancias/:id/parar', isAuthenticated, async (req, res) => {
 app.post('/api/instancias/conectar-todas', isAuthenticated, isAdminOnly, async (req, res) => {
     try {
         const [insts] = await db.query(
-            `SELECT id, is_legacy, session_name FROM instancias 
-             WHERE ativo = TRUE AND status NOT IN ('connected', 'connecting', 'qr_ready')`
+            `SELECT id, is_legacy, session_name, status FROM instancias 
+             WHERE ativo = TRUE`
         );
 
         let iniciadas = 0;
+        const legacyRuntime = await obterRuntimeLegacyStatus({ probe: true });
         for (const inst of insts) {
             try {
                 if (inst.is_legacy) {
-                    if (whatsappState !== 'connected' && whatsappState !== 'connecting') {
+                    if (!['connected', 'connecting', 'qr_ready'].includes(legacyRuntime.status)) {
                         iniciarWhatsAppLegacy().catch(() => {});
                         iniciadas++;
                     }
-                } else {
+                } else if (!['connected', 'connecting', 'qr_ready'].includes(inst.status)) {
                     instanceManager.iniciarInstancia(inst.id).catch(() => {});
                     iniciadas++;
                 }
@@ -1942,13 +1990,10 @@ app.get('/api/instancias/:id/status', isAuthenticated, async (req, res) => {
         let live;
         if (rows[0].is_legacy) {
             // Status real da legacy vem da memória
-            live = {
-                status: whatsappState || 'disconnected',
-                qr: whatsappState !== 'connected' ? currentQR : null,
-                lastError: whatsappLastError
-            };
+            live = await obterRuntimeLegacyStatus({ probe: true });
             rows[0].status = live.status;
             rows[0].qr_code = live.qr;
+            rows[0].last_error = live.lastError;
         } else {
             live = instanceManager.obterStatus(id);
         }
