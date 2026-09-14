@@ -217,6 +217,7 @@ let hgpReconnectAttempts = 0;
 let hgpConnectingSince = 0;
 let hgpAttemptsResetAt = Date.now();
 let hgpForcando = false;
+let hgpClientReady = false;
 let hgpUnreadProbeRunning = false;
 let hgpUnreadProbeFailures = 0;
 const hgpRecentMessageIds = new Map();
@@ -458,7 +459,12 @@ const mensagemHgpJaVista = (message) => hgpRecentMessageIds.has(obterIdMensagemH
 // eventos da pagina deixa de emitir "message". Recupera somente mensagens nao
 // lidas e recentes; o mesmo ID nunca e encaminhado duas vezes.
 const recuperarMensagensNaoLidasHgp = async () => {
-    if (hgpUnreadProbeRunning || whatsappState !== 'connected' || !whatsappClient) return;
+    if (
+        hgpUnreadProbeRunning ||
+        whatsappState !== 'connected' ||
+        !hgpClientReady ||
+        !whatsappClient?.pupPage
+    ) return;
     hgpUnreadProbeRunning = true;
 
     try {
@@ -576,6 +582,7 @@ const resetWhatsAppRuntime = async () => {
     whatsappClient = null;
     whatsappChatbotController = null;
     whatsappState = 'disconnected';
+    hgpClientReady = false;
     await syncDisconnectedSession();
     await syncLegacyInstanciaStatus('disconnected', null);
 };
@@ -594,8 +601,13 @@ async function obterRuntimeLegacyStatus({ probe = false } = {}) {
                 new Promise((_, reject) => setTimeout(() => reject(new Error('getState timeout')), 4000))
             ]);
             if (state === 'CONNECTED') {
-                await confirmarLegacyConectado();
-                return { status: 'connected', qr: null, lastError: null };
+                // getState pode virar CONNECTED antes de o whatsapp-web.js concluir
+                // a injecao dos helpers (ready). Nao publique um falso conectado.
+                if (hgpClientReady) {
+                    await confirmarLegacyConectado();
+                    return { status: 'connected', qr: null, lastError: null };
+                }
+                return { status: 'connecting', qr: null, lastError: null };
             }
         } catch (e) {
             // segue exibindo o estado conhecido abaixo
@@ -1208,6 +1220,7 @@ async function iniciarWhatsAppLegacy() {
     }
 
     whatsappState = 'connecting';
+    hgpClientReady = false;
     hgpConnectingSince = Date.now();
     currentQR = null;
     whatsappLastError = null;
@@ -1249,6 +1262,7 @@ async function iniciarWhatsAppLegacy() {
 
     whatsappClient.on('ready', async () => {
         console.log('[HGP] WhatsApp conectado ✓');
+        hgpClientReady = true;
         anexarWatchdogChrome(whatsappClient);
         await confirmarLegacyConectado();
     });
