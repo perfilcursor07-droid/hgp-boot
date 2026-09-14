@@ -1,8 +1,7 @@
 // ════════════════════════════════════════════════════════════════════
 // Baileys Client — wrapper compatível com whatsapp-web.js
 // ════════════════════════════════════════════════════════════════════
-// Usado APENAS para instâncias novas (SESAU, etc).
-// O HGP continua usando whatsapp-web.js direto.
+// Usado pelas instâncias dinâmicas (SESAU, etc.) e pela principal HGP.
 // ════════════════════════════════════════════════════════════════════
 
 const {

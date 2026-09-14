@@ -17,6 +17,7 @@ const db = require('./config/database');
 const { ensureSchema } = require('./config/ensureSchema');
 const { attachChatbot } = require('./chatbot-handler');
 const { entregarMensagem } = require('./modules/whatsapp-entrega');
+const { BaileysClient } = require('./modules/baileys-client');
 const instanceManager = require('./modules/instance-manager');
 const mediaManager = require('./modules/media-manager');
 const { normalizarFluxoSesau } = require('./modules/flow-normalizer');
@@ -225,6 +226,8 @@ const HGP_RECONNECT_MAX = 40;
 const HGP_ATTEMPTS_RESET_MS = 10 * 60 * 1000;
 const HGP_MESSAGE_DEDUP_MS = 10 * 60 * 1000;
 const HGP_UNREAD_MAX_AGE_MS = 5 * 60 * 1000;
+const HGP_WHATSAPP_PROVIDER = String(process.env.HGP_WHATSAPP_PROVIDER || 'baileys').toLowerCase();
+const HGP_USES_BAILEYS = HGP_WHATSAPP_PROVIDER !== 'wwebjs';
 
 const candidateBrowserPaths = [
     process.env.PUPPETEER_EXECUTABLE_PATH,
@@ -277,7 +280,11 @@ const buildPuppeteerConfig = () => {
 };
 
 const HGP_AUTH_DIR = path.join(__dirname, '.wwebjs_auth');
-const hgpSessionPath = () => path.join(HGP_AUTH_DIR, 'session-admin-session');
+const HGP_BAILEYS_AUTH_DIR = path.join(__dirname, '.baileys_auth');
+const hgpWwebjsSessionPath = () => path.join(HGP_AUTH_DIR, 'session-admin-session');
+const hgpSessionPath = () => HGP_USES_BAILEYS
+    ? path.join(HGP_BAILEYS_AUTH_DIR, 'admin-session')
+    : hgpWwebjsSessionPath();
 
 const hgpTemSessaoSalva = () => {
     try {
@@ -417,6 +424,13 @@ const verificarSaudeHgp = async () => {
 
         if (whatsappState !== 'connected') return;
 
+        if (HGP_USES_BAILEYS) {
+            if (!whatsappClient?.isConnected) {
+                await forcarReconexaoHgp('baileys sem conexão ativa');
+            }
+            return;
+        }
+
         let state = null;
         try {
             state = await Promise.race([
@@ -460,6 +474,7 @@ const mensagemHgpJaVista = (message) => hgpRecentMessageIds.has(obterIdMensagemH
 // lidas e recentes; o mesmo ID nunca e encaminhado duas vezes.
 const recuperarMensagensNaoLidasHgp = async () => {
     if (
+        HGP_USES_BAILEYS ||
         hgpUnreadProbeRunning ||
         whatsappState !== 'connected' ||
         !hgpClientReady ||
@@ -595,6 +610,14 @@ async function obterRuntimeLegacyStatus({ probe = false } = {}) {
     }
 
     if (probe && whatsappClient && status === 'connecting') {
+        if (HGP_USES_BAILEYS) {
+            if (whatsappClient.isConnected && hgpClientReady) {
+                await confirmarLegacyConectado();
+                return { status: 'connected', qr: null, lastError: null };
+            }
+            return { status: currentQR ? 'qr_ready' : 'connecting', qr: currentQR, lastError: whatsappLastError };
+        }
+
         try {
             const state = await Promise.race([
                 whatsappClient.getState(),
@@ -1225,21 +1248,27 @@ async function iniciarWhatsAppLegacy() {
     currentQR = null;
     whatsappLastError = null;
 
-    whatsappClient = new Client({
-        authStrategy: new LocalAuth({ clientId: 'admin-session', dataPath: HGP_AUTH_DIR }),
-        puppeteer: buildPuppeteerConfig(),
-        restartOnAuthFail: false,
-        authTimeoutMs: 120000,
-        takeoverOnConflict: true,
-        takeoverTimeoutMs: 10000
-    });
+    whatsappClient = HGP_USES_BAILEYS
+        ? new BaileysClient({ clientId: 'admin-session', authDir: HGP_BAILEYS_AUTH_DIR })
+        : new Client({
+            authStrategy: new LocalAuth({ clientId: 'admin-session', dataPath: HGP_AUTH_DIR }),
+            puppeteer: buildPuppeteerConfig(),
+            restartOnAuthFail: false,
+            authTimeoutMs: 120000,
+            takeoverOnConflict: true,
+            takeoverTimeoutMs: 10000
+        });
+
+    console.log(`[HGP] Iniciando cliente ${HGP_USES_BAILEYS ? 'Baileys' : 'whatsapp-web.js'}`);
 
     whatsappChatbotController = attachChatbot(whatsappClient, { managedByServer: true });
 
     whatsappClient.on('qr', async (qr) => {
         whatsappState = 'connecting';
         whatsappLastError = null;
-        currentQR = await qrcode.toDataURL(qr);
+        currentQR = String(qr || '').startsWith('data:image/')
+            ? String(qr)
+            : await qrcode.toDataURL(qr);
         await db.query(
             'INSERT INTO whatsapp_sessions (session_name, qr_code, is_connected) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE qr_code = ?, is_connected = ?',
             ['admin-session', currentQR, false, currentQR, false]
@@ -4708,6 +4737,10 @@ async function startServer() {
                     console.error('[HGP] Erro auto-reconnect:', err.message);
                     agendarReconexaoHgp(err.message);
                 });
+            } else if (HGP_USES_BAILEYS && fsSync.existsSync(hgpWwebjsSessionPath())) {
+                console.log(
+                    '[HGP] Migração para Baileys pendente: clique em Conectar na tela /instancias e leia o novo QR uma única vez.'
+                );
             }
         } catch (e) {
             console.error('[HGP] Erro check auto-reconnect:', e.message);
