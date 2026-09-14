@@ -270,7 +270,8 @@ const buildPuppeteerConfig = () => {
     return config;
 };
 
-const hgpSessionPath = () => path.join(__dirname, '.wwebjs_auth', 'session-admin-session');
+const HGP_AUTH_DIR = path.join(__dirname, '.wwebjs_auth');
+const hgpSessionPath = () => path.join(HGP_AUTH_DIR, 'session-admin-session');
 
 const hgpTemSessaoSalva = () => {
     try {
@@ -1081,7 +1082,7 @@ async function iniciarWhatsAppLegacy() {
     whatsappLastError = null;
 
     whatsappClient = new Client({
-        authStrategy: new LocalAuth({ clientId: 'admin-session' }),
+        authStrategy: new LocalAuth({ clientId: 'admin-session', dataPath: HGP_AUTH_DIR }),
         puppeteer: buildPuppeteerConfig(),
         restartOnAuthFail: false,
         authTimeoutMs: 120000,
