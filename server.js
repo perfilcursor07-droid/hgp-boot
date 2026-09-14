@@ -36,6 +36,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const execFileAsync = promisify(execFile);
 const CHATBOT_FILE_PATH = path.join(__dirname, 'chatbot.js');
+const transferenciasEmAndamento = new Map();
 
 // Middleware
 app.set('view engine', 'ejs');
@@ -140,6 +141,22 @@ function resolveUnidadeFiltro(req) {
     }
     if (ids.map(Number).includes(id)) return id;
     return null; // fora do escopo → ignora
+}
+
+function limparTransferenciasExpiradas() {
+    const agora = Date.now();
+    for (const [chave, expiraEm] of transferenciasEmAndamento.entries()) {
+        if (expiraEm <= agora) transferenciasEmAndamento.delete(chave);
+    }
+}
+
+function criarChaveTransferencia(chamadoId, usuarioId, novoAtendenteId, observacao) {
+    return [
+        chamadoId,
+        usuarioId || '',
+        novoAtendenteId,
+        String(observacao || '').trim().replace(/\s+/g, ' ').toUpperCase()
+    ].join('|');
 }
 
 async function listarUnidadesDoEscopo(req) {
@@ -3828,6 +3845,7 @@ app.post('/api/chamados/:id/encaminhar', isAuthenticated, async (req, res) => {
 
 // API - Transferir chamado para outro atendente (com observação obrigatória)
 app.post('/api/chamados/:id/transferir', isAuthenticated, async (req, res) => {
+    let chaveTransferencia = null;
     try {
         if (req.session.nivelAcesso === 'visualizador') {
             return res.status(403).json({ success: false, message: 'Sem permissão para transferir chamados.' });
@@ -3835,14 +3853,22 @@ app.post('/api/chamados/:id/transferir', isAuthenticated, async (req, res) => {
 
         const chamadoId = req.params.id;
         const { novoAtendenteId, observacao } = req.body;
+        const observacaoLimpa = String(observacao || '').trim();
 
         if (!novoAtendenteId) {
             return res.status(400).json({ success: false, message: 'Selecione o atendente destino' });
         }
 
-        if (!observacao || observacao.trim().length < 5) {
+        if (!observacaoLimpa || observacaoLimpa.length < 5) {
             return res.status(400).json({ success: false, message: 'A observação é obrigatória (mínimo 5 caracteres). Informe o status do caso e motivo da transferência.' });
         }
+
+        limparTransferenciasExpiradas();
+        chaveTransferencia = criarChaveTransferencia(chamadoId, req.session.userId, novoAtendenteId, observacaoLimpa);
+        if (transferenciasEmAndamento.has(chaveTransferencia)) {
+            return res.status(429).json({ success: false, message: 'Transferência já está sendo processada. Aguarde alguns segundos.' });
+        }
+        transferenciasEmAndamento.set(chaveTransferencia, Date.now() + 15000);
 
         const [chamado] = await db.query('SELECT * FROM chamados WHERE id = ?', [chamadoId]);
         if (chamado.length === 0) {
@@ -3859,6 +3885,21 @@ app.post('/api/chamados/:id/transferir', isAuthenticated, async (req, res) => {
 
         const nomeAnterior = req.session.nomeCompleto || req.session.username;
         const nomeNovo = novoAtendente[0].nome_completo || novoAtendente[0].username;
+        const mensagemSistemaTransferencia = `📤 Chamado transferido de ${nomeAnterior} para ${nomeNovo}.\nMotivo: ${observacaoLimpa}`;
+
+        const [duplicadaRecente] = await db.query(
+            `SELECT id FROM chat_messages
+             WHERE chamado_id = ?
+               AND remetente_tipo = 'sistema'
+               AND mensagem = ?
+               AND enviada_em >= DATE_SUB(NOW(), INTERVAL 30 SECOND)
+             LIMIT 1`,
+            [chamadoId, mensagemSistemaTransferencia]
+        );
+
+        if (duplicadaRecente.length > 0) {
+            return res.json({ success: true, message: `Chamado transferido para ${nomeNovo}` });
+        }
 
         // Atualizar chamado
         await db.query(
@@ -3867,14 +3908,14 @@ app.post('/api/chamados/:id/transferir', isAuthenticated, async (req, res) => {
                  atendente_nome = ?,
                  observacoes = CONCAT(COALESCE(observacoes, ''), ?)
              WHERE id = ?`,
-            [novoAtendente[0].id, nomeNovo, `\n[Transferido de ${nomeAnterior} para ${nomeNovo} em ${new Date().toLocaleString('pt-BR')}]\nMotivo: ${observacao.trim()}\n`, chamadoId]
+            [novoAtendente[0].id, nomeNovo, `\n[Transferido de ${nomeAnterior} para ${nomeNovo} em ${new Date().toLocaleString('pt-BR')}]\nMotivo: ${observacaoLimpa}\n`, chamadoId]
         );
 
         // Registrar no chat do chamado
         await db.query(
             `INSERT INTO chat_messages (chamado_id, remetente_tipo, remetente_nome, mensagem)
              VALUES (?, 'sistema', 'Sistema', ?)`,
-            [chamadoId, `📤 Chamado transferido de ${nomeAnterior} para ${nomeNovo}.\nMotivo: ${observacao.trim()}`]
+            [chamadoId, mensagemSistemaTransferencia]
         );
 
         // Notificar novo atendente via WhatsApp (usar cliente correto da instância do chamado)
@@ -3889,7 +3930,7 @@ app.post('/api/chamados/:id/transferir', isAuthenticated, async (req, res) => {
                         `👤 *Solicitante:* ${chamado[0].solicitante_nome}\n` +
                         `🏢 *Setor:* ${chamado[0].setor}\n` +
                         `📂 *Categoria:* ${chamado[0].categoria}\n` +
-                        `📝 *Obs:* ${observacao.trim()}\n\n` +
+                        `📝 *Obs:* ${observacaoLimpa}\n\n` +
                         `Transferido por: ${nomeAnterior}\n` +
                         `🔗 https://hgpto.shop/chamados`
                     );
@@ -3903,6 +3944,10 @@ app.post('/api/chamados/:id/transferir', isAuthenticated, async (req, res) => {
     } catch (error) {
         console.error('Erro ao transferir chamado:', error);
         res.status(500).json({ success: false, message: 'Erro ao transferir chamado' });
+    } finally {
+        if (chaveTransferencia) {
+            setTimeout(() => transferenciasEmAndamento.delete(chaveTransferencia), 15000);
+        }
     }
 });
 

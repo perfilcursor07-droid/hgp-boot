@@ -2424,8 +2424,11 @@
             document.getElementById('modalTransferir').style.display = 'none';
         }
 
+        let transferindoChamado = false;
         async function transferirChamado(event) {
             event.preventDefault();
+            if (transferindoChamado) return;
+
             const chamadoId = document.getElementById('transferirChamadoId').value;
             const novoAtendenteId = document.getElementById('novoAtendenteId').value;
             const observacao = document.getElementById('obsTransferencia').value;
@@ -2437,6 +2440,14 @@
             if (!observacao || observacao.trim().length < 5) {
                 mostrarToast('A observação é obrigatória (mínimo 5 caracteres)', 'error');
                 return;
+            }
+
+            transferindoChamado = true;
+            const btnSubmit = document.querySelector('#formTransferir button[type="submit"]');
+            const btnLabelOriginal = btnSubmit ? btnSubmit.textContent : '';
+            if (btnSubmit) {
+                btnSubmit.disabled = true;
+                btnSubmit.textContent = 'Transferindo...';
             }
 
             try {
@@ -2455,6 +2466,12 @@
                 }
             } catch (error) {
                 mostrarToast('✗ Erro ao transferir chamado', 'error');
+            } finally {
+                transferindoChamado = false;
+                if (btnSubmit) {
+                    btnSubmit.disabled = false;
+                    btnSubmit.textContent = btnLabelOriginal;
+                }
             }
         }
 

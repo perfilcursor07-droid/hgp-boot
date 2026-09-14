@@ -5,7 +5,14 @@
 // O HGP continua usando whatsapp-web.js direto.
 // ════════════════════════════════════════════════════════════════════
 
-const { default: makeWASocket, DisconnectReason, useMultiFileAuthState, makeCacheableSignalKeyStore, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const {
+    default: makeWASocket,
+    DisconnectReason,
+    useMultiFileAuthState,
+    makeCacheableSignalKeyStore,
+    fetchLatestBaileysVersion,
+    downloadMediaMessage
+} = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const path = require('path');
 const fs = require('fs');
@@ -204,6 +211,7 @@ class BaileysClient extends EventEmitter {
         else if (message.stickerMessage) type = 'sticker';
         const pushName = msg.pushName || '';
         const self = this;
+        const mediaPayload = message.imageMessage || message.videoMessage || message.audioMessage || message.documentMessage || message.stickerMessage || null;
 
         return {
             from: jid, to: '', body: texto, type, hasMedia, fromMe: false,
@@ -218,7 +226,33 @@ class BaileysClient extends EventEmitter {
             },
             async reply(text) { return self.sendMessage(jid, text, { immediate: true }); },
             async delete(forEveryone) { try { await self.sock.sendMessage(jid, { delete: msg.key }); } catch (e) {} },
-            async downloadMedia() { return null; }
+            async downloadMedia() {
+                if (!hasMedia || !mediaPayload) return null;
+                try {
+                    const buffer = await downloadMediaMessage(
+                        msg,
+                        'buffer',
+                        {},
+                        {
+                            logger,
+                            reuploadRequest: self.sock?.updateMediaMessage
+                                ? self.sock.updateMediaMessage.bind(self.sock)
+                                : undefined
+                        }
+                    );
+
+                    if (!buffer) return null;
+
+                    return {
+                        data: Buffer.from(buffer).toString('base64'),
+                        mimetype: mediaPayload.mimetype || '',
+                        filename: mediaPayload.fileName || mediaPayload.filename || `${type}-${msg.key.id || Date.now()}`
+                    };
+                } catch (e) {
+                    console.error('[BaileysClient] Erro ao baixar mídia recebida:', e.message);
+                    return null;
+                }
+            }
         };
     }
 
