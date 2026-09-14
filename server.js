@@ -217,8 +217,13 @@ let hgpReconnectAttempts = 0;
 let hgpConnectingSince = 0;
 let hgpAttemptsResetAt = Date.now();
 let hgpForcando = false;
+let hgpUnreadProbeRunning = false;
+let hgpUnreadProbeFailures = 0;
+const hgpRecentMessageIds = new Map();
 const HGP_RECONNECT_MAX = 40;
 const HGP_ATTEMPTS_RESET_MS = 10 * 60 * 1000;
+const HGP_MESSAGE_DEDUP_MS = 10 * 60 * 1000;
+const HGP_UNREAD_MAX_AGE_MS = 5 * 60 * 1000;
 
 const candidateBrowserPaths = [
     process.env.PUPPETEER_EXECUTABLE_PATH,
@@ -427,6 +432,76 @@ const verificarSaudeHgp = async () => {
         }
     } catch (e) {
         console.error('[HGP] Watchdog erro:', e.message);
+    }
+};
+
+const obterIdMensagemHgp = (message) => String(
+    message?.id?._serialized ||
+    `${message?.from || ''}:${message?.timestamp || ''}:${message?.type || ''}:${message?.body || ''}`
+);
+
+const registrarIdMensagemHgp = (message) => {
+    const agora = Date.now();
+    for (const [id, expiraEm] of hgpRecentMessageIds) {
+        if (expiraEm <= agora) hgpRecentMessageIds.delete(id);
+    }
+
+    const id = obterIdMensagemHgp(message);
+    if (!id || hgpRecentMessageIds.has(id)) return false;
+    hgpRecentMessageIds.set(id, agora + HGP_MESSAGE_DEDUP_MS);
+    return true;
+};
+
+const mensagemHgpJaVista = (message) => hgpRecentMessageIds.has(obterIdMensagemHgp(message));
+
+// O whatsapp-web.js pode continuar reportando CONNECTED mesmo quando a ponte de
+// eventos da pagina deixa de emitir "message". Recupera somente mensagens nao
+// lidas e recentes; o mesmo ID nunca e encaminhado duas vezes.
+const recuperarMensagensNaoLidasHgp = async () => {
+    if (hgpUnreadProbeRunning || whatsappState !== 'connected' || !whatsappClient) return;
+    hgpUnreadProbeRunning = true;
+
+    try {
+        const chats = await Promise.race([
+            whatsappClient.getChats(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('getChats timeout')), 12000))
+        ]);
+        hgpUnreadProbeFailures = 0;
+        const limiteTimestamp = Date.now() - HGP_UNREAD_MAX_AGE_MS;
+
+        for (const chat of chats || []) {
+            const unread = Math.min(20, Math.max(0, Number(chat?.unreadCount) || 0));
+            if (!unread || chat?.isGroup) continue;
+
+            let messages = [];
+            try {
+                messages = await chat.fetchMessages({ limit: unread });
+            } catch (error) {
+                console.warn('[HGP] Falha ao buscar mensagens não lidas:', error.message);
+                continue;
+            }
+
+            for (const message of messages || []) {
+                const timestampMs = Number(message?.timestamp || 0) * 1000;
+                if (message?.fromMe || !timestampMs || timestampMs < limiteTimestamp) continue;
+                if (mensagemHgpJaVista(message)) continue;
+
+                console.warn(
+                    `[HGP] Mensagem recuperada pelo fallback de não lidas: ${message.from} id=${obterIdMensagemHgp(message)}`
+                );
+                message._hgpRecoverySource = 'unread-fallback';
+                whatsappClient.emit('message', message);
+            }
+        }
+    } catch (error) {
+        hgpUnreadProbeFailures += 1;
+        console.warn('[HGP] Verificação de mensagens não lidas falhou:', error.message);
+        if (hgpUnreadProbeFailures >= 3) {
+            hgpUnreadProbeFailures = 0;
+            await forcarReconexaoHgp(`fallback não lidas: ${error.message}`);
+        }
+    } finally {
+        hgpUnreadProbeRunning = false;
     }
 };
 
@@ -1203,9 +1278,14 @@ async function iniciarWhatsAppLegacy() {
     });
 
     whatsappClient.on('message', async (message) => {
+        const primeiraEntrega = registrarIdMensagemHgp(message);
+        const origemMensagem = message._hgpRecoverySource || (primeiraEntrega ? 'evento' : 'duplicada');
+        console.log(
+            `[HGP] msg recebida de ${message.from} id=${obterIdMensagemHgp(message)} origem=${origemMensagem} pid=${process.pid}`
+        );
         try {
             const [sessions] = await db.query('SELECT id FROM whatsapp_sessions WHERE session_name = ?', ['admin-session']);
-            if (sessions.length > 0) {
+            if (primeiraEntrega && sessions.length > 0) {
                 await db.query(
                     'INSERT INTO messages (session_id, from_number, to_number, message_body, message_type, is_from_me) VALUES (?, ?, ?, ?, ?, ?)',
                     [
@@ -4624,6 +4704,12 @@ async function startServer() {
             verificarSaudeHgp().catch((e) => console.error('[HGP] Watchdog:', e.message));
             instanceManager.reconectarInstanciasCaiadas().catch((e) => console.error('[InstanceManager] Watchdog:', e.message));
         }, 45000);
+
+        // Fallback leve para o caso especifico em que o HGP aparece conectado,
+        // mas o listener do Chrome para de entregar novas mensagens.
+        setInterval(() => {
+            recuperarMensagensNaoLidasHgp().catch((e) => console.error('[HGP] Fallback não lidas:', e.message));
+        }, 12000);
 
         app.listen(PORT, () => {
             console.log(`Servidor rodando em http://localhost:${PORT}`);
