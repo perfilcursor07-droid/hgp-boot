@@ -469,8 +469,7 @@ const syncDisconnectedSession = async () => {
 
 const syncLegacyInstanciaStatus = async (status, qrCode = null) => {
     try {
-        const dados = { status };
-        if (qrCode !== null) dados.qr_code = qrCode;
+        const dados = { status, qr_code: qrCode };
         if (status === 'connected') dados.last_connected = new Date();
         const fields = Object.keys(dados).map(k => `${k} = ?`).join(', ');
         const values = Object.values(dados);
@@ -481,12 +480,29 @@ const syncLegacyInstanciaStatus = async (status, qrCode = null) => {
     }
 };
 
+const confirmarLegacyConectado = async () => {
+    whatsappState = 'connected';
+    hgpConnectingSince = 0;
+    whatsappLastError = null;
+    currentQR = null;
+    hgpReconnectAttempts = 0;
+    hgpAttemptsResetAt = Date.now();
+    cancelarReconexaoHgp();
+
+    await db.query(
+        'UPDATE whatsapp_sessions SET is_connected = ?, last_connected = NOW(), qr_code = NULL WHERE session_name = ?',
+        [true, 'admin-session']
+    );
+    await syncLegacyInstanciaStatus('connected', null);
+};
+
 const resetWhatsAppRuntime = async () => {
     currentQR = null;
     whatsappClient = null;
     whatsappChatbotController = null;
     whatsappState = 'disconnected';
     await syncDisconnectedSession();
+    await syncLegacyInstanciaStatus('disconnected', null);
 };
 
 async function obterRuntimeLegacyStatus({ probe = false } = {}) {
@@ -496,10 +512,6 @@ async function obterRuntimeLegacyStatus({ probe = false } = {}) {
         return { status: 'connected', qr: null, lastError: whatsappLastError };
     }
 
-    if (currentQR) {
-        return { status: 'qr_ready', qr: currentQR, lastError: whatsappLastError };
-    }
-
     if (probe && whatsappClient && status === 'connecting') {
         try {
             const state = await Promise.race([
@@ -507,15 +519,16 @@ async function obterRuntimeLegacyStatus({ probe = false } = {}) {
                 new Promise((_, reject) => setTimeout(() => reject(new Error('getState timeout')), 4000))
             ]);
             if (state === 'CONNECTED') {
-                whatsappState = 'connected';
-                hgpConnectingSince = 0;
-                whatsappLastError = null;
-                await syncLegacyInstanciaStatus('connected', null);
+                await confirmarLegacyConectado();
                 return { status: 'connected', qr: null, lastError: null };
             }
         } catch (e) {
             // segue exibindo o estado conhecido abaixo
         }
+    }
+
+    if (currentQR) {
+        return { status: 'qr_ready', qr: currentQR, lastError: whatsappLastError };
     }
 
     if (status === 'connecting') {
@@ -1147,21 +1160,22 @@ async function iniciarWhatsAppLegacy() {
         console.log('[HGP] QR Code gerado — escaneie no painel /instancias');
     });
 
-    whatsappClient.on('ready', async () => {
-        console.log('[HGP] WhatsApp conectado ✓');
-        whatsappState = 'connected';
-        hgpConnectingSince = 0;
+    whatsappClient.on('authenticated', async () => {
+        console.log('[HGP] WhatsApp autenticado — aguardando sincronização...');
+        whatsappState = 'connecting';
         whatsappLastError = null;
         currentQR = null;
-        hgpReconnectAttempts = 0;
-        hgpAttemptsResetAt = Date.now();
-        cancelarReconexaoHgp();
-        anexarWatchdogChrome(whatsappClient);
         await db.query(
-            'UPDATE whatsapp_sessions SET is_connected = ?, last_connected = NOW(), qr_code = NULL WHERE session_name = ?',
-            [true, 'admin-session']
+            'UPDATE whatsapp_sessions SET is_connected = ?, qr_code = NULL WHERE session_name = ?',
+            [false, 'admin-session']
         );
-        await syncLegacyInstanciaStatus('connected', null);
+        await syncLegacyInstanciaStatus('connecting', null);
+    });
+
+    whatsappClient.on('ready', async () => {
+        console.log('[HGP] WhatsApp conectado ✓');
+        anexarWatchdogChrome(whatsappClient);
+        await confirmarLegacyConectado();
     });
 
     whatsappClient.on('change_state', (state) => {

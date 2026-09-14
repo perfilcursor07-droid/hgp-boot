@@ -312,7 +312,7 @@
         async function atualizarStatus() {
             if (!pollInstId) return;
             try {
-                const r = await fetch(`/api/instancias/${pollInstId}/status`);
+                const r = await fetch(`/api/instancias/${pollInstId}/status`, { cache: 'no-store' });
                 const d = await r.json();
                 if (!d.success) return;
                 const status = d.runtime.status || d.instancia.status;
