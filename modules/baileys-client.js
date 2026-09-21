@@ -197,9 +197,25 @@ class BaileysClient extends EventEmitter {
         });
     }
 
+    _desembrulharMensagem(message) {
+        let atual = message || {};
+        for (let i = 0; i < 5; i++) {
+            const proxima =
+                atual.ephemeralMessage?.message ||
+                atual.viewOnceMessage?.message ||
+                atual.viewOnceMessageV2?.message ||
+                atual.documentWithCaptionMessage?.message ||
+                atual.editedMessage?.message ||
+                null;
+            if (!proxima) break;
+            atual = proxima;
+        }
+        return atual;
+    }
+
     _converterMensagem(msg) {
         const jid = msg.key.remoteJid || '';
-        const message = msg.message || {};
+        const message = this._desembrulharMensagem(msg.message || {});
         const texto = message.conversation || message.extendedTextMessage?.text || message.imageMessage?.caption || message.videoMessage?.caption || '';
         let type = 'chat';
         const hasMedia = !!(message.imageMessage || message.videoMessage || message.audioMessage || message.documentMessage || message.stickerMessage);
@@ -227,30 +243,36 @@ class BaileysClient extends EventEmitter {
             async delete(forEveryone) { try { await self.sock.sendMessage(jid, { delete: msg.key }); } catch (e) {} },
             async downloadMedia() {
                 if (!hasMedia || !mediaPayload) return null;
-                try {
-                    const buffer = await downloadMediaMessage(
-                        msg,
-                        'buffer',
-                        {},
-                        {
-                            logger,
-                            reuploadRequest: self.sock?.updateMediaMessage
-                                ? self.sock.updateMediaMessage.bind(self.sock)
-                                : undefined
-                        }
-                    );
+                const mensagemDownload = { ...msg, message };
+                let ultimoErro = null;
+                for (let tentativa = 1; tentativa <= 2; tentativa++) {
+                    try {
+                        const buffer = await downloadMediaMessage(
+                            mensagemDownload,
+                            'buffer',
+                            {},
+                            {
+                                logger,
+                                reuploadRequest: self.sock?.updateMediaMessage
+                                    ? self.sock.updateMediaMessage.bind(self.sock)
+                                    : undefined
+                            }
+                        );
 
-                    if (!buffer) return null;
+                        if (!buffer) return null;
 
-                    return {
-                        data: Buffer.from(buffer).toString('base64'),
-                        mimetype: mediaPayload.mimetype || '',
-                        filename: mediaPayload.fileName || mediaPayload.filename || `${type}-${msg.key.id || Date.now()}`
-                    };
-                } catch (e) {
-                    console.error('[BaileysClient] Erro ao baixar mídia recebida:', e.message);
-                    return null;
+                        return {
+                            data: Buffer.from(buffer).toString('base64'),
+                            mimetype: mediaPayload.mimetype || '',
+                            filename: mediaPayload.fileName || mediaPayload.filename || `${type}-${msg.key.id || Date.now()}`
+                        };
+                    } catch (e) {
+                        ultimoErro = e;
+                        if (tentativa < 2) await new Promise(r => setTimeout(r, 700));
+                    }
                 }
+                console.error('[BaileysClient] Erro ao baixar mídia recebida:', ultimoErro?.message || 'erro desconhecido');
+                return null;
             }
         };
     }

@@ -6,10 +6,13 @@
 // ════════════════════════════════════════════════════════════════════
 
 const dayjs = require('dayjs');
+const fs = require('fs/promises');
+const path = require('path');
 const db = require('../config/database');
 const { validarDescricao } = require('./ai-description-validator');
 
 const ATTACH_FLAG = Symbol.for('hgp.dynamicFlow.attached');
+const CHAT_MEDIA_DIR = path.join(__dirname, '..', 'public', 'uploads', 'chat-media');
 
 function gerarProtocolo(prefixo = 'HGP') {
     const data = dayjs().format('DDMM');
@@ -238,6 +241,69 @@ function labelCampoParaEstado(campo, estado) {
 
 function extrairTelefoneDoSession(sessionId) {
     return String(sessionId || '').replace(/@.*$/, '').replace(/\D/g, '');
+}
+
+function tipoMidiaNormalizado(tipoMsg) {
+    const tipo = String(tipoMsg || '').toLowerCase();
+    if (tipo === 'ptt') return 'audio';
+    if (['image', 'video', 'audio', 'document', 'sticker'].includes(tipo)) return tipo;
+    return 'media';
+}
+
+function extensaoMidia(media, tipoMsg) {
+    const extOriginal = path.extname(media?.filename || '');
+    if (extOriginal) return extOriginal;
+
+    const mime = String(media?.mimetype || '').toLowerCase().split(';')[0];
+    const porMime = {
+        'image/jpeg': '.jpg',
+        'image/png': '.png',
+        'image/webp': '.webp',
+        'image/gif': '.gif',
+        'audio/ogg': '.ogg',
+        'audio/mpeg': '.mp3',
+        'audio/mp4': '.m4a',
+        'video/mp4': '.mp4',
+        'application/pdf': '.pdf'
+    };
+
+    return porMime[mime] || `.${tipoMidiaNormalizado(tipoMsg) || 'bin'}`;
+}
+
+async function salvarMidiaChat(msg, chamadoId, tipoMsg, instanciaNome) {
+    if (!msg?.hasMedia && !['audio', 'ptt', 'video', 'image', 'document', 'sticker'].includes(String(tipoMsg || '').toLowerCase())) {
+        return null;
+    }
+
+    const media = await msg.downloadMedia();
+    if (!media?.data) {
+        console.warn(`[DynamicFlow:${instanciaNome}] Mídia recebida, mas o WhatsApp não liberou o download.`);
+        return null;
+    }
+
+    await fs.mkdir(CHAT_MEDIA_DIR, { recursive: true });
+
+    const extensao = extensaoMidia(media, tipoMsg);
+    const filename = `chamado-${chamadoId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${extensao}`;
+    const filePath = path.join(CHAT_MEDIA_DIR, filename);
+    await fs.writeFile(filePath, Buffer.from(media.data, 'base64'));
+
+    const messageType = tipoMidiaNormalizado(tipoMsg);
+    if (messageType === 'image' && media.mimetype) {
+        try {
+            const mediaManager = require('./media-manager');
+            await mediaManager.comprimirImagem(filePath, media.mimetype);
+        } catch (e) {
+            console.warn(`[DynamicFlow:${instanciaNome}] Não foi possível comprimir imagem recebida: ${e.message}`);
+        }
+    }
+
+    return {
+        messageType,
+        mediaUrl: `/uploads/chat-media/${filename}`,
+        mediaMimeType: media.mimetype || null,
+        mediaFilename: media.filename || filename
+    };
 }
 
 async function buscarPerfilPorTelefone(telefone) {
@@ -751,36 +817,18 @@ function attachDynamicFlow(client, options = {}) {
                         let mensagemTexto = texto;
 
                         if (ehMidia) {
-                            messageType = ['audio','ptt'].includes(tipoMsg) ? 'audio' : tipoMsg;
+                            messageType = tipoMidiaNormalizado(tipoMsg);
                             mensagemTexto = msg.body || `[${messageType}]`;
-                            // Salvar mídia em disco (best-effort)
                             try {
-                                const media = await msg.downloadMedia();
-                                if (media) {
-                                    const fs = require('fs');
-                                    const path = require('path');
-                                    const dir = path.join(__dirname, '..', 'public', 'uploads', 'chat-media');
-                                    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-                                    const ext = (media.mimetype || '').split('/').pop().split(';')[0] || 'bin';
-                                    const filename = `chamado-${chamadoAtivo.id}-${Date.now()}.${ext}`;
-                                    const filePath = path.join(dir, filename);
-                                    fs.writeFileSync(filePath, Buffer.from(media.data, 'base64'));
-                                    mediaUrl = `/uploads/chat-media/${filename}`;
-                                    mediaMimeType = media.mimetype;
-                                    mediaFilename = media.filename || filename;
-
-                                    // Comprimir se for imagem (best-effort, async)
-                                    if (messageType === 'image' && media.mimetype) {
-                                        try {
-                                            const mediaManager = require('./media-manager');
-                                            await mediaManager.comprimirImagem(filePath, media.mimetype);
-                                        } catch (e) {
-                                            // ignora — mantém o arquivo original
-                                        }
-                                    }
+                                const midiaSalva = await salvarMidiaChat(msg, chamadoAtivo.id, tipoMsg, instanciaNome);
+                                if (midiaSalva) {
+                                    messageType = midiaSalva.messageType;
+                                    mediaUrl = midiaSalva.mediaUrl;
+                                    mediaMimeType = midiaSalva.mediaMimeType;
+                                    mediaFilename = midiaSalva.mediaFilename;
                                 }
                             } catch (e) {
-                                console.error('Erro ao salvar mídia do solicitante:', e.message);
+                                console.error(`[DynamicFlow:${instanciaNome}] Erro ao salvar mídia do solicitante:`, e.message);
                             }
                         }
 
