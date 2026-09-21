@@ -2866,16 +2866,29 @@
         }
 
         function montarMidiaHtml(msg) {
-            if (!msg.media_url) return '';
+            const tipoMsg = String(msg.message_type || '').toLowerCase();
+            const mime = String(msg.media_mime_type || '').toLowerCase();
+            const filename = String(msg.media_filename || msg.media_url || '').toLowerCase();
+            const pareceImagem = tipoMsg === 'image' || mime.startsWith('image/') || /\.(jpe?g|png|webp|gif)$/i.test(filename);
+            const pareceAudio = tipoMsg === 'audio' || tipoMsg === 'ptt' || mime.startsWith('audio/') || /\.(ogg|mp3|m4a|wav|opus)$/i.test(filename);
+            const pareceVideo = tipoMsg === 'video' || mime.startsWith('video/') || /\.(mp4|webm|mov)$/i.test(filename);
+
+            if (!msg.media_url) {
+                if (['image', 'audio', 'ptt', 'video', 'document', 'sticker', 'media'].includes(tipoMsg)) {
+                    const icone = pareceImagem ? '🖼️' : pareceAudio ? '🎵' : pareceVideo ? '🎬' : '📎';
+                    return `<div class="chat-media chat-media-expirada">${icone} <em>Mídia recebida, mas o arquivo não foi baixado pelo WhatsApp.</em></div>`;
+                }
+                return '';
+            }
             // Mídia expirada (arquivo apagado por retenção)
             if (String(msg.media_url).startsWith('[expirado]')) {
-                const tipo = msg.message_type || 'arquivo';
+                const tipo = tipoMsg || 'arquivo';
                 const icone = tipo === 'image' ? '🖼️' : tipo === 'audio' ? '🎵' : tipo === 'video' ? '🎬' : '📎';
                 return `<div class="chat-media chat-media-expirada">${icone} <em>Mídia expirada (chamado finalizado há mais de 7 dias)</em></div>`;
             }
-            const isImagem = msg.message_type === 'image';
-            const isAudio  = msg.message_type === 'audio' || msg.message_type === 'ptt';
-            const isVideo  = msg.message_type === 'video';
+            const isImagem = pareceImagem;
+            const isAudio  = pareceAudio;
+            const isVideo  = pareceVideo;
             const isArquivo = msg.media_url && !isImagem && !isAudio && !isVideo;
             if (isImagem)  return `<div class="chat-media"><a href="${msg.media_url}" target="_blank" rel="noopener noreferrer"><img src="${msg.media_url}" alt="Imagem"></a></div>`;
             if (isAudio)   return `<div class="chat-media"><audio controls><source src="${msg.media_url}" type="${msg.media_mime_type || 'audio/ogg'}"></audio></div>`;
@@ -2941,7 +2954,8 @@
                         const grpClass = agrupado ? ' grouped' : ' first';
 
                         // Esconder placeholders auto-gerados quando há mídia (ex: [image], [audio])
-                        const isPlaceholder = msg.media_url && /^\[(image|audio|video|document|ptt|sticker)\]$/.test(String(msg.mensagem || '').trim());
+                        const isMidiaSemTexto = ['image', 'audio', 'video', 'document', 'ptt', 'sticker', 'media'].includes(String(msg.message_type || '').toLowerCase());
+                        const isPlaceholder = isMidiaSemTexto && (/^\[(image|audio|video|document|ptt|sticker|media)\]$/.test(String(msg.mensagem || '').trim()) || /^📷\s*Imagem enviada$/i.test(String(msg.mensagem || '').trim()));
                         const mostraTexto = msg.mensagem && !isPlaceholder;
                         const textoHtml = mostraTexto ? `<div class="chat-bubble-text">${escapeHtml(msg.mensagem)}</div>` : '';
                         const autorHtml = agrupado ? '' : `<div class="chat-bubble-author">${escapeHtml(nome)}</div>`;

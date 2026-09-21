@@ -599,6 +599,13 @@ function attachChatbot(client, options = {}) {
         return tiposMidia[msg.type] || `📎 Arquivo enviado (${msg.type || 'mídia'})`;
     }
 
+    function tipoMidiaMensagem(msg) {
+        const tipo = String(msg?.type || '').toLowerCase();
+        if (tipo === 'ptt') return 'audio';
+        if (['image', 'video', 'audio', 'document', 'sticker'].includes(tipo)) return tipo;
+        return 'media';
+    }
+
     function mensagemEscolhaOpcao() {
         return '⚠️ Antes de enviar áudio, imagem, vídeo ou outra mensagem, por favor escolha uma das opções do menu digitando o número correspondente.';
     }
@@ -675,13 +682,33 @@ function attachChatbot(client, options = {}) {
         return extPorMime[mime] || (msg.type ? `.${msg.type}` : '.bin');
     }
 
-    async function salvarMidiaMensagem(msg, chamadoId) {
+    async function baixarMidiaComTentativas(msg, tentativas = 3) {
+        let ultimoErro = null;
+        for (let tentativa = 1; tentativa <= tentativas; tentativa++) {
+            try {
+                const media = await msg.downloadMedia();
+                if (media?.data) return media;
+            } catch (erro) {
+                ultimoErro = erro;
+            }
+            if (tentativa < tentativas) {
+                await delay(700 * tentativa);
+            }
+        }
+        if (ultimoErro) {
+            throw ultimoErro;
+        }
+        return null;
+    }
+
+    async function salvarMidiaMensagem(msg, chamadoId, protocolo = '') {
         if (!msg.hasMedia) {
             return null;
         }
 
-        const media = await msg.downloadMedia();
+        const media = await baixarMidiaComTentativas(msg);
         if (!media?.data) {
+            console.warn(`⚠️ Mídia recebida no chamado ${protocolo || chamadoId}, mas o WhatsApp não liberou o download.`);
             return null;
         }
 
@@ -705,7 +732,7 @@ function attachChatbot(client, options = {}) {
         }
 
         return {
-            messageType: String(msg.type || 'media'),
+            messageType: tipoMidiaMensagem(msg),
             mediaUrl: `/uploads/chat-media/${nomeArquivo}`,
             mediaMimeType: media.mimetype || null,
             mediaFilename: media.filename || nomeArquivo
@@ -808,10 +835,11 @@ function attachChatbot(client, options = {}) {
 
                         const contactName = contato.pushname || contato.name || 'Solicitante';
                         const resumoMensagem = resumirMensagemSolicitante(msg);
-                        const midiaSalva = await salvarMidiaMensagem(msg, chamadoAtivo.id).catch((erro) => {
+                        const midiaSalva = await salvarMidiaMensagem(msg, chamadoAtivo.id, chamadoAtivo.protocolo).catch((erro) => {
                             registrarErro(erro, 'Erro ao salvar mídia do solicitante');
                             return null;
                         });
+                        const messageType = ehMidia ? tipoMidiaMensagem(msg) : 'text';
 
                         await db.query(
                             `INSERT INTO chat_messages (
@@ -828,7 +856,7 @@ function attachChatbot(client, options = {}) {
                                 chamadoAtivo.id,
                                 contactName,
                                 resumoMensagem,
-                                midiaSalva?.messageType || 'text',
+                                midiaSalva?.messageType || messageType,
                                 midiaSalva?.mediaUrl || null,
                                 midiaSalva?.mediaMimeType || null,
                                 midiaSalva?.mediaFilename || null
