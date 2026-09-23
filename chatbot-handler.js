@@ -61,6 +61,7 @@ function attachChatbot(client, options = {}) {
     const mensagensProcessadas = new Map();
     const lidSessionMap = new Map(); // mapeia @lid -> sessionId estável
     const inactivityTimers = new Map(); // timers de inatividade por sessionId
+    const sessoesComChamadoAtivo = new Map(); // evita aviso de inatividade após abrir chamado
     let envioAtual = null; // { chat, msg, chatId, sessionId } da mensagem em processamento
     const INACTIVITY_MINUTES = 10;
     const INACTIVITY_TIMEOUT = INACTIVITY_MINUTES * 60 * 1000;
@@ -118,7 +119,7 @@ function attachChatbot(client, options = {}) {
             const pares = await paresLidPn(client, origem);
             const par = pares[0];
             const pn = par?.pn?._serialized || par?.pn || null;
-            if (pn && String(pn).includes('@c.us')) {
+            if (pn && (String(pn).includes('@c.us') || String(pn).includes('@s.whatsapp.net'))) {
                 pnJid = String(pn);
             }
         } catch (e) {}
@@ -186,7 +187,7 @@ function attachChatbot(client, options = {}) {
             return null;
         }
 
-        if (destino.endsWith('@c.us') || destino.endsWith('@g.us') || destino.endsWith('@lid')) {
+        if (destino.endsWith('@c.us') || destino.endsWith('@s.whatsapp.net') || destino.endsWith('@g.us') || destino.endsWith('@lid')) {
             return destino;
         }
 
@@ -222,6 +223,41 @@ function attachChatbot(client, options = {}) {
         clearInactivityTimer(sessionId);
     }
 
+    function limparSessoesComChamadoAtivo() {
+        const agora = Date.now();
+        for (const [id, expiraEm] of sessoesComChamadoAtivo.entries()) {
+            if (expiraEm <= agora) {
+                sessoesComChamadoAtivo.delete(id);
+            }
+        }
+    }
+
+    function marcarSessaoComChamadoAtivo(...ids) {
+        limparSessoesComChamadoAtivo();
+        const expiraEm = Date.now() + (7 * 24 * 60 * 60 * 1000);
+        for (const id of ids.filter(Boolean)) {
+            sessoesComChamadoAtivo.set(id, expiraEm);
+            for (const [lid, sid] of lidSessionMap.entries()) {
+                if (id === lid || id === sid) {
+                    sessoesComChamadoAtivo.set(lid, expiraEm);
+                    sessoesComChamadoAtivo.set(sid, expiraEm);
+                }
+            }
+        }
+    }
+
+    function sessaoTemChamadoMarcado(sessionId) {
+        limparSessoesComChamadoAtivo();
+        if (sessoesComChamadoAtivo.has(sessionId)) return true;
+        for (const [lid, sid] of lidSessionMap.entries()) {
+            if ((sessionId === lid && sessoesComChamadoAtivo.has(sid)) ||
+                (sessionId === sid && sessoesComChamadoAtivo.has(lid))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     function resetInactivityTimer(sessionId, chatId) {
         clearInactivityTimer(sessionId);
 
@@ -234,9 +270,16 @@ function attachChatbot(client, options = {}) {
             const estAtual = estados.get(sessionId);
             if (!estAtual) return;
 
+            if (sessaoTemChamadoMarcado(sessionId)) {
+                pausarFluxoBot(sessionId);
+                console.log(`⏰ Inatividade ignorada — sessão ${sessionId} já possui chamado ativo/marcado`);
+                return;
+            }
+
             try {
                 const chamadoAindaAtivo = await buscarChamadoAtivo(sessionId);
                 if (chamadoAindaAtivo) {
+                    marcarSessaoComChamadoAtivo(sessionId);
                     pausarFluxoBot(sessionId);
                     console.log(`⏰ Inatividade ignorada — chamado ${chamadoAindaAtivo.protocolo} em andamento`);
                     return;
@@ -552,17 +595,21 @@ function attachChatbot(client, options = {}) {
             return chamadosAtivos[0];
         }
 
-        // Tentar variações do número (com e sem @c.us, com e sem 9)
+        // Tentar variações do número (com e sem @c.us/@s.whatsapp.net, com e sem 9)
         const numLimpo = String(sessionId).replace(/@.*$/, '').replace(/\D/g, '');
         if (numLimpo.length >= 10) {
-            const variacoes = [numLimpo, `${numLimpo}@c.us`];
+            const variacoes = [numLimpo, `${numLimpo}@c.us`, `${numLimpo}@s.whatsapp.net`];
             if (numLimpo.length === 13) {
-                variacoes.push(numLimpo.slice(0, 4) + numLimpo.slice(5));
-                variacoes.push(numLimpo.slice(0, 4) + numLimpo.slice(5) + '@c.us');
+                const semNove = numLimpo.slice(0, 4) + numLimpo.slice(5);
+                variacoes.push(semNove);
+                variacoes.push(`${semNove}@c.us`);
+                variacoes.push(`${semNove}@s.whatsapp.net`);
             }
             if (numLimpo.length === 12) {
-                variacoes.push(numLimpo.slice(0, 4) + '9' + numLimpo.slice(4));
-                variacoes.push(numLimpo.slice(0, 4) + '9' + numLimpo.slice(4) + '@c.us');
+                const comNove = numLimpo.slice(0, 4) + '9' + numLimpo.slice(4);
+                variacoes.push(comNove);
+                variacoes.push(`${comNove}@c.us`);
+                variacoes.push(`${comNove}@s.whatsapp.net`);
             }
 
             const placeholders = variacoes.map(() => '?').join(',');
@@ -815,6 +862,7 @@ function attachChatbot(client, options = {}) {
                     chamadoAtivo = await buscarChamadoAtivo(sessionId, [msg.from, chatId]);
 
                     if (chamadoAtivo) {
+                        marcarSessaoComChamadoAtivo(sessionId, msg.from, chatId);
                         pausarFluxoBot(sessionId);
 
                         const tipoMsg = String(msg.type || '').toLowerCase();
@@ -1210,6 +1258,8 @@ function attachChatbot(client, options = {}) {
                     chatOrigem: sessionId,
                     atribuidoEm
                 });
+
+                marcarSessaoComChamadoAtivo(sessionId, msg.from, chatId);
 
                 axios({
                     method: 'post',

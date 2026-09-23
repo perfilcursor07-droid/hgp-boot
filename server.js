@@ -996,6 +996,7 @@ function encerrarFluxoBotDoChamado(chamado) {
         const digits = id.replace(/@.*$/, '').replace(/\D/g, '');
         if (digits) {
             try { ctrl.liberarSessao(`${digits}@c.us`); } catch (e) {}
+            try { ctrl.liberarSessao(`${digits}@s.whatsapp.net`); } catch (e) {}
             try { ctrl.liberarSessao(digits); } catch (e) {}
         }
     }
