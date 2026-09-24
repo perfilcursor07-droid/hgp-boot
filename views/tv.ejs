@@ -234,7 +234,19 @@
         .rank-row:nth-child(2) .rank-pos { background: rgba(203,213,225,.14); color: var(--text2); }
         .rank-row:nth-child(3) .rank-pos { background: rgba(251,146,60,.16); color: var(--orange); }
         .rank-info { min-width: 0; }
-        .rank-name { font-size: .88rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .rank-top { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+        .rank-name { font-size: .88rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+        .rank-rate {
+            display: inline-flex; align-items: center; gap: .25rem; flex-shrink: 0;
+            font-size: .84rem; font-weight: 800; font-variant-numeric: tabular-nums;
+            padding: .08rem .5rem; border-radius: 99px;
+            background: var(--yellow-bg); color: var(--yellow); border: 1px solid var(--yellow-bdr);
+        }
+        .rank-rate svg { width: .75rem; height: .75rem; }
+        .rank-rate small { font-size: .64rem; font-weight: 600; opacity: .75; }
+        .rank-rate.r-alta  { background: var(--green-bg); color: var(--green); border-color: var(--green-bdr); }
+        .rank-rate.r-baixa { background: var(--red-bg);   color: var(--red);   border-color: var(--red-bdr); }
+        .rank-rate.r-sem   { background: transparent; color: var(--dim); border-color: var(--border2); font-weight: 600; }
         .rank-bar { height: .3rem; border-radius: 99px; background: var(--surface3); margin-top: .3rem; overflow: hidden; }
         .rank-bar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--green), var(--cyan)); transition: width .8s ease; }
         .rank-val { text-align: right; }
@@ -396,7 +408,7 @@
             <section class="tv-panel">
                 <div class="panel-header">
                     <h3>Técnicos — últimas 24h</h3>
-                    <span class="hint">finalizados · tempo médio</span>
+                    <span class="hint">★ nota média 30 dias · finalizados · tempo médio</span>
                 </div>
                 <div class="rank-list" id="rankList">
                     <div class="empty-state" style="padding:1.2rem">Carregando...</div>
@@ -445,7 +457,8 @@
     const STATUS_ORDER = { pendente: 0, aberto: 1, em_atendimento: 2 };
     const PARTICULAS   = new Set(['da', 'de', 'do', 'das', 'dos', 'e', 'di', 'du']);
     const ICON_USER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>';
-    const ICON_WAIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>';
+    const ICON_STAR = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg>';
+    const ICON_WAIT ='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>';
 
     // ── Helpers
     function esc(s) {
@@ -561,6 +574,29 @@
         '</div>';
     }
 
+    // Média de avaliação (1–5, últimos 30 dias) indexada pelo nome normalizado do técnico
+    let notasTecnicos = {};
+    function chaveNome(nome) { return nomeProprio(nome).toLocaleLowerCase('pt-BR'); }
+    function indexarNotas(lista) {
+        notasTecnicos = {};
+        (lista || []).forEach(function (r) {
+            if (!r.tecnico) return;
+            // Mesmo técnico com grafias diferentes: combina pela média ponderada
+            const k = chaveNome(r.tecnico), total = Number(r.total), media = Number(r.media);
+            const atual = notasTecnicos[k];
+            notasTecnicos[k] = atual
+                ? { total: atual.total + total, media: (atual.media * atual.total + media * total) / (atual.total + total) }
+                : { total: total, media: media };
+        });
+    }
+    function notaHtml(nome) {
+        const n = notasTecnicos[chaveNome(nome)];
+        if (!n || !n.total) return '<span class="rank-rate r-sem" title="Sem avaliações nos últimos 30 dias">sem nota</span>';
+        const cls = n.media >= 4.5 ? 'r-alta' : (n.media < 3.5 ? 'r-baixa' : '');
+        return '<span class="rank-rate ' + cls + '" title="Média de ' + n.total + ' avaliações nos últimos 30 dias">' + ICON_STAR +
+            n.media.toFixed(1).replace('.', ',') + ' <small>(' + n.total + ')</small></span>';
+    }
+
     function renderRanking(finalizados) {
         const map = {};
         finalizados.forEach(function (c) {
@@ -577,7 +613,7 @@
             const media = t.mins.length ? t.mins.reduce(function (a, b) { return a + b; }, 0) / t.mins.length : null;
             return '<div class="rank-row">' +
                 '<div class="rank-pos">' + (i + 1) + '</div>' +
-                '<div class="rank-info"><div class="rank-name">' + esc(t.nome) + '</div>' +
+                '<div class="rank-info"><div class="rank-top"><div class="rank-name">' + esc(t.nome) + '</div>' + notaHtml(t.nome) + '</div>' +
                     '<div class="rank-bar"><i style="width:' + Math.round(t.qtd / max * 100) + '%"></i></div></div>' +
                 '<div class="rank-val"><b>' + t.qtd + '</b><small>' + fmtTempo(media) + '</small></div>' +
             '</div>';
@@ -640,6 +676,7 @@
             : abertos.map(renderTicket).join(''));
 
         // Ranking + finalizados
+        indexarNotas(dados.avaliacoesTecnicos);
         setHtml('rankList', renderRanking(finalizados));
         setText('badgeFinalizados', finalizados.length);
         setHtml('doneList', finalizados.length === 0

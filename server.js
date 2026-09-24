@@ -1575,11 +1575,32 @@ app.get('/api/tv/chamados', async (req, res) => {
             ${unidWhere.replace(/c\./g, '')}
         `, unidParams);
 
+        // Média das avaliações (1 a 5) por técnico nos últimos 30 dias.
+        // Mesmo nome usado no ranking da TV: atendente_nome, senão tecnico_nome.
+        // Falha aqui não pode derrubar a TV: sem avaliações, o ranking segue sem estrelas.
+        let avaliacoesTecnicos = [];
+        try {
+            [avaliacoesTecnicos] = await db.query(`
+                SELECT
+                    COALESCE(NULLIF(c.atendente_nome, ''), NULLIF(c.tecnico_nome, ''), a.atendente_nome) AS tecnico,
+                    ROUND(AVG(a.nota), 1) AS media,
+                    COUNT(*) AS total
+                FROM avaliacoes a
+                JOIN chamados c ON c.id = a.chamado_id
+                WHERE a.criado_em >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                ${unidWhere}
+                GROUP BY tecnico
+            `, unidParams);
+        } catch (e) {
+            console.error('Erro TV API (avaliações):', e.message);
+        }
+
         res.json({
             success: true,
             abertos,
             finalizados,
             stats: stats[0],
+            avaliacoesTecnicos,
             timestamp: new Date()
         });
     } catch (error) {

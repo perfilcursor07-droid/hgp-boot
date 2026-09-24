@@ -6,166 +6,224 @@
     <title>Dashboard - WhatsApp SESAU</title>
     <link rel="stylesheet" href="/css/style.css">
     <style>
+        .dash-content { padding: 20px 24px 28px !important; max-width: 1600px; }
+
+        /* ── Banner "meus chamados" (display controlado pelo JS) ── */
+        #bannerMeusChamados {
+            background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%) !important;
+            border-radius: 14px !important;
+            padding: 16px 20px !important;
+            margin-bottom: 18px !important;
+            box-shadow: 0 8px 24px rgba(37, 99, 235, 0.2);
+        }
+        #bannerMeusChamados a { border-radius: 9px !important; padding: 9px 16px !important; font-weight: 700 !important; }
+
+        /* ── Indicadores ── */
         .dash-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 12px;
-            margin-bottom: 16px;
+            gap: 16px;
+            margin-bottom: 18px;
         }
-        @media (max-width: 1100px) { .dash-grid { grid-template-columns: repeat(2, 1fr); } }
-        @media (max-width: 600px) { .dash-grid { grid-template-columns: 1fr; } }
-
         .mini-card {
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            padding: 14px 16px;
+            --accent: #2563eb; --accent-bg: #eff6ff;
+            background: #fff;
+            border: 1px solid #e8edf3;
+            border-radius: 16px;
+            padding: 18px 20px;
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 16px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+            transition: box-shadow 0.2s, transform 0.2s;
         }
+        .mini-card:hover { box-shadow: 0 8px 24px rgba(15,23,42,0.07); transform: translateY(-1px); }
+        .mini-card::after {
+            content: '';
+            position: absolute;
+            right: -34px; top: -34px;
+            width: 110px; height: 110px;
+            border-radius: 50%;
+            background: var(--accent-bg);
+        }
+        .mini-card.k-blue   { --accent: #2563eb; --accent-bg: #eff6ff; }
+        .mini-card.k-orange { --accent: #ea580c; --accent-bg: #fff7ed; }
+        .mini-card.k-green  { --accent: #16a34a; --accent-bg: #f0fdf4; }
+        .mini-card.k-purple { --accent: #7c3aed; --accent-bg: #f5f3ff; }
         .mini-card-icon {
-            width: 36px; height: 36px;
-            border-radius: 8px;
+            width: 46px; height: 46px;
+            border-radius: 12px;
             display: flex; align-items: center; justify-content: center;
-            font-size: 16px; flex-shrink: 0;
+            flex-shrink: 0;
+            background: var(--accent-bg);
+            color: var(--accent);
+            position: relative; z-index: 1;
         }
-        .mini-card-icon.green { background: #dcfce7; }
-        .mini-card-icon.blue { background: #dbeafe; }
-        .mini-card-icon.purple { background: #ede9fe; }
-        .mini-card-icon.orange { background: #ffedd5; }
-        .mini-card-icon.red { background: #fee2e2; }
-        .mini-card-icon.teal { background: #ccfbf1; }
+        .mini-card-icon svg { width: 22px; height: 22px; }
+        .mini-card-info { position: relative; z-index: 1; min-width: 0; }
         .mini-card-info h4 {
-            font-size: 20px; font-weight: 700; color: #1e293b; margin: 0; line-height: 1.2;
+            font-size: 28px; font-weight: 800; color: #0f172a; margin: 0; line-height: 1.1;
+            font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
         }
         .mini-card-info p {
-            font-size: 11px; color: #64748b; margin: 2px 0 0; font-weight: 500;
+            font-size: 12.5px; color: #64748b; margin: 3px 0 0; font-weight: 600;
         }
 
-        .dash-panels {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-bottom: 16px;
-        }
-        @media (max-width: 900px) { .dash-panels { grid-template-columns: 1fr; } }
+        /* ── Linhas de painéis ── */
+        .dash-row { display: grid; gap: 16px; margin-bottom: 18px; }
+        .dash-row-a { grid-template-columns: 1.7fr 1fr; }
+        .dash-row-b { grid-template-columns: 1fr 1fr 0.9fr; }
 
         .dash-card {
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            padding: 16px;
+            background: #fff;
+            border: 1px solid #e8edf3;
+            border-radius: 16px;
+            padding: 18px 20px;
+            box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+            min-width: 0;
         }
-        .dash-card h3 {
-            font-size: 13px; font-weight: 600; color: #475569;
-            margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.3px;
+        .dash-card-head {
+            display: flex; align-items: center; justify-content: space-between; gap: 10px;
+            margin-bottom: 14px;
+        }
+        .dash-card h3, .conn-card h3 {
+            font-size: 14px; font-weight: 800; color: #0f172a;
+            margin: 0; text-transform: none; letter-spacing: -0.01em;
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        }
+        .h-ico {
+            width: 28px; height: 28px; border-radius: 8px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: #f1f5f9; color: #475569; flex-shrink: 0;
+        }
+        .h-ico svg { width: 15px; height: 15px; }
+        .dash-card-hint {
+            font-size: 11px; color: #64748b; font-weight: 700;
+            background: #f1f5f9; padding: 3px 9px; border-radius: 999px; white-space: nowrap;
         }
 
+        /* Gráfico de barras */
         .chart-container {
             position: relative;
-            height: 140px;
+            height: 150px;
             width: 100%;
+            background-image: linear-gradient(#f1f5f9 1px, transparent 1px);
+            background-size: 100% 30px;
+            border-bottom: 1px solid #e2e8f0;
         }
         .chart-bar-group {
             display: flex;
             align-items: flex-end;
-            gap: 4px;
-            height: 110px;
-            padding-top: 10px;
+            gap: 6px;
+            height: 100%;
+            padding: 10px 4px 0;
         }
         .chart-bar-item {
             flex: 1;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 4px;
+            gap: 6px;
             height: 100%;
             justify-content: flex-end;
         }
         .chart-bar {
             width: 100%;
-            max-width: 28px;
-            border-radius: 4px 4px 0 0;
-            background: linear-gradient(180deg, #25D366, #128C7E);
+            max-width: 34px;
+            border-radius: 6px 6px 2px 2px;
+            background: linear-gradient(180deg, #6ee7b7 0%, #10b981 100%);
             min-height: 3px;
-            transition: height 0.4s ease;
+            transition: height 0.4s ease, filter 0.15s;
         }
+        .chart-bar:hover { filter: brightness(0.9); }
+        .chart-bar-item:last-child .chart-bar { background: linear-gradient(180deg, #25d366, #128c7e); }
         .chart-bar-label {
-            font-size: 9px;
+            font-size: 10.5px;
             color: #94a3b8;
-            font-weight: 500;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+            padding-bottom: 4px;
         }
 
-        .cat-list { list-style: none; padding: 0; margin: 0; }
+        /* Rosca */
+        .donut-container { display: flex; align-items: center; gap: 22px; min-height: 150px; }
+        .donut-svg { width: 132px; height: 132px; flex-shrink: 0; }
+        .donut-legend { list-style: none; padding: 0; margin: 0; flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+        .donut-legend li {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 13px; color: #475569; padding: 8px 12px;
+            background: #f8fafc; border-radius: 9px; font-weight: 600;
+        }
+        .donut-legend li strong { margin-left: auto; color: #0f172a; font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+        .donut-legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+
+        /* Categorias */
+        .cat-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
         .cat-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 8px 0;
-            border-bottom: 1px solid #f1f5f9;
+            display: flex; align-items: center; gap: 10px;
+            padding: 9px 12px;
+            border-radius: 10px;
+            background: #f8fafc;
         }
-        .cat-item:last-child { border-bottom: none; }
-        .cat-dot {
-            width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-        }
-        .cat-name { font-size: 12px; color: #334155; flex: 1; }
+        .cat-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+        .cat-name { font-size: 13px; color: #1e293b; flex: 1; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .cat-count {
-            font-size: 12px; font-weight: 700; color: #1e293b;
-            background: #f1f5f9; padding: 2px 8px; border-radius: 10px;
+            font-size: 13px; font-weight: 800; color: #0f172a;
+            background: #fff; border: 1px solid #e2e8f0;
+            padding: 2px 10px; border-radius: 999px; font-variant-numeric: tabular-nums;
         }
 
-        .atendente-list { list-style: none; padding: 0; margin: 0; }
+        /* Atendentes (ranking) */
+        .atendente-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
         .atendente-item {
             display: flex; align-items: center; gap: 10px;
-            padding: 7px 0; border-bottom: 1px solid #f1f5f9;
+            padding: 7px 12px 7px 8px; border-radius: 10px; background: #f8fafc;
         }
-        .atendente-item:last-child { border-bottom: none; }
         .atendente-avatar-sm {
-            width: 26px; height: 26px; border-radius: 6px;
-            background: linear-gradient(135deg, #25D366, #128C7E);
-            color: white; display: flex; align-items: center; justify-content: center;
-            font-size: 11px; font-weight: 700; flex-shrink: 0;
+            width: 30px; height: 30px; border-radius: 50%;
+            background: #e2e8f0; color: #475569;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 800; flex-shrink: 0;
         }
-        .atendente-name { font-size: 12px; color: #334155; flex: 1; }
+        .atendente-item:nth-child(1) .atendente-avatar-sm { background: #fef3c7; color: #b45309; box-shadow: 0 0 0 2px #fde68a; }
+        .atendente-item:nth-child(2) .atendente-avatar-sm { background: #e2e8f0; color: #334155; box-shadow: 0 0 0 2px #cbd5e1; }
+        .atendente-item:nth-child(3) .atendente-avatar-sm { background: #ffedd5; color: #c2410c; box-shadow: 0 0 0 2px #fed7aa; }
+        .atendente-name { font-size: 13px; color: #1e293b; flex: 1; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .atendente-count {
-            font-size: 11px; font-weight: 700; color: #1e293b;
-            background: #f1f5f9; padding: 2px 8px; border-radius: 10px;
+            font-size: 13px; font-weight: 800; color: #15803d;
+            background: #f0fdf4; border: 1px solid #bbf7d0;
+            padding: 2px 10px; border-radius: 999px; font-variant-numeric: tabular-nums;
         }
 
-        .conn-section {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-bottom: 16px;
-        }
-        @media (max-width: 900px) { .conn-section { grid-template-columns: 1fr; } }
-
+        /* Conexão */
+        .conn-stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
         .conn-card {
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            padding: 16px;
+            background: #fff;
+            border: 1px solid #e8edf3;
+            border-radius: 16px;
+            padding: 18px 20px;
+            box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+            flex: 1;
+            min-width: 0;
         }
-        .conn-card h3 {
-            font-size: 13px; font-weight: 600; color: #475569;
-            margin: 0 0 10px; text-transform: uppercase; letter-spacing: 0.3px;
-        }
+        .conn-card h3 { margin-bottom: 12px; }
         .conn-status {
-            display: inline-flex; align-items: center; gap: 6px;
-            padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+            display: inline-flex; align-items: center; gap: 7px;
+            padding: 6px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700;
         }
-        .conn-status.online { background: #dcfce7; color: #16a34a; }
-        .conn-status.offline { background: #fee2e2; color: #dc2626; }
-        .conn-status-dot {
-            width: 7px; height: 7px; border-radius: 50%;
-        }
-        .conn-status.online .conn-status-dot { background: #16a34a; }
+        .conn-status.online { background: #dcfce7; color: #15803d; }
+        .conn-status.offline { background: #fee2e2; color: #b91c1c; }
+        .conn-status-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .conn-status.online .conn-status-dot { background: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,0.2); animation: dashPulse 2s ease-in-out infinite; }
         .conn-status.offline .conn-status-dot { background: #dc2626; }
+        @keyframes dashPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+        .conn-card p { font-size: 12.5px !important; line-height: 1.45; margin-top: 8px !important; }
         .conn-actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
         .conn-actions button {
-            padding: 8px 16px; border-radius: 6px; font-size: 12px;
-            font-weight: 600; cursor: pointer; border: none; transition: all 0.2s;
+            padding: 8px 16px; border-radius: 8px; font-size: 12px;
+            font-weight: 700; cursor: pointer; border: none; transition: all 0.2s;
         }
         .btn-connect { background: #25D366; color: white; }
         .btn-connect:hover { background: #128C7E; }
@@ -177,17 +235,28 @@
         #qrcode-container h4 { font-size: 12px; color: #475569; margin: 0 0 8px; }
         #qrcode-container p { font-size: 11px; color: #94a3b8; margin: 8px 0 0; }
 
-        .donut-container {
-            display: flex; align-items: center; gap: 16px;
+        /* ── Responsivo ── */
+        @media (max-width: 1280px) {
+            .dash-row-b { grid-template-columns: 1fr 1fr; }
+            .dash-row-b .conn-stack { grid-column: 1 / -1; flex-direction: row; }
         }
-        .donut-svg { width: 90px; height: 90px; flex-shrink: 0; }
-        .donut-legend { list-style: none; padding: 0; margin: 0; }
-        .donut-legend li {
-            display: flex; align-items: center; gap: 6px;
-            font-size: 11px; color: #475569; padding: 3px 0;
+        @media (max-width: 1100px) {
+            .dash-grid { grid-template-columns: repeat(2, 1fr); }
+            .dash-row-a { grid-template-columns: 1fr; }
         }
-        .donut-legend-dot {
-            width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0;
+        @media (max-width: 760px) {
+            .dash-content { padding: 14px !important; }
+            .dash-row-b { grid-template-columns: 1fr; }
+            .dash-row-b .conn-stack { flex-direction: column; }
+            .donut-container { flex-direction: column; align-items: stretch; }
+            .donut-svg { align-self: center; }
+        }
+        @media (max-width: 520px) {
+            .dash-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+            .mini-card { padding: 14px; gap: 10px; }
+            .mini-card-icon { width: 38px; height: 38px; }
+            .mini-card-info h4 { font-size: 22px; }
+            .mini-card-info p { font-size: 11px; }
         }
     </style>
 </head>
@@ -212,7 +281,7 @@
                 </div>
             </div>
 
-            <div class="content" style="padding: 16px;">
+            <div class="content dash-content">
                 <!-- Banner Meus Chamados -->
                 <div id="bannerMeusChamados" style="display:none; background:linear-gradient(135deg,#0ea5e9,#0284c7); border-radius:10px; padding:14px 20px; margin-bottom:14px; color:white; align-items:center; justify-content:space-between; gap:12px;">
                     <div>
@@ -222,31 +291,31 @@
                     <a href="/meus-chamados" style="background:white;color:#0284c7;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;">Ver Meus Chamados →</a>
                 </div>
 
-                <!-- Mini Stats Cards -->
+                <!-- Indicadores -->
                 <div class="dash-grid">
-                    <div class="mini-card">
-                        <div class="mini-card-icon blue">💬</div>
+                    <div class="mini-card k-blue">
+                        <div class="mini-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
                         <div class="mini-card-info">
                             <h4 id="statMsgsHoje">0</h4>
                             <p>Mensagens hoje</p>
                         </div>
                     </div>
-                    <div class="mini-card">
-                        <div class="mini-card-icon orange">📋</div>
+                    <div class="mini-card k-orange">
+                        <div class="mini-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></div>
                         <div class="mini-card-info">
                             <h4 id="statChamados24h">0</h4>
                             <p>Chamados 24h</p>
                         </div>
                     </div>
-                    <div class="mini-card">
-                        <div class="mini-card-icon green">✅</div>
+                    <div class="mini-card k-green">
+                        <div class="mini-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg></div>
                         <div class="mini-card-info">
                             <h4 id="statFinalizados">0</h4>
                             <p>Finalizados hoje</p>
                         </div>
                     </div>
-                    <div class="mini-card">
-                        <div class="mini-card-icon purple">👥</div>
+                    <div class="mini-card k-purple">
+                        <div class="mini-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
                         <div class="mini-card-info">
                             <h4 id="statContatos">0</h4>
                             <p>Contatos ativos</p>
@@ -254,80 +323,87 @@
                     </div>
                 </div>
 
-                <!-- Charts Row -->
-                <div class="dash-panels">
-                    <!-- Mensagens por hora -->
+                <!-- Gráficos -->
+                <div class="dash-row dash-row-a">
                     <div class="dash-card">
-                        <h3>📊 Mensagens por hora (12h)</h3>
+                        <div class="dash-card-head">
+                            <h3><span class="h-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span> Mensagens por hora</h3>
+                            <span class="dash-card-hint">últimas 12h</span>
+                        </div>
                         <div class="chart-container">
                             <div class="chart-bar-group" id="chartMsgsHora"></div>
                         </div>
                     </div>
 
-                    <!-- Chamados 24h - Donut -->
                     <div class="dash-card">
-                        <h3>🎯 Chamados últimas 24h</h3>
+                        <div class="dash-card-head">
+                            <h3><span class="h-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg></span> Chamados por status</h3>
+                            <span class="dash-card-hint">últimas 24h</span>
+                        </div>
                         <div class="donut-container">
                             <svg class="donut-svg" viewBox="0 0 36 36" id="donutChart">
                                 <circle cx="18" cy="18" r="14" fill="none" stroke="#f1f5f9" stroke-width="4"/>
                             </svg>
                             <ul class="donut-legend" id="donutLegend">
-                                <li><span class="donut-legend-dot" style="background:#f59e0b"></span> Pendentes: <strong id="lgPendentes">0</strong></li>
-                                <li><span class="donut-legend-dot" style="background:#3b82f6"></span> Em atendimento: <strong id="lgAtendimento">0</strong></li>
-                                <li><span class="donut-legend-dot" style="background:#10b981"></span> Finalizados: <strong id="lgFinalizados">0</strong></li>
+                                <li><span class="donut-legend-dot" style="background:#f59e0b"></span> Pendentes <strong id="lgPendentes">0</strong></li>
+                                <li><span class="donut-legend-dot" style="background:#3b82f6"></span> Em atendimento <strong id="lgAtendimento">0</strong></li>
+                                <li><span class="donut-legend-dot" style="background:#10b981"></span> Finalizados <strong id="lgFinalizados">0</strong></li>
                             </ul>
                         </div>
                     </div>
                 </div>
 
-                <!-- Second Row -->
-                <div class="dash-panels">
-                    <!-- Categorias -->
+                <!-- Rankings + conexão -->
+                <div class="dash-row dash-row-b">
                     <div class="dash-card">
-                        <h3>📂 Top categorias (24h)</h3>
+                        <div class="dash-card-head">
+                            <h3><span class="h-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span> Top categorias</h3>
+                            <span class="dash-card-hint">24h</span>
+                        </div>
                         <ul class="cat-list" id="listCategorias">
                             <li class="cat-item"><span class="cat-name" style="color:#94a3b8">Carregando...</span></li>
                         </ul>
                     </div>
 
-                    <!-- Atendentes -->
                     <div class="dash-card">
-                        <h3>🏆 Atendentes mais ativos (24h)</h3>
+                        <div class="dash-card-head">
+                            <h3><span class="h-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></span> Atendentes mais ativos</h3>
+                            <span class="dash-card-hint">24h</span>
+                        </div>
                         <ul class="atendente-list" id="listAtendentes">
                             <li class="atendente-item"><span class="atendente-name" style="color:#94a3b8">Carregando...</span></li>
                         </ul>
                     </div>
-                </div>
 
-                <!-- Connection Section -->
-                <div class="conn-section">
-                    <div class="conn-card">
-                        <h3>📱 WhatsApp <% if (session && session.unidade_nome) { %><small style="font-size:11px;color:#64748b;font-weight:normal;">— <%= session.unidade_nome %></small><% } %></h3>
-                        <div id="status-container">
-                            <% if (session && session.is_connected) { %>
-                                <span class="conn-status online"><span class="conn-status-dot"></span> Conectado</span>
-                                <p style="font-size:11px;color:#64748b;margin:6px 0 0;">Última conexão: <%= session.last_connected ? new Date(session.last_connected).toLocaleString('pt-BR') : '—' %></p>
-                            <% } else { %>
-                                <span class="conn-status offline"><span class="conn-status-dot"></span> Desconectado</span>
-                                <% if (typeof isLegacyInstance !== 'undefined' && isLegacyInstance) { %>
-                                    <p style="font-size:11px;color:#64748b;margin:6px 0 0;">Clique para conectar</p>
+                    <div class="conn-stack">
+                        <div class="conn-card">
+                            <h3><span class="h-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></span> WhatsApp <% if (session && session.unidade_nome) { %><small style="font-size:11px;color:#64748b;font-weight:normal;">— <%= session.unidade_nome %></small><% } %></h3>
+                            <div id="status-container">
+                                <% if (session && session.is_connected) { %>
+                                    <span class="conn-status online"><span class="conn-status-dot"></span> Conectado</span>
+                                    <p style="font-size:11px;color:#64748b;margin:6px 0 0;">Última conexão: <%= session.last_connected ? new Date(session.last_connected).toLocaleString('pt-BR') : '—' %></p>
                                 <% } else { %>
-                                    <p style="font-size:11px;color:#f59e0b;margin:6px 0 0;">⚠️ Conecte pela tela <a href="/instancias" style="color:#f59e0b;font-weight:600;">Instâncias</a></p>
+                                    <span class="conn-status offline"><span class="conn-status-dot"></span> Desconectado</span>
+                                    <% if (typeof isLegacyInstance !== 'undefined' && isLegacyInstance) { %>
+                                        <p style="font-size:11px;color:#64748b;margin:6px 0 0;">Clique para conectar</p>
+                                    <% } else { %>
+                                        <p style="font-size:11px;color:#f59e0b;margin:6px 0 0;">⚠️ Conecte pela tela <a href="/instancias" style="color:#f59e0b;font-weight:600;">Instâncias</a></p>
+                                    <% } %>
                                 <% } %>
-                            <% } %>
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="conn-card">
-                        <h3>🤖 Bot de Atendimento</h3>
-                        <div id="bot-status-container">
-                            <% if (session && session.is_connected) { %>
-                                <span class="conn-status online"><span class="conn-status-dot"></span> Bot ativo</span>
-                                <p style="font-size:11px;color:#64748b;margin:6px 0 0;">Chatbot ativo na mesma sessão do WhatsApp.</p>
-                            <% } else { %>
-                                <span class="conn-status offline"><span class="conn-status-dot"></span> Aguardando</span>
-                                <p style="font-size:11px;color:#64748b;margin:6px 0 0;">Conecte o WhatsApp para ativar o bot.</p>
-                            <% } %>
+                        <div class="conn-card">
+                            <h3><span class="h-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><path d="M8 16h.01"/><path d="M16 16h.01"/></svg></span> Bot de Atendimento</h3>
+                            <div id="bot-status-container">
+                                <% if (session && session.is_connected) { %>
+                                    <span class="conn-status online"><span class="conn-status-dot"></span> Bot ativo</span>
+                                    <p style="font-size:11px;color:#64748b;margin:6px 0 0;">Chatbot ativo na mesma sessão do WhatsApp.</p>
+                                <% } else { %>
+                                    <span class="conn-status offline"><span class="conn-status-dot"></span> Aguardando</span>
+                                    <p style="font-size:11px;color:#64748b;margin:6px 0 0;">Conecte o WhatsApp para ativar o bot.</p>
+                                <% } %>
+                            </div>
                         </div>
                     </div>
                 </div>
