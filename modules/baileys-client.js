@@ -58,6 +58,10 @@ class BaileysClient extends EventEmitter {
 
     async _createSocket() {
         const { version } = await fetchLatestBaileysVersion();
+        // Se o cliente foi destruído durante o await acima (reconexão sobreposta),
+        // não abrir socket: um socket "fantasma" com as mesmas credenciais
+        // disputa a sessão com o cliente novo e faz mensagens se perderem.
+        if (this._destroyed) return;
         const { state, saveCreds } = await useMultiFileAuthState(this._sessionDir);
 
         // Limpar socket anterior se existir — remover listeners E encerrar a
