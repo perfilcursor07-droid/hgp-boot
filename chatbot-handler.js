@@ -1,3 +1,4 @@
+const { AsyncLocalStorage } = require('async_hooks');
 const axios = require('axios');
 const dayjs = require('dayjs');
 const path = require('path');
@@ -51,18 +52,28 @@ function obterIdMensagem(msg) {
     return msg?.id?._serialized || `${msg.from}-${msg.timestamp}-${msg.type || 'msg'}-${msg.body || ''}`;
 }
 
+// Contexto de envio POR MENSAGEM ({ chat, msg, chatId, sessionId }).
+// Antes era uma variável única compartilhada: como o bot espera entre um envio e
+// outro, a mensagem de outra pessoa sobrescrevia o destino e as respostas iam
+// para o contato errado (um recebia o menu/saudação do outro).
+const contextoEnvio = new AsyncLocalStorage();
+
+// Estado das conversas no nível do módulo: sobrevive quando o cliente WhatsApp é
+// recriado numa reconexão (antes cada reconexão zerava a conversa de todo mundo).
+const estados = new Map();
+const bloqueados = new Map();
+const mensagensProcessadas = new Map();
+const lidSessionMap = new Map(); // mapeia @lid -> sessionId estável
+const inactivityTimers = new Map(); // timers de inatividade por sessionId
+const sessoesComChamadoAtivo = new Map(); // evita aviso de inatividade após abrir chamado
+let clienteAtivo = null; // cliente WhatsApp mais recente (timers antigos enviam por ele)
+
 function attachChatbot(client, options = {}) {
     if (client[CHATBOT_ATTACHED_FLAG]) {
         return client[CHATBOT_ATTACHED_FLAG];
     }
 
-    const estados = new Map();
-    const bloqueados = new Map();
-    const mensagensProcessadas = new Map();
-    const lidSessionMap = new Map(); // mapeia @lid -> sessionId estável
-    const inactivityTimers = new Map(); // timers de inatividade por sessionId
-    const sessoesComChamadoAtivo = new Map(); // evita aviso de inatividade após abrir chamado
-    let envioAtual = null; // { chat, msg, chatId, sessionId } da mensagem em processamento
+    clienteAtivo = client;
     const INACTIVITY_MINUTES = 10;
     const INACTIVITY_TIMEOUT = INACTIVITY_MINUTES * 60 * 1000;
     const categoriasMap = {
@@ -159,10 +170,17 @@ function attachChatbot(client, options = {}) {
     }
 
     async function enviarAoUsuario(content, destOverride = null) {
+        const envioAtual = contextoEnvio.getStore() || null;
         const destino = destOverride || envioAtual?.chatId;
-        const ok = await entregarMensagem(client, destino, content, {
-            chat: envioAtual?.chat,
-            msg: envioAtual?.msg
+        if (!destino) {
+            console.error('[HGP] Envio sem destino definido — mensagem descartada');
+            return false;
+        }
+        // chat/msg só servem se forem da mesma conversa do destino
+        const mesmoDestino = envioAtual && (!destOverride || destOverride === envioAtual.chatId);
+        const ok = await entregarMensagem(clienteAtivo || client, destino, content, {
+            chat: mesmoDestino ? envioAtual.chat : undefined,
+            msg: mesmoDestino ? envioAtual.msg : undefined
         });
         if (!ok) {
             console.error(`[HGP] Mensagem NÃO entregue para ${destino}`);
@@ -339,7 +357,7 @@ function attachChatbot(client, options = {}) {
             await entregarMensagem(
                 client,
                 chatId,
-                `⭐ *Avalie nosso atendimento*\n\nDe 1 a 5, como foi o atendimento?\n\n1️⃣ Péssimo\n2️⃣ Ruim\n3️⃣ Regular\n4️⃣ Bom\n5️⃣ Excelente\n\n_Digite o número da sua avaliação._\n\n_Sistema versão 2.2 — Desenvolvido por Erick Vinicius (62) 98101-3083_`
+                `⭐ *Avalie nosso atendimento*\n\nDe 1 a 5, como foi o atendimento?\n\n1️⃣ Péssimo\n2️⃣ Ruim\n3️⃣ Regular\n4️⃣ Bom\n5️⃣ Excelente\n\n_Digite o número da sua avaliação._\n\n_Sistema versão 2.3 — Desenvolvido por Erick Vinicius (62) 98101-3083_`
             );
 
             // Setar estado de avaliação pendente
@@ -804,7 +822,8 @@ function attachChatbot(client, options = {}) {
         return false;
     }
 
-    client.on('message', async (msg) => {
+    // Cada mensagem roda no próprio contexto de envio (ver contextoEnvio no topo)
+    client.on('message', (msg) => contextoEnvio.run({}, async () => {
         try {
             if (msg.fromMe || msg.from.endsWith('@g.us') || msg.from === 'status@broadcast' || msg.from.endsWith('@newsletter')) return;
             if (String(msg.type || '').includes('notification')) return;
@@ -812,7 +831,7 @@ function attachChatbot(client, options = {}) {
             if (mensagemJaProcessada(msg)) return;
 
             const { contato, chatId, sessionId, chat } = await resolverDestinoMensagem(msg);
-            envioAtual = { chat, msg, chatId, sessionId };
+            Object.assign(contextoEnvio.getStore(), { chat, msg, chatId, sessionId });
             const texto = msg.body ? msg.body.trim().toUpperCase() : '';
             let est = estados.get(sessionId);
             let chamadoAtivo = null;
@@ -1278,7 +1297,7 @@ function attachChatbot(client, options = {}) {
         } catch (erro) {
             registrarErro(erro, `Erro no fluxo do usuário ${msg.from}`);
         }
-    });
+    }));
 
     const controller = {
         categories: categoriasMap,

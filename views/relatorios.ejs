@@ -6,367 +6,364 @@
     <title>Relatórios - WhatsApp SESAU</title>
     <link rel="stylesheet" href="/css/style.css">
     <style>
+        .rel-content { padding: 20px 24px 32px !important; max-width: 1600px; }
+
+        /* ── Filtros ── */
         .rel-filtros {
             display: flex;
-            gap: 12px;
+            gap: 14px;
             align-items: flex-end;
             flex-wrap: wrap;
-            padding: 14px 18px;
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            margin-bottom: 20px;
+            padding: 16px 18px;
+            background: #fff;
+            border: 1px solid #e8edf3;
+            border-radius: 16px;
+            margin-bottom: 18px;
+            box-shadow: 0 1px 2px rgba(15,23,42,0.04);
         }
         .rel-filtros label {
             display: block;
-            font-size: 11px;
-            font-weight: 600;
+            font-size: 11.5px;
+            font-weight: 700;
             color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
         }
-        .rel-filtros input[type="date"] {
-            padding: 8px 10px;
-            border: 1.5px solid #cbd5e1;
-            border-radius: 6px;
+        .rel-filtros input[type="date"],
+        .rel-filtros select {
+            height: 38px;
+            padding: 0 12px;
+            border: 1px solid #dfe5ec;
+            border-radius: 10px;
             font-size: 13px;
-            color: #334155;
-            background: white;
+            font-family: inherit;
+            color: #0f172a;
+            background: #fff;
         }
-        .rel-filtros input[type="date"]:focus {
+        .rel-filtros select { min-width: 160px; }
+        .rel-filtros input[type="date"]:focus,
+        .rel-filtros select:focus {
             outline: none;
             border-color: #25D366;
-            box-shadow: 0 0 0 2px rgba(37,211,102,0.12);
+            box-shadow: 0 0 0 3px rgba(37,211,102,0.14);
         }
-        .btn-gerar {
-            padding: 8px 20px;
-            background: linear-gradient(135deg, #25D366, #128C7E);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .btn-gerar:hover { opacity: 0.9; transform: translateY(-1px); }
-        .btn-gerar:disabled { background: #cbd5e1; cursor: not-allowed; transform: none; }
-        .btn-export {
-            padding: 8px 16px;
-            background: #fff;
-            color: #15803d;
-            border: 1.5px solid #86efac;
-            border-radius: 6px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-        }
-        .btn-export:hover { background: #f0fdf4; }
-        .btn-export:disabled { opacity: 0.5; cursor: not-allowed; }
-
         .rel-preset {
             display: inline-flex;
-            gap: 4px;
-            flex-wrap: wrap;
+            gap: 2px;
+            padding: 3px;
+            background: #f1f5f9;
+            border-radius: 11px;
         }
         .rel-preset button {
-            padding: 6px 12px;
-            border: 1px solid #e2e8f0;
-            background: #fff;
-            border-radius: 999px;
-            font-size: 12px;
+            height: 32px;
+            padding: 0 14px;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            font-size: 12.5px;
             font-weight: 600;
+            font-family: inherit;
             color: #475569;
             cursor: pointer;
         }
+        .rel-preset button:hover { color: #0f172a; }
         .rel-preset button.active {
-            background: #0f172a;
-            color: #fff;
-            border-color: #0f172a;
+            background: #fff;
+            color: #15803d;
+            box-shadow: 0 1px 3px rgba(15,23,42,0.12);
         }
-        .rel-filtros select {
-            padding: 8px 10px;
-            border: 1.5px solid #cbd5e1;
-            border-radius: 6px;
-            font-size: 13px;
-            color: #334155;
-            background: white;
-            min-width: 150px;
-        }
-        .rc-sla::before { background: #0ea5e9; }
-        .rc-sla .num { color: #0284c7; font-size: 20px !important; }
-
-        .rel-detalhe-wrap { max-height: 480px; overflow: auto; }
-        .rel-detalhe-wrap .rel-tbl { margin: 0; }
-        .badge-status {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 999px;
-            font-size: 10px;
+        .rel-filtros-sep { flex: 1 1 auto; }
+        .btn-gerar {
+            height: 38px;
+            padding: 0 20px;
+            background: #25D366;
+            color: #04210f;
+            border: none;
+            border-radius: 10px;
+            font-size: 13.5px;
             font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(37,211,102,0.25);
+            transition: background 0.15s;
         }
-        .bs-pendente { background: #fef3c7; color: #b45309; }
-        .bs-aberto { background: #dcfce7; color: #15803d; }
-        .bs-em_atendimento { background: #dbeafe; color: #1d4ed8; }
-        .bs-finalizado { background: #ede9fe; color: #6d28d9; }
+        .btn-gerar:hover { background: #2fe072; }
+        .btn-gerar:disabled { background: #cbd5e1; color: #fff; box-shadow: none; cursor: not-allowed; }
+        .btn-export, .btn-print, .btn-mini {
+            height: 36px;
+            padding: 0 14px;
+            display: inline-flex; align-items: center; gap: 7px;
+            border-radius: 10px;
+            font-size: 12.5px;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            background: #fff;
+            border: 1px solid #dfe5ec;
+            color: #334155;
+            transition: background 0.15s, border-color 0.15s;
+        }
+        .btn-export { color: #15803d; border-color: #bbf7d0; }
+        .btn-export:hover { background: #f0fdf4; }
+        .btn-export:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-print:hover, .btn-mini:hover { background: #f8fafc; border-color: #cbd5e1; }
+        .btn-mini { height: 30px; padding: 0 11px; font-size: 12px; }
+        .btn-export svg, .btn-print svg, .btn-mini svg { width: 15px; height: 15px; }
 
-        /* Resumo cards compactos */
+        .rel-periodo {
+            display: inline-flex; align-items: center; gap: 8px;
+            font-size: 12.5px; font-weight: 600; color: #64748b;
+            margin-bottom: 14px;
+        }
+        .rel-periodo strong { color: #0f172a; }
+
+        /* ── Indicadores ── */
         .rel-resumo {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 10px;
-            margin-bottom: 20px;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 14px;
+            margin-bottom: 18px;
         }
-        @media (max-width: 900px) { .rel-resumo { grid-template-columns: repeat(3, 1fr); } }
-        @media (max-width: 500px) { .rel-resumo { grid-template-columns: repeat(2, 1fr); } }
-
         .rel-resumo-card {
-            background: white;
-            border-radius: 10px;
-            padding: 14px 16px;
-            border: 1px solid #e2e8f0;
+            --accent: #334155; --accent-bg: #f1f5f9;
+            background: #fff;
+            border-radius: 14px;
+            padding: 16px 18px;
+            border: 1px solid #e8edf3;
+            box-shadow: 0 1px 2px rgba(15,23,42,0.04);
             position: relative;
             overflow: hidden;
         }
         .rel-resumo-card::before {
             content: '';
-            position: absolute;
-            left: 0;
-            top: 0;
-            bottom: 0;
-            width: 3px;
+            position: absolute; left: 0; top: 14px; bottom: 14px;
+            width: 3px; border-radius: 0 3px 3px 0;
+            background: var(--accent);
         }
         .rel-resumo-card .num {
-            font-size: 26px;
-            font-weight: 700;
-            color: #1e293b;
-            line-height: 1;
-            margin-bottom: 2px;
+            font-size: 28px; font-weight: 800; line-height: 1.1;
+            color: var(--accent); letter-spacing: -0.02em;
+            font-variant-numeric: tabular-nums;
         }
-        .rel-resumo-card .lbl {
-            font-size: 11px;
-            color: #94a3b8;
-            font-weight: 500;
-        }
-        .rc-total::before { background: #334155; }
-        .rc-abertos::before { background: #22c55e; }
-        .rc-pendentes::before { background: #f97316; }
-        .rc-atendimento::before { background: #3b82f6; }
-        .rc-finalizados::before { background: #8b5cf6; }
-        .rc-total .num { color: #334155; }
-        .rc-abertos .num { color: #16a34a; }
-        .rc-pendentes .num { color: #ea580c; }
-        .rc-atendimento .num { color: #2563eb; }
-        .rc-finalizados .num { color: #7c3aed; }
+        .rel-resumo-card .lbl { font-size: 12px; color: #64748b; font-weight: 600; margin-top: 4px; }
+        .rc-total       { --accent: #0f172a; }
+        .rc-abertos     { --accent: #16a34a; }
+        .rc-pendentes   { --accent: #ea580c; }
+        .rc-atendimento { --accent: #2563eb; }
+        .rc-finalizados { --accent: #7c3aed; }
+        .rc-sla         { --accent: #0284c7; }
+        .rc-sla .num    { font-size: 22px; line-height: 1.4; }
 
-        /* Layout 2 colunas */
+        /* ── Painéis ── */
         .rel-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1.6fr 1fr;
             gap: 16px;
             margin-bottom: 16px;
         }
-        @media (max-width: 900px) { .rel-grid { grid-template-columns: 1fr; } }
-
         .rel-panel {
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
+            background: #fff;
+            border: 1px solid #e8edf3;
+            border-radius: 16px;
             overflow: hidden;
+            box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+            min-width: 0;
+            margin-bottom: 16px;
         }
-        .rel-panel-full {
-            grid-column: 1 / -1;
-        }
+        .rel-grid .rel-panel { margin-bottom: 0; }
         .rel-panel-head {
-            padding: 12px 16px;
-            background: #f8fafc;
-            border-bottom: 1px solid #e2e8f0;
-            font-size: 13px;
-            font-weight: 600;
-            color: #334155;
+            padding: 14px 18px;
+            border-bottom: 1px solid #eef1f4;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 10px;
+            flex-wrap: wrap;
         }
+        .rel-panel-head h3 {
+            font-size: 14.5px; font-weight: 800; color: #0f172a; margin: 0;
+            display: flex; align-items: center; gap: 9px; letter-spacing: -0.01em;
+        }
+        .rel-panel-head .sub { font-size: 12px; color: #94a3b8; font-weight: 600; }
+        .rel-panel-head .spacer { flex: 1; }
+        .h-ico {
+            width: 30px; height: 30px; border-radius: 9px;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: #f1f5f9; color: #475569; flex-shrink: 0;
+        }
+        .h-ico svg { width: 16px; height: 16px; }
+        .h-ico.green { background: #f0fdf4; color: #16a34a; }
 
-        /* Gráfico de barras por dia */
-        .chart-wrap {
-            padding: 16px;
-            overflow-x: auto;
+        /* ── Chamados por técnico ── */
+        .tec-chips { display: flex; gap: 10px; flex-wrap: wrap; padding: 14px 18px 4px; }
+        .tec-chip {
+            display: flex; flex-direction: column; gap: 2px;
+            padding: 10px 14px; border-radius: 12px;
+            background: #f8fafc; border: 1px solid #eef1f4; min-width: 150px;
         }
+        .tec-chip b { font-size: 18px; font-weight: 800; color: #0f172a; font-variant-numeric: tabular-nums; }
+        .tec-chip span { font-size: 11.5px; color: #64748b; font-weight: 600; }
+        .tec-wrap { overflow-x: auto; }
+        .tec-tbl { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 900px; }
+        .tec-tbl th {
+            padding: 10px 14px; text-align: left;
+            font-size: 11px; font-weight: 700; color: #64748b;
+            border-bottom: 1px solid #eef1f4; white-space: nowrap;
+        }
+        .tec-tbl td { padding: 11px 14px; border-bottom: 1px solid #f4f6f8; color: #334155; vertical-align: middle; }
+        .tec-tbl tr:last-child td { border-bottom: none; }
+        .tec-tbl tbody tr:hover td { background: #fafbfc; }
+        .tec-tbl .c { text-align: center; }
+        .tec-tbl .r { text-align: right; }
+        .tec-pos {
+            width: 26px; height: 26px; border-radius: 8px;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 800; background: #f1f5f9; color: #64748b;
+        }
+        .tec-tbl tbody tr:nth-child(1) .tec-pos { background: #fef3c7; color: #b45309; }
+        .tec-tbl tbody tr:nth-child(2) .tec-pos { background: #e2e8f0; color: #334155; }
+        .tec-tbl tbody tr:nth-child(3) .tec-pos { background: #ffedd5; color: #c2410c; }
+        .tec-nome { display: flex; align-items: center; gap: 10px; min-width: 220px; }
+        .tec-avatar {
+            width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12.5px; font-weight: 800; color: #fff;
+            background: linear-gradient(135deg, #25d366, #0ea5a4);
+        }
+        .tec-nome-txt { min-width: 0; flex: 1; }
+        .tec-nome-txt b { display: block; font-size: 13.5px; color: #0f172a; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        /* Barra empilhada: finalizados / em atendimento / pendentes, proporcional ao maior técnico */
+        .tec-bar { display: flex; height: 6px; border-radius: 99px; background: #f1f5f9; overflow: hidden; margin-top: 6px; }
+        .tec-bar i { display: block; height: 100%; }
+        .tec-total { font-size: 16px; font-weight: 800; color: #0f172a; font-variant-numeric: tabular-nums; }
+        .tec-pct { font-size: 11.5px; color: #94a3b8; font-weight: 600; margin-left: 4px; }
+        .num-fin  { color: #16a34a; font-weight: 700; }
+        .num-at   { color: #2563eb; font-weight: 700; }
+        .num-pen  { color: #ea580c; font-weight: 700; }
+        .num-zero { color: #cbd5e1; font-weight: 600; }
+        .tec-rate {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 9px; border-radius: 99px;
+            font-size: 12.5px; font-weight: 800; font-variant-numeric: tabular-nums;
+            background: #fefce8; color: #a16207; border: 1px solid #fde68a;
+        }
+        .tec-rate svg { width: 12px; height: 12px; }
+        .tec-rate small { font-weight: 600; opacity: 0.7; }
+        .tec-rate.alta  { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+        .tec-rate.baixa { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+        .tec-sem-nota { color: #cbd5e1; font-size: 12px; font-weight: 600; }
+        .tec-tbl tr.tec-sem td { background: #fafbfc; color: #94a3b8; }
+        .tec-tbl tr.tec-sem .tec-avatar { background: #e2e8f0; color: #94a3b8; }
+        .tec-tbl tr.tec-sem .tec-nome-txt b { color: #64748b; font-weight: 600; }
+        .tec-legend { display: flex; gap: 14px; align-items: center; }
+        .tec-legend span { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: #64748b; font-weight: 600; }
+        .tec-legend i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+
+        /* ── Gráfico por dia ── */
+        .chart-wrap { padding: 18px 18px 10px; overflow-x: auto; }
         .chart-bars {
-            display: flex;
-            align-items: flex-end;
-            gap: 3px;
-            height: 120px;
+            display: flex; align-items: flex-end; gap: 4px; height: 170px;
+            background-image: linear-gradient(#f1f5f9 1px, transparent 1px);
+            background-size: 100% 34px;
+            border-bottom: 1px solid #e2e8f0;
         }
         .chart-col {
-            flex: 1;
-            min-width: 22px;
-            max-width: 48px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 3px;
+            flex: 1; min-width: 22px; max-width: 46px;
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+            gap: 4px; height: 100%;
         }
-        .chart-val {
-            font-size: 10px;
-            font-weight: 700;
-            color: #475569;
-        }
+        .chart-val { font-size: 10.5px; font-weight: 700; color: #475569; }
         .chart-bar {
             width: 100%;
-            border-radius: 3px 3px 0 0;
+            border-radius: 5px 5px 2px 2px;
             min-height: 3px;
+            background: linear-gradient(180deg, #6ee7b7, #10b981);
             transition: height 0.5s cubic-bezier(.4,0,.2,1);
             cursor: pointer;
             position: relative;
         }
-        .chart-bar:hover { opacity: 0.85; }
+        .chart-bar:hover { filter: brightness(0.92); }
         .chart-bar:hover::after {
             content: attr(data-tooltip);
-            position: absolute;
-            bottom: calc(100% + 6px);
-            left: 50%;
-            transform: translateX(-50%);
-            background: #1e293b;
-            color: white;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            white-space: nowrap;
-            z-index: 10;
+            position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+            background: #0f172a; color: #fff; padding: 4px 9px; border-radius: 6px;
+            font-size: 11px; white-space: nowrap; z-index: 10;
         }
-        .chart-day {
-            font-size: 9px;
-            color: #94a3b8;
-            transform: rotate(-45deg);
-            white-space: nowrap;
-            margin-top: 2px;
-        }
+        .chart-days { display: flex; gap: 4px; padding-top: 6px; }
+        .chart-day { flex: 1; min-width: 22px; max-width: 46px; text-align: center; font-size: 10px; color: #94a3b8; font-weight: 600; white-space: nowrap; }
 
-        /* Tabelas compactas */
-        .rel-tbl {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-        }
-        .rel-tbl th {
-            padding: 8px 12px;
-            text-align: left;
-            font-size: 10px;
-            font-weight: 700;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            background: #f8fafc;
-            border-bottom: 1px solid #e2e8f0;
-        }
-        .rel-tbl td {
-            padding: 8px 12px;
-            border-bottom: 1px solid #f1f5f9;
-            color: #334155;
-        }
-        .rel-tbl tr:last-child td { border-bottom: none; }
-        .rel-tbl tr:hover td { background: #f8fafc; }
-        .rel-tbl .c { text-align: center; }
-        .rel-tbl .b { font-weight: 600; }
-
-        /* Barra horizontal inline */
-        .hbar {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .hbar-track {
-            flex: 1;
-            height: 6px;
-            background: #f1f5f9;
-            border-radius: 3px;
-            overflow: hidden;
-        }
-        .hbar-fill {
-            height: 100%;
-            border-radius: 3px;
-            transition: width 0.5s cubic-bezier(.4,0,.2,1);
-        }
-        .hbar-num {
-            font-size: 12px;
-            font-weight: 600;
-            color: #475569;
-            min-width: 28px;
-            text-align: right;
-        }
-
-        /* Donut mini */
-        .donut-wrap {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 24px;
-            padding: 20px 16px;
-        }
-        .donut-svg { width: 110px; height: 110px; }
-        .donut-legend {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
+        /* ── Rosca ── */
+        .donut-wrap { display: flex; align-items: center; gap: 22px; padding: 22px 20px; }
+        .donut-svg { width: 130px; height: 130px; flex-shrink: 0; }
+        .donut-legend { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
         .donut-legend-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 12px;
-            color: #475569;
+            display: flex; align-items: center; gap: 8px;
+            font-size: 13px; color: #475569; font-weight: 600;
+            padding: 8px 12px; border-radius: 9px; background: #f8fafc;
         }
-        .donut-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            flex-shrink: 0;
-        }
-        .donut-legend-item strong {
-            margin-left: auto;
-            color: #1e293b;
-        }
+        .donut-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+        .donut-legend-item strong { margin-left: auto; color: #0f172a; font-size: 14px; }
 
-        .rel-empty {
-            text-align: center;
-            padding: 50px 20px;
-            color: #94a3b8;
-        }
-        .rel-empty span { font-size: 40px; display: block; margin-bottom: 8px; }
+        /* ── Categorias ── */
+        .cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; padding: 16px 18px 18px; }
+        .cat-card { background: #f8fafc; border: 1px solid #eef1f4; border-radius: 12px; padding: 14px 16px; position: relative; overflow: hidden; }
+        .cat-card b { display: block; font-size: 24px; font-weight: 800; color: #0f172a; font-variant-numeric: tabular-nums; }
+        .cat-card span { display: block; font-size: 12.5px; color: #334155; font-weight: 600; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .cat-card small { display: block; font-size: 11.5px; color: #94a3b8; margin-top: 8px; font-weight: 600; }
+        .cat-card .cat-track { height: 4px; border-radius: 99px; background: #e2e8f0; margin-top: 6px; overflow: hidden; }
+        .cat-card .cat-track i { display: block; height: 100%; border-radius: 99px; }
 
-        .rel-periodo {
-            font-size: 12px;
-            color: #94a3b8;
-            margin-bottom: 14px;
+        /* ── Tabelas ── */
+        .rel-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .rel-tbl th {
+            padding: 10px 14px; text-align: left;
+            font-size: 11px; font-weight: 700; color: #64748b;
+            background: #fafbfc; border-bottom: 1px solid #eef1f4;
+            position: sticky; top: 0; z-index: 1; white-space: nowrap;
         }
+        .rel-tbl td { padding: 10px 14px; border-bottom: 1px solid #f4f6f8; color: #334155; }
+        .rel-tbl tr:last-child td { border-bottom: none; }
+        .rel-tbl tbody tr:hover td { background: #fafbfc; }
+        .rel-tbl .c { text-align: center; }
+        .rel-tbl .b { font-weight: 700; color: #0f172a; }
+        .tag-cat {
+            display: inline-block; padding: 2px 9px; margin: 2px 3px 2px 0; border-radius: 99px;
+            font-size: 11px; font-weight: 600; background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7;
+        }
+        .hbar { display: flex; align-items: center; gap: 8px; }
+        .hbar-track { flex: 1; height: 6px; background: #f1f5f9; border-radius: 99px; overflow: hidden; }
+        .hbar-fill { height: 100%; border-radius: 99px; transition: width 0.5s cubic-bezier(.4,0,.2,1); }
 
-        .btn-print {
-            padding: 6px 14px;
-            background: #f1f5f9;
-            color: #475569;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            font-size: 12px;
-            cursor: pointer;
+        .rel-detalhe-wrap { max-height: 520px; overflow: auto; }
+        .badge-status { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; text-transform: capitalize; }
+        .bs-pendente { background: #fef3c7; color: #b45309; }
+        .bs-aberto { background: #dcfce7; color: #15803d; }
+        .bs-em_atendimento { background: #dbeafe; color: #1d4ed8; }
+        .bs-finalizado { background: #ede9fe; color: #6d28d9; }
+        .proto { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace; font-size: 11.5px; font-weight: 600; color: #475569; background: #f1f5f9; padding: 2px 7px; border-radius: 5px; white-space: nowrap; }
+
+        .rel-empty { text-align: center; padding: 60px 20px; color: #94a3b8; font-weight: 600; background: #fff; border: 1px dashed #e2e8f0; border-radius: 16px; }
+        .rel-empty span { font-size: 38px; display: block; margin-bottom: 10px; }
+
+        /* ── Responsivo ── */
+        @media (max-width: 1280px) { .rel-resumo { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 1000px) { .rel-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 640px) {
+            .rel-content { padding: 14px !important; }
+            .rel-resumo { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            .rel-resumo-card .num { font-size: 22px; }
+            .donut-wrap { flex-direction: column; align-items: stretch; }
+            .donut-svg { align-self: center; }
+            .rel-filtros-sep { display: none; }
+            .topbar-actions .btn-print span, .topbar-actions .btn-export span { display: none; }
         }
-        .btn-print:hover { background: #e2e8f0; }
 
         @media print {
             .sidebar, .sidebar-overlay, .sidebar-toggle-btn,
-            .topbar, .rel-filtros, .btn-print, .btn-export { display: none !important; }
+            .topbar, .rel-filtros, .btn-print, .btn-export, .btn-mini { display: none !important; }
             .main-content { margin-left: 0 !important; }
-            .content { padding: 10px !important; }
-            .card { box-shadow: none !important; border: 1px solid #ddd; }
-            .rel-panel { break-inside: avoid; }
-            .rel-detalhe-wrap { max-height: none !important; overflow: visible !important; }
-        }
-
-        @media (max-width: 1100px) {
-            .rel-resumo[style] { grid-template-columns: repeat(3, 1fr) !important; }
+            .rel-content { padding: 0 !important; }
+            .rel-panel, .rel-resumo-card { box-shadow: none !important; break-inside: avoid; }
+            .rel-detalhe-wrap, .tec-wrap { max-height: none !important; overflow: visible !important; }
+            .tec-tbl { min-width: 0; }
         }
     </style>
 </head>
@@ -380,54 +377,59 @@
                     <button class="menu-toggle" onclick="document.body.classList.toggle('sidebar-open')">
                         <span></span><span></span><span></span>
                     </button>
-                    <h2>📈 Relatórios</h2>
+                    <h2>Relatórios</h2>
                 </div>
                 <div class="topbar-actions">
-                    <button onclick="exportarCsv()" class="btn-export" id="btnExport" disabled>⬇ Exportar CSV</button>
-                    <button onclick="window.print()" class="btn-print">🖨️ Imprimir</button>
+                    <button onclick="exportarCsv()" class="btn-export" id="btnExport" disabled>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <span>Exportar CSV</span>
+                    </button>
+                    <button onclick="window.print()" class="btn-print">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                        <span>Imprimir</span>
+                    </button>
                 </div>
             </div>
 
-            <div class="content">
-                <div class="card" style="padding: 20px;">
-                    <div class="rel-filtros">
-                        <div style="flex:1 1 100%;">
-                            <label>Período rápido</label>
-                            <div class="rel-preset" id="presetBtns">
-                                <button type="button" data-preset="hoje" onclick="aplicarPreset('hoje')">Hoje</button>
-                                <button type="button" data-preset="7dias" onclick="aplicarPreset('7dias')">Últimos 7 dias</button>
-                                <button type="button" data-preset="mes" class="active" onclick="aplicarPreset('mes')">Este mês</button>
-                                <button type="button" data-preset="custom" onclick="aplicarPreset('custom')">Personalizado</button>
-                            </div>
+            <div class="content rel-content">
+                <div class="rel-filtros">
+                    <div>
+                        <label>Período</label>
+                        <div class="rel-preset" id="presetBtns">
+                            <button type="button" data-preset="hoje" onclick="aplicarPreset('hoje')">Hoje</button>
+                            <button type="button" data-preset="7dias" onclick="aplicarPreset('7dias')">7 dias</button>
+                            <button type="button" data-preset="mes" class="active" onclick="aplicarPreset('mes')">Este mês</button>
+                            <button type="button" data-preset="custom" onclick="aplicarPreset('custom')">Personalizado</button>
                         </div>
-                        <div>
-                            <label>Início</label>
-                            <input type="date" id="dataInicio">
-                        </div>
-                        <div>
-                            <label>Fim</label>
-                            <input type="date" id="dataFim">
-                        </div>
-                        <div id="relUnidadeWrap" style="display:none;">
-                            <label>Unidade</label>
-                            <select id="filtroUnidadeRel">
-                                <option value="">Todas do escopo</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label>Categoria</label>
-                            <select id="filtroCategoria">
-                                <option value="">Todas</option>
-                            </select>
-                        </div>
-                        <button id="btnGerar" class="btn-gerar" onclick="gerarRelatorio()">Gerar Relatório</button>
                     </div>
+                    <div>
+                        <label for="dataInicio">Início</label>
+                        <input type="date" id="dataInicio">
+                    </div>
+                    <div>
+                        <label for="dataFim">Fim</label>
+                        <input type="date" id="dataFim">
+                    </div>
+                    <div id="relUnidadeWrap" style="display:none;">
+                        <label for="filtroUnidadeRel">Unidade</label>
+                        <select id="filtroUnidadeRel">
+                            <option value="">Todas do escopo</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="filtroCategoria">Categoria</label>
+                        <select id="filtroCategoria">
+                            <option value="">Todas</option>
+                        </select>
+                    </div>
+                    <div class="rel-filtros-sep"></div>
+                    <button id="btnGerar" class="btn-gerar" onclick="gerarRelatorio()">Gerar Relatório</button>
+                </div>
 
-                    <div id="relatorioContent">
-                        <div class="rel-empty">
-                            <span>📊</span>
-                            <p>Selecione o período e gere o relatório</p>
-                        </div>
+                <div id="relatorioContent">
+                    <div class="rel-empty">
+                        <span>📊</span>
+                        <p>Selecione o período e gere o relatório</p>
                     </div>
                 </div>
             </div>
@@ -616,6 +618,125 @@
             return '<svg class="donut-svg" viewBox="0 0 110 110"><circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="#f1f5f9" stroke-width="14"/>' + paths + '<text x="' + cx + '" y="' + cy + '" text-anchor="middle" dominant-baseline="central" font-size="18" font-weight="700" fill="#1e293b">' + total + '</text></svg>';
         }
 
+        const ICO = {
+            users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+            cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+            pie: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>',
+            tag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>',
+            building: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg>',
+            list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
+            star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg>',
+            down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'
+        };
+
+        function panelHead(icone, titulo, sub, extra, cls) {
+            return '<div class="rel-panel-head"><h3><span class="h-ico ' + (cls || '') + '">' + icone + '</span>' + titulo + '</h3>' +
+                (sub ? '<span class="sub">' + sub + '</span>' : '') +
+                '<span class="spacer"></span>' + (extra || '') + '</div>';
+        }
+
+        function iniciais(nome) {
+            const p = String(nome || '?').trim().split(/\s+/);
+            return ((p[0] || '?').charAt(0) + (p.length > 1 ? p[p.length - 1].charAt(0) : '')).toUpperCase();
+        }
+
+        function numOuZero(v, cls) {
+            const n = Number(v || 0);
+            return n > 0 ? '<span class="' + cls + '">' + n + '</span>' : '<span class="num-zero">0</span>';
+        }
+
+        function notaHtml(media, qtd) {
+            if (media == null || !Number(qtd)) return '<span class="tec-sem-nota">sem nota</span>';
+            const m = Number(media);
+            const cls = m >= 4.5 ? 'alta' : (m < 3.5 ? 'baixa' : '');
+            return '<span class="tec-rate ' + cls + '" title="' + qtd + ' avaliação(ões) no período">' + ICO.star +
+                m.toFixed(1).replace('.', ',') + ' <small>(' + qtd + ')</small></span>';
+        }
+
+        // Guardado para a exportação da tabela de técnicos
+        let ultimoPorTecnico = [];
+        let ultimoPeriodo = { di: '', df: '' };
+
+        function exportarTecnicosCsv() {
+            if (!ultimoPorTecnico.length) return;
+            const esc = v => {
+                const s = v == null ? '' : String(v);
+                return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+            };
+            const total = ultimoPorTecnico.reduce((a, t) => a + Number(t.total || 0), 0);
+            const linhas = [['Tecnico', 'Chamados', '% do total', 'Finalizados', 'Em atendimento', 'Pendentes',
+                'Tempo medio p/ assumir (min)', 'Tempo medio de resolucao (min)', 'Avaliacao media', 'Qtd avaliacoes'].join(';')];
+            ultimoPorTecnico.forEach(t => {
+                linhas.push([
+                    t.atendente, t.total,
+                    total ? (Number(t.total) / total * 100).toFixed(1).replace('.', ',') : '0',
+                    t.finalizados, t.em_atendimento, t.pendentes,
+                    t.resposta_media_minutos ?? '', t.sla_medio_minutos ?? '',
+                    t.avaliacao_media != null ? String(t.avaliacao_media).replace('.', ',') : '', t.avaliacoes || 0
+                ].map(esc).join(';'));
+            });
+            const blob = new Blob(['﻿' + linhas.join('\n')], { type: 'text/csv;charset=utf-8' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'chamados-por-tecnico-' + ultimoPeriodo.di + '_' + ultimoPeriodo.df + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+        }
+
+        function renderTecnicos(lista, totalGeral) {
+            const tecnicos = lista.filter(t => t.atendente !== 'Sem atendente');
+            const semTec = lista.find(t => t.atendente === 'Sem atendente');
+            const somaTec = tecnicos.reduce((a, t) => a + Number(t.total || 0), 0);
+            // Escala das barras pelo técnico que mais atendeu ("Sem atendente" não distorce a escala)
+            const maxTotal = Math.max(...(tecnicos.length ? tecnicos : lista).map(t => Number(t.total || 0)), 1);
+
+            let h = '<div class="rel-panel">' + panelHead(ICO.users, 'Chamados por técnico', 'quem atendeu no período',
+                '<div class="tec-legend"><span><i style="background:#22c55e"></i>Finalizados</span><span><i style="background:#3b82f6"></i>Em atend.</span><span><i style="background:#f97316"></i>Pendentes</span></div>' +
+                '<button type="button" class="btn-mini" onclick="exportarTecnicosCsv()">' + ICO.down + 'Exportar</button>', 'green');
+
+            if (tecnicos.length) {
+                const top = tecnicos[0];
+                h += '<div class="tec-chips">' +
+                    '<div class="tec-chip"><b>' + tecnicos.length + '</b><span>técnicos atenderam</span></div>' +
+                    '<div class="tec-chip"><b>' + somaTec + '</b><span>chamados com técnico (' + (totalGeral ? Math.round(somaTec / totalGeral * 100) : 0) + '%)</span></div>' +
+                    '<div class="tec-chip"><b>' + (somaTec / tecnicos.length).toFixed(1).replace('.', ',') + '</b><span>média por técnico</span></div>' +
+                    '<div class="tec-chip"><b>' + escHtml(String(top.atendente).split(/\s+/)[0]) + ' · ' + top.total + '</b><span>quem mais atendeu</span></div>' +
+                '</div>';
+            }
+
+            h += '<div class="tec-wrap"><table class="tec-tbl"><thead><tr>' +
+                '<th class="c">#</th><th>Técnico</th><th class="r">Chamados</th><th class="c">Finalizados</th><th class="c">Em atend.</th><th class="c">Pendentes</th>' +
+                '<th class="c" title="Tempo entre a abertura e o técnico assumir">Tempo p/ assumir</th><th class="c" title="Tempo entre a abertura e o encerramento">Tempo de resolução</th><th class="c">Avaliação</th>' +
+                '</tr></thead><tbody>';
+
+            const linha = (t, pos, sem) => {
+                const total = Number(t.total || 0);
+                const fin = Number(t.finalizados || 0), at = Number(t.em_atendimento || 0), pen = Number(t.pendentes || 0);
+                const w = v => Math.min(100, v / maxTotal * 100).toFixed(2) + '%';
+                const pct = totalGeral ? Math.round(total / totalGeral * 100) : 0;
+                return '<tr' + (sem ? ' class="tec-sem"' : '') + '>' +
+                    '<td class="c">' + (sem ? '—' : '<span class="tec-pos">' + pos + '</span>') + '</td>' +
+                    '<td><div class="tec-nome"><span class="tec-avatar">' + (sem ? '?' : escHtml(iniciais(t.atendente))) + '</span>' +
+                        '<div class="tec-nome-txt"><b title="' + escHtml(t.atendente) + '">' + escHtml(sem ? 'Sem técnico registrado' : t.atendente) + '</b>' +
+                        '<div class="tec-bar"><i style="width:' + w(fin) + ';background:#22c55e"></i><i style="width:' + w(at) + ';background:#3b82f6"></i><i style="width:' + w(pen) + ';background:#f97316"></i></div>' +
+                        '</div></div></td>' +
+                    '<td class="r"><span class="tec-total">' + total + '</span><span class="tec-pct">' + pct + '%</span></td>' +
+                    '<td class="c">' + numOuZero(fin, 'num-fin') + '</td>' +
+                    '<td class="c">' + numOuZero(at, 'num-at') + '</td>' +
+                    '<td class="c">' + numOuZero(pen, 'num-pen') + '</td>' +
+                    '<td class="c">' + fmtSla(t.resposta_media_minutos) + '</td>' +
+                    '<td class="c">' + fmtSla(t.sla_medio_minutos) + '</td>' +
+                    '<td class="c">' + notaHtml(t.avaliacao_media, t.avaliacoes) + '</td>' +
+                '</tr>';
+            };
+
+            tecnicos.forEach((t, i) => { h += linha(t, i + 1, false); });
+            if (semTec) h += linha(semTec, 0, true);
+            h += '</tbody></table></div></div>';
+            return h;
+        }
+
         function render(data, di, df) {
             const box = document.getElementById('relatorioContent');
             const r = data.resumo;
@@ -625,36 +746,48 @@
                 return;
             }
 
+            const total = Number(r.total);
             const maxDia = Math.max(...(data.porDia || []).map(d => d.total), 1);
             const maxSetor = Math.max(...(data.porSetor || []).map(s => s.total), 1);
+            ultimoPorTecnico = data.porAtendente || [];
+            ultimoPeriodo = { di, df };
 
-            let h = '<p class="rel-periodo">Período: ' + fmtDate(di) + ' — ' + fmtDate(df) + '</p>';
+            let h = '<div class="rel-periodo">' + ICO.cal.replace('<svg', '<svg width="15" height="15"') + 'Período: <strong>' + fmtDate(di) + '</strong> até <strong>' + fmtDate(df) + '</strong></div>';
 
-            h += '<div class="rel-resumo" style="grid-template-columns: repeat(6, 1fr);">' +
-                '<div class="rel-resumo-card rc-total"><div class="num">' + r.total + '</div><div class="lbl">Total</div></div>' +
+            h += '<div class="rel-resumo">' +
+                '<div class="rel-resumo-card rc-total"><div class="num">' + r.total + '</div><div class="lbl">Total de chamados</div></div>' +
                 '<div class="rel-resumo-card rc-abertos"><div class="num">' + (r.abertos||0) + '</div><div class="lbl">Abertos</div></div>' +
                 '<div class="rel-resumo-card rc-pendentes"><div class="num">' + (r.pendentes||0) + '</div><div class="lbl">Pendentes</div></div>' +
-                '<div class="rel-resumo-card rc-atendimento"><div class="num">' + (r.em_atendimento||0) + '</div><div class="lbl">Em Atendimento</div></div>' +
+                '<div class="rel-resumo-card rc-atendimento"><div class="num">' + (r.em_atendimento||0) + '</div><div class="lbl">Em atendimento</div></div>' +
                 '<div class="rel-resumo-card rc-finalizados"><div class="num">' + (r.finalizados||0) + '</div><div class="lbl">Finalizados</div></div>' +
-                '<div class="rel-resumo-card rc-sla"><div class="num">' + fmtSla(r.slaMedioMinutos ?? r.sla_medio_minutos) + '</div><div class="lbl">SLA médio</div></div>' +
+                '<div class="rel-resumo-card rc-sla"><div class="num">' + fmtSla(r.slaMedioMinutos ?? r.sla_medio_minutos) + '</div><div class="lbl">Tempo médio de resolução</div></div>' +
             '</div>';
 
-            h += '<div class="rel-grid">';
+            // 1) Chamados por técnico — em destaque
+            if (ultimoPorTecnico.length > 0) h += renderTecnicos(ultimoPorTecnico, total);
 
+            // 2) Por dia + status
+            h += '<div class="rel-grid">';
             if ((data.porDia || []).length > 0) {
-                h += '<div class="rel-panel"><div class="rel-panel-head">📅 Chamados por Dia</div><div class="chart-wrap"><div class="chart-bars">';
-                data.porDia.forEach((d, i) => {
+                h += '<div class="rel-panel">' + panelHead(ICO.cal, 'Chamados por dia', data.porDia.length + ' dia(s)') +
+                    '<div class="chart-wrap"><div class="chart-bars">';
+                data.porDia.forEach(d => {
                     const pct = (d.total / maxDia) * 100;
                     const parts = d.dia.split('-');
-                    const color = COLORS.bars[i % COLORS.bars.length];
                     h += '<div class="chart-col"><span class="chart-val">' + d.total + '</span>' +
-                        '<div class="chart-bar" style="height:' + Math.max(pct,4) + '%; background:' + color + ';" data-tooltip="' + parts[2] + '/' + parts[1] + ': ' + d.total + ' chamados"></div>' +
-                        '<span class="chart-day">' + parts[2] + '/' + parts[1] + '</span></div>';
+                        '<div class="chart-bar" style="height:calc(' + Math.max(pct, 3) + '% - 20px)" data-tooltip="' + parts[2] + '/' + parts[1] + ': ' + d.total + ' chamados"></div></div>';
+                });
+                h += '</div><div class="chart-days">';
+                // Muitos dias: mostra só uma data a cada N para não sobrepor
+                const passo = Math.max(1, Math.ceil(data.porDia.length / 12));
+                data.porDia.forEach((d, i) => {
+                    const p = d.dia.split('-');
+                    const mostra = i % passo === 0 || i === data.porDia.length - 1;
+                    h += '<span class="chart-day">' + (mostra ? p[2] + '/' + p[1] : '') + '</span>';
                 });
                 h += '</div></div></div>';
             }
-
-            h += '<div class="rel-panel"><div class="rel-panel-head">📊 Distribuição por Status</div><div class="donut-wrap">' +
+            h += '<div class="rel-panel">' + panelHead(ICO.pie, 'Distribuição por status') + '<div class="donut-wrap">' +
                 donutSVG(
                     [Number(r.abertos||0), Number(r.pendentes||0), Number(r.em_atendimento||0), Number(r.finalizados||0)],
                     [COLORS.abertos, COLORS.pendentes, COLORS.atendimento, COLORS.finalizados]
@@ -662,79 +795,64 @@
                 '<div class="donut-legend">' +
                 '<div class="donut-legend-item"><span class="donut-dot" style="background:' + COLORS.abertos + '"></span>Abertos<strong>' + (r.abertos||0) + '</strong></div>' +
                 '<div class="donut-legend-item"><span class="donut-dot" style="background:' + COLORS.pendentes + '"></span>Pendentes<strong>' + (r.pendentes||0) + '</strong></div>' +
-                '<div class="donut-legend-item"><span class="donut-dot" style="background:' + COLORS.atendimento + '"></span>Em Atendimento<strong>' + (r.em_atendimento||0) + '</strong></div>' +
+                '<div class="donut-legend-item"><span class="donut-dot" style="background:' + COLORS.atendimento + '"></span>Em atendimento<strong>' + (r.em_atendimento||0) + '</strong></div>' +
                 '<div class="donut-legend-item"><span class="donut-dot" style="background:' + COLORS.finalizados + '"></span>Finalizados<strong>' + (r.finalizados||0) + '</strong></div>' +
                 '</div></div></div>';
-
             h += '</div>';
 
+            // 3) Categorias
             if ((data.porCategoria || []).length > 0) {
-                h += '<div class="rel-grid"><div class="rel-panel rel-panel-full"><div class="rel-panel-head">🏷️ Chamados por Categoria</div><div style="display:flex;gap:12px;flex-wrap:wrap;padding:16px;">';
+                h += '<div class="rel-panel">' + panelHead(ICO.tag, 'Chamados por categoria', data.porCategoria.length + ' categoria(s)') + '<div class="cat-grid">';
                 data.porCategoria.forEach((c, i) => {
                     const color = COLORS.bars[i % COLORS.bars.length];
-                    const pct = Number(r.total) > 0 ? Math.round((c.total / Number(r.total)) * 100) : 0;
-                    h += '<div style="flex:1;min-width:140px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;border-left:4px solid ' + color + ';">' +
-                        '<div style="font-size:24px;font-weight:700;color:#1e293b;">' + c.total + '</div>' +
-                        '<div style="font-size:12px;color:#64748b;margin-top:2px;">' + escHtml(c.categoria) + '</div>' +
-                        '<div style="font-size:11px;color:#94a3b8;margin-top:4px;">' + pct + '% do total</div></div>';
+                    const pct = total > 0 ? Math.round((c.total / total) * 100) : 0;
+                    h += '<div class="cat-card"><b>' + c.total + '</b><span title="' + escHtml(c.categoria) + '">' + escHtml(c.categoria || 'Sem categoria') + '</span>' +
+                        '<div class="cat-track"><i style="width:' + pct + '%;background:' + color + '"></i></div><small>' + pct + '% do total</small></div>';
                 });
-                h += '</div></div></div>';
+                h += '</div></div>';
             }
 
+            // 4) Setores
             if ((data.porSetor || []).length > 0 && data.porSetorCategoria) {
                 const catPorSetor = {};
                 (data.porSetorCategoria || []).forEach(sc => {
                     if (!catPorSetor[sc.setor]) catPorSetor[sc.setor] = [];
                     catPorSetor[sc.setor].push(sc);
                 });
-
-                h += '<div class="rel-grid"><div class="rel-panel rel-panel-full"><div class="rel-panel-head">🏢 Chamados por Setor (com detalhamento por categoria)</div>' +
-                    '<table class="rel-tbl"><thead><tr><th>Setor</th><th class="c">Total</th><th>Categorias</th><th style="width:25%"></th></tr></thead><tbody>';
+                h += '<div class="rel-panel">' + panelHead(ICO.building, 'Chamados por setor', 'com detalhamento por categoria') +
+                    '<div class="rel-detalhe-wrap" style="max-height:460px"><table class="rel-tbl"><thead><tr><th>Setor</th><th class="c">Total</th><th>Categorias</th><th style="width:22%"></th></tr></thead><tbody>';
                 data.porSetor.forEach((s, i) => {
                     const pct = (s.total / maxSetor) * 100;
                     const color = COLORS.bars[i % COLORS.bars.length];
                     const cats = catPorSetor[s.setor] || [];
-                    const catsHtml = cats.map(c => '<span style="display:inline-block;padding:2px 8px;margin:2px;border-radius:12px;font-size:10px;font-weight:600;background:rgba(37,211,102,0.1);color:#16a34a;">' + escHtml(c.categoria) + ' (' + c.total + ')</span>').join('');
-                    h += '<tr><td class="b">' + escHtml(s.setor) + '</td><td class="c b">' + s.total + '</td><td>' + catsHtml + '</td>' +
+                    const catsHtml = cats.map(c => '<span class="tag-cat">' + escHtml(c.categoria) + ' · ' + c.total + '</span>').join('');
+                    h += '<tr><td class="b">' + escHtml(s.setor || '—') + '</td><td class="c b">' + s.total + '</td><td>' + catsHtml + '</td>' +
                         '<td><div class="hbar"><div class="hbar-track"><div class="hbar-fill" style="width:' + pct + '%; background:' + color + ';"></div></div></div></td></tr>';
                 });
                 h += '</tbody></table></div></div>';
             }
 
-            if ((data.porAtendente || []).length > 0) {
-                h += '<div class="rel-grid"><div class="rel-panel rel-panel-full"><div class="rel-panel-head">👤 Por Atendente (nome completo)</div>' +
-                    '<table class="rel-tbl"><thead><tr><th>Atendente</th><th class="c">Total</th><th class="c">Finalizados</th><th class="c">Em Atend.</th><th class="c">Pendentes</th><th class="c">SLA médio</th></tr></thead><tbody>';
-                data.porAtendente.forEach(a => {
-                    const pctFin = Number(a.total) > 0 ? Math.round((Number(a.finalizados) / Number(a.total)) * 100) : 0;
-                    h += '<tr><td class="b">' + escHtml(a.atendente) + '</td><td class="c b">' + a.total + '</td>' +
-                        '<td class="c" style="color:#16a34a">' + a.finalizados + ' <small style="color:#94a3b8">(' + pctFin + '%)</small></td>' +
-                        '<td class="c" style="color:#2563eb">' + a.em_atendimento + '</td>' +
-                        '<td class="c" style="color:#ea580c">' + a.pendentes + '</td>' +
-                        '<td class="c">' + fmtSla(a.sla_medio_minutos) + '</td></tr>';
-                });
-                h += '</tbody></table></div></div>';
-            }
-
+            // 5) Detalhamento
             if ((data.detalhes || []).length > 0) {
-                h += '<div class="rel-grid"><div class="rel-panel rel-panel-full"><div class="rel-panel-head">📋 Detalhamento (' + data.detalhes.length + (data.detalhes.length >= 1000 ? '+' : '') + ' chamados)</div>' +
+                h += '<div class="rel-panel">' + panelHead(ICO.list, 'Detalhamento', data.detalhes.length + (data.detalhes.length >= 1000 ? '+' : '') + ' chamados') +
                     '<div class="rel-detalhe-wrap"><table class="rel-tbl"><thead><tr>' +
-                    '<th>Protocolo</th><th>Solicitante</th><th>Setor</th><th>Categoria</th><th>Status</th><th>Atendente</th><th>Unidade</th><th>Criado</th><th>Encerrado</th><th>SLA</th>' +
+                    '<th>Protocolo</th><th>Solicitante</th><th>Setor</th><th>Categoria</th><th>Status</th><th>Técnico</th><th>Unidade</th><th>Criado</th><th>Encerrado</th><th>Tempo</th>' +
                     '</tr></thead><tbody>';
                 data.detalhes.forEach(c => {
                     const st = c.status || '';
                     h += '<tr>' +
-                        '<td class="b" style="font-family:monospace;font-size:11px;">' + escHtml(c.protocolo) + '</td>' +
+                        '<td><span class="proto">' + escHtml(c.protocolo) + '</span></td>' +
                         '<td>' + escHtml(c.solicitante_nome) + '</td>' +
                         '<td>' + escHtml(c.setor) + '</td>' +
                         '<td>' + escHtml(c.categoria) + '</td>' +
                         '<td><span class="badge-status bs-' + st + '">' + escHtml(st.replace('_', ' ')) + '</span></td>' +
                         '<td class="b">' + escHtml(c.atendente_nome || '—') + '</td>' +
                         '<td>' + escHtml(c.unidade_codigo || c.unidade_nome || '—') + '</td>' +
-                        '<td style="white-space:nowrap;font-size:11px;">' + fmtDateTime(c.criado_em) + '</td>' +
-                        '<td style="white-space:nowrap;font-size:11px;">' + fmtDateTime(c.encerrado_em) + '</td>' +
+                        '<td style="white-space:nowrap;font-size:12px;">' + fmtDateTime(c.criado_em) + '</td>' +
+                        '<td style="white-space:nowrap;font-size:12px;">' + fmtDateTime(c.encerrado_em) + '</td>' +
                         '<td class="c">' + fmtSla(c.sla_minutos) + '</td></tr>';
                 });
-                h += '</tbody></table></div></div></div>';
+                h += '</tbody></table></div></div>';
             }
 
             box.innerHTML = h;

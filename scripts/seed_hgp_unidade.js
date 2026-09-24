@@ -38,7 +38,7 @@ const FLUXO_HGP = {
     },
     avaliacao: {
         habilitada: true,
-        texto: '⭐ *Avalie nosso atendimento*\n\nDe 1 a 5, como foi o atendimento?\n\n1️⃣ Péssimo\n2️⃣ Ruim\n3️⃣ Regular\n4️⃣ Bom\n5️⃣ Excelente\n\n_Sistema versão 2.1 — Desenvolvido por Erick Vinicius (62) 98101-3083_'
+        texto: '⭐ *Avalie nosso atendimento*\n\nDe 1 a 5, como foi o atendimento?\n\n1️⃣ Péssimo\n2️⃣ Ruim\n3️⃣ Regular\n4️⃣ Bom\n5️⃣ Excelente\n\n_Sistema versão 2.3 — Desenvolvido por Erick Vinicius (62) 98101-3083_'
     },
     inatividadeMinutos: 10
 };

@@ -425,8 +425,14 @@ const verificarSaudeHgp = async () => {
         if (whatsappState !== 'connected') return;
 
         if (HGP_USES_BAILEYS) {
+            // O BaileysClient já se reconecta sozinho (1,5s a 30s). Só força a
+            // recriação se ficar fora por mais de 2 min — recriar à toa derruba
+            // conversas em andamento e pode brigar com a reconexão interna.
             if (!whatsappClient?.isConnected) {
-                await forcarReconexaoHgp('baileys sem conexão ativa');
+                const caiuEm = Number(whatsappClient?._disconnectedAt || 0);
+                if (!caiuEm || Date.now() - caiuEm > 120000) {
+                    await forcarReconexaoHgp('baileys sem conexão ativa');
+                }
             }
             return;
         }
@@ -2701,8 +2707,10 @@ app.get('/api/relatorios/chamados', isAuthenticated, isAdmin, async (req, res) =
             ORDER BY total DESC
         `, params);
 
+        // Chamados por técnico/operador. Nome vazio conta como "Sem atendente".
+        // Avaliação: média das notas dos chamados do técnico no período (1 nota por chamado).
         const [porAtendente] = await db.query(`
-            SELECT COALESCE(c.atendente_nome, c.tecnico_nome, 'Sem atendente') as atendente,
+            SELECT COALESCE(NULLIF(TRIM(c.atendente_nome), ''), NULLIF(TRIM(c.tecnico_nome), ''), 'Sem atendente') as atendente,
                    COUNT(*) as total,
                    SUM(CASE WHEN c.status = 'finalizado' THEN 1 ELSE 0 END) as finalizados,
                    SUM(CASE WHEN c.status = 'em_atendimento' THEN 1 ELSE 0 END) as em_atendimento,
@@ -2710,11 +2718,22 @@ app.get('/api/relatorios/chamados', isAuthenticated, isAdmin, async (req, res) =
                    ROUND(AVG(CASE
                        WHEN c.status = 'finalizado' AND c.encerrado_em IS NOT NULL
                        THEN TIMESTAMPDIFF(MINUTE, c.criado_em, c.encerrado_em)
-                   END)) as sla_medio_minutos
+                   END)) as sla_medio_minutos,
+                   ROUND(AVG(CASE
+                       WHEN c.iniciado_em IS NOT NULL AND c.iniciado_em >= c.criado_em
+                       THEN TIMESTAMPDIFF(MINUTE, c.criado_em, c.iniciado_em)
+                   END)) as resposta_media_minutos,
+                   ROUND(AVG(av.nota), 1) as avaliacao_media,
+                   COUNT(av.nota) as avaliacoes
             FROM chamados c
+            LEFT JOIN (
+                SELECT chamado_id, AVG(nota) AS nota
+                FROM avaliacoes
+                GROUP BY chamado_id
+            ) av ON av.chamado_id = c.id
             ${where}
             GROUP BY atendente
-            ORDER BY total DESC
+            ORDER BY (atendente = 'Sem atendente'), total DESC
         `, params);
 
         const [porDia] = await db.query(`
@@ -4481,10 +4500,8 @@ app.post('/api/chamados/:id/chat/enviar', isAuthenticated, async (req, res) => {
         const wpp = await obterClienteWhatsAppParaChamado(chamado);
         if (wpp.isConnected && wpp.client && chamado.chat_origem) {
             try {
-                const mensagemWhatsApp = `💬 *MENSAGEM DO ATENDIMENTO*\n\n` +
-                    `📌 *Protocolo:* ${chamado.protocolo}\n` +
-                    `👤 *${remetenteNome}:*\n\n` +
-                    `${mensagem.trim()}`;
+                // Formato de conversa: nome do técnico em negrito e a mensagem logo abaixo
+                const mensagemWhatsApp = `*${remetenteNome}:*\n${mensagem.trim()}`;
                 
                 const okEnvio = await entregarMensagem(wpp.client, chamado.chat_origem, mensagemWhatsApp, { options: { immediate: true } });
                 if (!okEnvio) {
@@ -4585,7 +4602,7 @@ app.post('/api/chamados/:id/chat/enviar-midia', isAuthenticated, (req, res, next
                 const fileData = await fs.readFile(filePath);
                 const base64 = fileData.toString('base64');
                 const media = new MessageMedia(mimeType, base64, req.file.originalname);
-                const caption = legenda ? `📌 ${chamado.protocolo}\n\n${legenda}` : `📌 ${chamado.protocolo}`;
+                const caption = legenda ? `*${remetenteNome}:*\n${legenda}` : `*${remetenteNome}*`;
                 await entregarMensagem(wppMd.client, chamado.chat_origem, media, { options: { caption } });
             } catch (waError) {
                 console.error('Erro ao enviar mídia pelo WhatsApp:', waError.message);

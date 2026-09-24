@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login — Central TI</title>
+    <title>Login — Central CHAMADOS SESAU</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -12,125 +12,93 @@
         :root {
             --primary: #25d366;
             --primary-dark: #128c7e;
-            --bg-dark: #0a0e14;
-            --surface: #13181f;
-            --border: #1e2d3d;
+            --bg: #080c12;
+            --card: #0f151d;
+            --field: #0a0f15;
+            --border: rgba(255, 255, 255, 0.07);
+            --field-border: #1e2936;
             --text: #f1f5f9;
-            --muted: #94a3b8;
+            --text2: #cbd5e1;
+            --muted: #7d8ba0;
         }
 
         html, body {
             height: 100%;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: var(--bg-dark);
             color: var(--text);
             -webkit-font-smoothing: antialiased;
         }
 
         body {
+            min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            min-height: 100vh;
-            position: relative;
-            overflow: hidden;
-            background: 
-                radial-gradient(circle at 15% 25%, rgba(37, 211, 102, 0.15), transparent 40%),
-                radial-gradient(circle at 85% 75%, rgba(6, 182, 212, 0.12), transparent 40%),
-                linear-gradient(135deg, #0a0e14 0%, #0f172a 100%);
+            padding: 24px 16px;
+            background:
+                radial-gradient(ellipse 60% 45% at 50% 0%, rgba(37, 211, 102, 0.10), transparent 70%),
+                var(--bg);
         }
 
-        /* Padrão de pontos no fundo */
-        body::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
-            background-size: 40px 40px;
-            pointer-events: none;
-        }
-
-        .login-card {
-            position: relative;
-            z-index: 1;
-            background: rgba(19, 24, 31, 0.85);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 20px;
-            padding: 38px 36px;
+        .login-wrap {
             width: 100%;
             max-width: 400px;
-            box-shadow:
-                0 30px 60px rgba(0, 0, 0, 0.5),
-                0 0 0 1px rgba(255, 255, 255, 0.04);
-        }
-
-        /* Logo no topo */
-        .logo-circle {
-            width: 64px; height: 64px;
-            border-radius: 18px;
-            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
             display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: center;
-            margin: 0 auto 18px;
-            box-shadow: 0 12px 30px rgba(37, 211, 102, 0.35);
         }
-        .logo-circle svg { color: #fff; }
 
-        .login-card h1 {
-            font-size: 22px;
+        /* Marca */
+        .brand-mark {
+            width: 56px; height: 56px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            display: flex; align-items: center; justify-content: center;
+            color: #fff;
+            box-shadow: 0 10px 30px rgba(37, 211, 102, 0.25), inset 0 1px 0 rgba(255,255,255,0.25);
+            margin-bottom: 20px;
+        }
+        .login-wrap h1 {
+            font-size: 24px;
             font-weight: 800;
+            letter-spacing: -0.5px;
             text-align: center;
-            color: var(--text);
-            margin-bottom: 4px;
-            letter-spacing: -0.4px;
         }
-        .login-card .subtitle {
-            font-size: 13px;
-            text-align: center;
+        .login-wrap .subtitle {
+            font-size: 14px;
             color: var(--muted);
-            margin-bottom: 26px;
+            margin-top: 6px;
+            margin-bottom: 28px;
+            text-align: center;
         }
 
-        /* Form fields */
-        .form-field {
-            margin-bottom: 16px;
+        /* Cartão */
+        .login-card {
+            width: 100%;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 28px;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
         }
+
+        .form-field + .form-field { margin-top: 18px; }
         .form-field label {
             display: block;
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--muted);
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text2);
             margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .form-field label::before {
-            content: '';
-            width: 3px;
-            height: 12px;
-            background: var(--primary);
-            border-radius: 2px;
-            opacity: 0.6;
         }
 
         .input-wrap {
             position: relative;
             display: flex;
             align-items: center;
-            transition: transform 0.2s;
-        }
-        .input-wrap:focus-within {
-            transform: translateY(-1px);
         }
         .input-wrap > svg.icon-prefix {
             position: absolute;
-            left: 16px;
+            left: 15px;
             color: var(--muted);
             pointer-events: none;
             transition: color 0.2s;
@@ -140,165 +108,154 @@
 
         .form-input {
             width: 100%;
-            padding: 16px 16px 16px 48px;
-            background: rgba(255, 255, 255, 0.04);
-            border: 2px solid rgba(255, 255, 255, 0.08);
-            border-radius: 13px;
+            height: 48px;
+            padding: 0 16px 0 45px;
+            background: var(--field);
+            border: 1px solid var(--field-border);
+            border-radius: 11px;
             color: var(--text);
             font-size: 15px;
             font-weight: 500;
             font-family: inherit;
-            transition: all 0.2s;
+            transition: border-color 0.2s, box-shadow 0.2s;
             outline: none;
-            letter-spacing: 0.2px;
         }
-        .form-input::placeholder { 
-            color: rgba(148, 163, 184, 0.4); 
-            font-weight: 400;
-        }
-        .form-input:hover {
-            background: rgba(255, 255, 255, 0.06);
-            border-color: rgba(255, 255, 255, 0.14);
-        }
+        .form-input::placeholder { color: #4a5767; font-weight: 400; }
+        .form-input:hover { border-color: #2a3848; }
         .form-input:focus {
-            background: rgba(37, 211, 102, 0.04);
             border-color: var(--primary);
-            box-shadow: 0 0 0 4px rgba(37, 211, 102, 0.1);
+            box-shadow: 0 0 0 4px rgba(37, 211, 102, 0.12);
+        }
+        /* Autofill do Chrome sem fundo amarelo */
+        .form-input:-webkit-autofill {
+            -webkit-text-fill-color: var(--text);
+            -webkit-box-shadow: 0 0 0 1000px var(--field) inset;
+            caret-color: var(--text);
         }
 
-        /* botão olho dentro do input */
         .input-wrap .toggle-eye {
             position: absolute;
-            right: 12px;
+            right: 7px;
             background: transparent;
             border: none;
             cursor: pointer;
             color: var(--muted);
-            padding: 8px;
+            width: 34px; height: 34px;
             border-radius: 8px;
-            display: flex;
-            align-items: center;
-            transition: color 0.15s, background 0.15s, transform 0.15s;
+            display: flex; align-items: center; justify-content: center;
+            transition: color 0.15s, background 0.15s;
             z-index: 2;
         }
-        .input-wrap .toggle-eye:hover { 
-            color: var(--text); 
-            background: rgba(255,255,255,0.06); 
-            transform: scale(1.1);
-        }
-        .input-wrap .toggle-eye:active { transform: scale(0.95); }
+        .input-wrap .toggle-eye:hover { color: var(--text); background: rgba(255,255,255,0.06); }
 
-        /* Erro */
         .error-box {
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid rgba(239, 68, 68, 0.3);
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.28);
             color: #fca5a5;
-            padding: 10px 14px;
-            border-radius: 10px;
-            font-size: 13px;
-            margin-bottom: 16px;
+            padding: 11px 14px;
+            border-radius: 11px;
+            font-size: 13.5px;
+            font-weight: 500;
+            margin-bottom: 20px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
         }
+        .error-box svg { flex-shrink: 0; }
 
-        /* Botão entrar */
         .btn-submit {
             width: 100%;
-            padding: 13px;
-            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-            color: #fff;
+            height: 48px;
+            margin-top: 24px;
+            display: flex; align-items: center; justify-content: center;
+            background: var(--primary);
+            color: #03200e;
             border: none;
             border-radius: 11px;
-            font-size: 14px;
+            font-size: 15px;
             font-weight: 700;
+            font-family: inherit;
             cursor: pointer;
-            transition: transform 0.15s, box-shadow 0.15s;
-            margin-top: 8px;
-            letter-spacing: 0.3px;
-            box-shadow: 0 8px 20px rgba(37, 211, 102, 0.25);
+            transition: background 0.15s, box-shadow 0.15s;
+            box-shadow: 0 8px 22px rgba(37, 211, 102, 0.22);
         }
-        .btn-submit:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 12px 28px rgba(37, 211, 102, 0.35);
-        }
-        .btn-submit:active { transform: translateY(0); }
+        .btn-submit:hover { background: #2fe072; box-shadow: 0 10px 26px rgba(37, 211, 102, 0.3); }
+        .btn-submit:active { background: #20bf5b; }
+        .btn-submit:focus-visible { outline: 3px solid rgba(37, 211, 102, 0.45); outline-offset: 3px; }
 
-        /* Footer */
         .login-footer {
-            text-align: center;
-            margin-top: 22px;
-            font-size: 11px;
+            margin-top: 24px;
+            font-size: 12px;
             color: var(--muted);
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 6px;
         }
-        .login-footer .dev { color: var(--primary); font-weight: 700; }
+        .login-footer .dev { color: var(--primary); font-weight: 600; }
 
-        @media (max-width: 480px) {
-            .login-card { padding: 28px 22px; border-radius: 16px; }
-            .logo-circle { width: 56px; height: 56px; border-radius: 14px; }
-            .login-card h1 { font-size: 19px; }
+        @media (max-width: 440px) {
+            .login-card { padding: 22px 18px; border-radius: 16px; }
+            .brand-mark { width: 50px; height: 50px; border-radius: 14px; }
+            .login-wrap h1 { font-size: 22px; }
         }
     </style>
 </head>
 
 <body>
-    <div class="login-card">
-        <div class="logo-circle">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
-            </svg>
+    <main class="login-wrap">
+        <div class="brand-mark">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
         </div>
 
-        <h1>Central TI</h1>
-        <p class="subtitle">Sistema de gestão de chamados</p>
+        <h1>Central Chamados SESAU</h1>
+        <p class="subtitle">Entre para acessar a gestão de chamados</p>
 
-        <% if (error) { %>
-            <div class="error-box">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                <span><%= error %></span>
-            </div>
-        <% } %>
-
-        <form method="POST" action="/login">
-            <div class="form-field">
-                <label>Usuário ou CPF</label>
-                <div class="input-wrap">
-                    <svg class="icon-prefix" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                        <circle cx="12" cy="7" r="4"/>
-                    </svg>
-                    <input type="text" name="username" class="form-input" placeholder="Digite seu usuário ou CPF" required autofocus>
+        <div class="login-card">
+            <% if (error) { %>
+                <div class="error-box" role="alert">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span><%= error %></span>
                 </div>
-            </div>
+            <% } %>
 
-            <div class="form-field">
-                <label>Senha</label>
-                <div class="input-wrap">
-                    <svg class="icon-prefix" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                    </svg>
-                    <input type="password" name="password" id="senhaInput" class="form-input" placeholder="Digite sua senha" required style="padding-right: 50px;">
-                    <button type="button" class="toggle-eye" id="toggleSenha" onclick="alternarSenha()" aria-label="Mostrar senha">
-                        <svg class="eye-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                        <svg class="eye-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                    </button>
+            <form method="POST" action="/login">
+                <div class="form-field">
+                    <label for="usuarioInput">Usuário ou CPF</label>
+                    <div class="input-wrap">
+                        <svg class="icon-prefix" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                            <circle cx="12" cy="7" r="4"/>
+                        </svg>
+                        <input type="text" name="username" id="usuarioInput" class="form-input" placeholder="Digite seu usuário ou CPF" autocomplete="username" required autofocus>
+                    </div>
                 </div>
-            </div>
 
-            <button type="submit" class="btn-submit">Entrar</button>
-        </form>
+                <div class="form-field">
+                    <label for="senhaInput">Senha</label>
+                    <div class="input-wrap">
+                        <svg class="icon-prefix" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                        <input type="password" name="password" id="senhaInput" class="form-input" placeholder="Digite sua senha" autocomplete="current-password" required style="padding-right: 48px;">
+                        <button type="button" class="toggle-eye" id="toggleSenha" onclick="alternarSenha()" aria-label="Mostrar senha">
+                            <svg class="eye-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-submit">Entrar</button>
+            </form>
+        </div>
 
         <div class="login-footer">
             <span>v2.2</span>
             <span>·</span>
             <span>Desenvolvido por <span class="dev">Erick Vinicius</span></span>
         </div>
-    </div>
+    </main>
 
     <script>
         function alternarSenha() {
