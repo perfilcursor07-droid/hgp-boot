@@ -1557,7 +1557,7 @@ app.get('/api/tv/chamados', async (req, res) => {
               AND c.encerrado_em >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
             ${unidWhere}
             ORDER BY c.encerrado_em DESC
-            LIMIT 50
+            LIMIT 300
         `, unidParams);
 
         const [stats] = await db.query(`

@@ -1291,6 +1291,352 @@
             .chat-back-btn { display: flex; }
             .chamados-wa-workspace.chat-open .chat-modal-close { display: none; }
         }
+
+        /* ═══ Layout refresh (somente visual) ═════════════════════════════ */
+
+        /* ── Indicadores do topo ── */
+        .stat-chip {
+            padding: 7px 14px 7px 12px;
+            border-radius: 10px;
+            gap: 8px;
+            box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+        }
+        .stat-chip strong {
+            font-size: 15px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            margin-left: 2px;
+        }
+        .stat-chip-dot { width: 9px; height: 9px; box-shadow: 0 0 0 3px rgba(0,0,0,0.04); }
+        .stat-chip.stat-card-active { box-shadow: 0 0 0 3px rgba(37,211,102,0.15); }
+
+        .chamados-wa-workspace {
+            border-color: #e2e8f0;
+            border-radius: 14px;
+            box-shadow: 0 1px 3px rgba(15,23,42,0.06), 0 8px 24px rgba(15,23,42,0.04);
+        }
+
+        /* ── Inbox ── */
+        .chamados-wa-inbox { width: 400px; max-width: 440px; border-right-color: #e2e8f0; }
+
+        .chamados-wa-inbox .chamados-toolbar {
+            background: #fff;
+            padding: 12px 12px 10px;
+            gap: 10px;
+            border-bottom: 1px solid #eef1f4;
+        }
+        /* Busca em cima, filtros embaixo */
+        .chamados-wa-inbox .chamados-toolbar-right { order: -1; }
+        .chamados-wa-inbox .chamados-search {
+            background: #f1f5f9 !important;
+            border: 1px solid transparent !important;
+            padding: 9px 14px 9px 36px !important;
+            font-size: 13.5px !important;
+        }
+        .chamados-wa-inbox .chamados-search:focus {
+            background: #fff !important;
+            border-color: #25d366 !important;
+        }
+        .chamados-wa-inbox .chamados-count {
+            background: transparent;
+            padding: 0 2px;
+            font-size: 11.5px !important;
+        }
+        .chamados-wa-inbox .filter-tabs {
+            background: #f1f5f9 !important;
+            border: none !important;
+            border-radius: 10px !important;
+            padding: 3px !important;
+            gap: 2px;
+        }
+        .chamados-wa-inbox .filter-tab {
+            flex: 1 0 auto;
+            border-radius: 8px !important;
+            padding: 6px 10px !important;
+            font-size: 11.5px !important;
+            color: #475569 !important;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+        .chamados-wa-inbox .filter-tab:hover { color: #0f172a !important; }
+        .chamados-wa-inbox .filter-tab.active {
+            background: #fff !important;
+            color: #15803d !important;
+            box-shadow: 0 1px 3px rgba(15,23,42,0.12) !important;
+        }
+
+        /* Cabeçalhos das seções */
+        .chamados-wa-inbox .secao-header {
+            padding: 8px 14px;
+            border: none !important;
+            border-bottom: 1px solid #eef1f4 !important;
+            background: rgba(248,250,252,0.96) !important;
+            backdrop-filter: blur(6px);
+        }
+        .chamados-wa-inbox .secao-titulo {
+            font-size: 11px;
+            font-weight: 800;
+            color: #64748b;
+            letter-spacing: 0.6px;
+        }
+        .chamados-wa-inbox .secao-dot { width: 8px; height: 8px; }
+        .chamados-wa-inbox .secao-count {
+            font-size: 11px;
+            background: #fff;
+            border-color: #e2e8f0;
+            padding: 1px 9px;
+        }
+
+        /* Linhas da lista */
+        .wa-conv {
+            padding: 11px 14px 11px 17px;
+            gap: 12px;
+            border-bottom: 1px solid #f1f5f9;
+            align-items: flex-start;
+        }
+        /* Faixa lateral com a cor do status */
+        .wa-conv::after {
+            content: '';
+            position: absolute;
+            left: 0; top: 10px; bottom: 10px;
+            width: 3px;
+            border-radius: 0 3px 3px 0;
+            background: transparent;
+        }
+        .wa-conv[data-status="pendente"]::after       { background: #f59e0b; }
+        .wa-conv[data-status="aberto"]::after         { background: #22c55e; }
+        .wa-conv[data-status="em_atendimento"]::after { background: #3b82f6; }
+
+        .wa-conv:hover { background: #f8fafc; }
+        .wa-conv.active { background: #ecfdf3; }
+        .wa-conv.active::before { width: 3px; background: #16a34a; top: 0; bottom: 0; }
+        .wa-conv.active::after { display: none; }
+
+        /* Avatar colorido pelo status (no lugar do anel) */
+        .wa-conv-avatar {
+            width: 42px;
+            height: 42px;
+            font-size: 16px;
+            margin-top: 1px;
+        }
+        .wa-conv[data-status] .wa-conv-avatar { box-shadow: none; }
+        .wa-conv[data-status="pendente"] .wa-conv-avatar       { background: #fef3c7; color: #b45309; }
+        .wa-conv[data-status="aberto"] .wa-conv-avatar         { background: #dcfce7; color: #15803d; }
+        .wa-conv[data-status="em_atendimento"] .wa-conv-avatar { background: #dbeafe; color: #1d4ed8; }
+        .wa-conv[data-status="finalizado"] .wa-conv-avatar     { background: #f1f5f9; color: #94a3b8; }
+
+        .wa-conv-body { gap: 4px; }
+        .wa-conv-name { font-size: 14.5px; color: #0f172a; }
+        .wa-conv[data-status="finalizado"] .wa-conv-name { color: #475569; font-weight: 500; }
+        .wa-conv-time {
+            font-size: 11px;
+            font-weight: 600;
+            color: #94a3b8;
+            font-variant-numeric: tabular-nums;
+        }
+        .wa-conv-preview { font-size: 12.5px; color: #64748b; }
+        .wa-conv-bottom { gap: 8px; }
+        .wa-conv-proto {
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+            font-size: 10.5px;
+            font-weight: 600;
+            color: #475569;
+            background: #f1f5f9;
+            padding: 2px 7px;
+            border-radius: 5px;
+            letter-spacing: 0;
+        }
+        .wa-conv-atend {
+            font-size: 11.5px;
+            font-weight: 600;
+            color: #6366f1;
+        }
+        .wa-conv .status-chip {
+            font-size: 9.5px !important;
+            padding: 2px 8px !important;
+            border-radius: 999px !important;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .wa-conv .chat-badge {
+            background: #25d366;
+            width: 18px;
+            height: 18px;
+            font-size: 10px;
+            border: 2px solid #fff;
+        }
+        /* Linha com mensagem não lida: nome em destaque */
+        .wa-conv:has(.chat-badge[style*="flex"]) .wa-conv-name { font-weight: 800; }
+        .wa-conv:has(.chat-badge[style*="flex"]) .wa-conv-time { color: #16a34a; }
+
+        .wa-conv-actions {
+            border-radius: 12px;
+            padding: 4px 6px;
+            border-color: #e2e8f0;
+        }
+
+        .chamados-wa-inbox .paginacao-secao { background: #f8fafc; }
+
+        /* ── Chat: cabeçalho claro estilo WhatsApp Web ── */
+        .chamados-wa-chat .chat-modal-header {
+            background: #f8fafc;
+            color: #0f172a;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 10px 16px;
+            gap: 12px;
+            min-height: 64px;
+        }
+        .chamados-wa-chat .chat-header-avatar {
+            width: 42px;
+            height: 42px;
+            font-size: 16px;
+            background: linear-gradient(135deg, #25d366, #128c7e);
+            color: #fff;
+        }
+        .chamados-wa-chat .chat-header-name { font-size: 15.5px; font-weight: 700; color: #0f172a; }
+        .chamados-wa-chat .chat-header-sub { color: #64748b; font-size: 12.5px; gap: 6px; }
+        .chamados-wa-chat #chatProtocolo {
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: #475569;
+            background: #eef2f6;
+            padding: 1px 7px;
+            border-radius: 5px;
+        }
+        .chamados-wa-chat .chat-modal-close,
+        .chamados-wa-chat .chat-back-btn,
+        .chamados-wa-chat .chat-toggle-info-btn {
+            color: #475569;
+            background: transparent;
+        }
+        .chamados-wa-chat .chat-modal-close:hover,
+        .chamados-wa-chat .chat-back-btn:hover,
+        .chamados-wa-chat .chat-toggle-info-btn:hover {
+            background: #e2e8f0;
+            color: #0f172a;
+        }
+        /* Fechar fica por último, depois das ações */
+        .chamados-wa-chat .chat-modal-close { order: 10; }
+        .chamados-wa-chat .chat-encerrar-btn {
+            background: #fff;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+            padding: 7px 14px;
+            border-radius: 9px;
+            font-size: 12.5px;
+            font-weight: 700;
+            box-shadow: 0 1px 2px rgba(15,23,42,0.05);
+        }
+        .chamados-wa-chat .chat-encerrar-btn:hover {
+            background: #dc2626;
+            border-color: #dc2626;
+            color: #fff;
+        }
+
+        /* ── Chat: informações do chamado à direita ── */
+        .chamados-wa-chat .chat-sidebar-info {
+            order: 2;
+            width: 300px;
+            border-right: none;
+            border-left: 1px solid #e2e8f0;
+            background: #fff;
+        }
+        .chamados-wa-chat .chat-sidebar-section { padding: 16px; border-bottom-color: #f1f5f9; }
+        .chamados-wa-chat .chat-sidebar-title {
+            font-size: 11px;
+            font-weight: 800;
+            color: #64748b;
+            letter-spacing: 0.6px;
+            margin-bottom: 10px;
+        }
+        .chamados-wa-chat .chat-sidebar-fields {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .chamados-wa-chat .csf-item {
+            background: #f8fafc;
+            border: 1px solid #eef1f4;
+            border-radius: 9px;
+            padding: 8px 10px;
+            min-width: 0;
+            gap: 3px;
+        }
+        /* Setor e e-mail costumam ser longos: ocupam a linha inteira */
+        .chamados-wa-chat .csf-item:nth-child(2),
+        .chamados-wa-chat #cdEmailRow { grid-column: 1 / -1; }
+        .chamados-wa-chat .csf-label {
+            font-size: 10px;
+            font-weight: 700;
+            color: #94a3b8;
+            letter-spacing: 0.4px;
+        }
+        .chamados-wa-chat .csf-value {
+            font-size: 13px;
+            font-weight: 600;
+            color: #0f172a;
+        }
+        .chamados-wa-chat #cdIP,
+        .chamados-wa-chat #cdTelefone,
+        .chamados-wa-chat #cdCpf,
+        .chamados-wa-chat #cdImpressora {
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+            font-size: 12.5px;
+        }
+        .chamados-wa-chat .csf-descricao {
+            background: #fffbeb;
+            border-color: #fde68a;
+            color: #1e293b;
+            font-size: 13.5px;
+            line-height: 1.55;
+            max-height: none;
+            border-radius: 10px;
+            padding: 12px 14px;
+        }
+
+        /* ── Chat: mensagens e barra de digitação ── */
+        .chamados-wa-chat .chat-messages { padding: 18px 5%; }
+        .chamados-wa-chat .chat-compose-bar {
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            padding: 10px 14px;
+            align-items: center;
+        }
+        .chamados-wa-chat .chat-compose-input {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            box-shadow: none;
+        }
+        .chamados-wa-chat .chat-compose-input:focus { border-color: #25d366; box-shadow: 0 0 0 3px rgba(37,211,102,0.12); }
+        .chamados-wa-chat .chat-send-btn { border-radius: 12px; }
+        .chamados-wa-chat .chat-send-btn:disabled { opacity: 0.55; cursor: default; transform: none; }
+
+        .wa-chat-placeholder { background: #f8fafc; }
+        .wa-chat-placeholder h3 { font-weight: 700; font-size: 20px; color: #0f172a; }
+
+        /* ── Responsivo ── */
+        @media (max-width: 1280px) {
+            .chamados-wa-chat .chat-sidebar-info { width: 260px; min-width: 240px; }
+        }
+        @media (max-width: 1100px) {
+            .chamados-wa-inbox { width: 330px; }
+        }
+        @media (max-width: 900px) {
+            .chamados-wa-inbox { width: 100%; }
+        }
+        @media (max-width: 768px) {
+            /* No celular o painel de info volta para cima e abre pelo botão (i) */
+            .chamados-wa-chat .chat-sidebar-info {
+                order: 0;
+                width: 100%;
+                border-left: none;
+                border-bottom: 1px solid #e2e8f0;
+            }
+            .chamados-wa-chat .chat-encerrar-btn span { display: none; }
+            .chamados-wa-chat .chat-encerrar-btn { padding: 7px 9px; }
+        }
     </style>
 </head>
 <body>
