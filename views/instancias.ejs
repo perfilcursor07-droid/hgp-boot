@@ -203,7 +203,13 @@
             document.getElementById('inSession').value = i.session_name;
             document.getElementById('inSession').disabled = true; // não permitir editar session_name
             document.getElementById('inUnidade').value = i.unidade_id || '';
-            document.getElementById('inFlow').value = i.flow_id || '';
+            // Fluxo atual fora da lista (ex.: desativado): mantém como opção para não
+            // desvincular sem querer ao salvar outra alteração
+            const selFlow = document.getElementById('inFlow');
+            if (i.flow_id && !Array.from(selFlow.options).some(o => String(o.value) === String(i.flow_id))) {
+                selFlow.add(new Option(`${i.flow_nome || 'Fluxo #' + i.flow_id} (inativo)`, i.flow_id));
+            }
+            selFlow.value = i.flow_id || '';
             document.getElementById('inAtivo').checked = !!i.ativo;
             document.getElementById('modalIns').classList.add('open');
         }
@@ -220,6 +226,9 @@
                 flow_id: document.getElementById('inFlow').value || null,
                 ativo: document.getElementById('inAtivo').checked
             };
+            if (!body.flow_id && !confirm('Esta instância ficará SEM FLUXO e o bot não vai responder no WhatsApp. Salvar mesmo assim?')) {
+                return;
+            }
             try {
                 const r = await fetch(id ? `/api/instancias/${id}` : '/api/instancias', {
                     method: id ? 'PUT' : 'POST',

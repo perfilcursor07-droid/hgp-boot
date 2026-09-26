@@ -14,6 +14,8 @@ const { normalizarFluxoSesau } = require('./flow-normalizer');
 
 // Pool de instâncias ativas em memória: instanciaId -> { client, controller, status, qr, ... }
 const pool = new Map();
+// Instâncias sem fluxo já avisadas no log (evita repetir a cada ciclo do watchdog)
+const avisadosSemFluxo = new Set();
 
 async function carregarFlowDefinition(flowId, meta = {}) {
     if (!flowId) return null;
@@ -256,7 +258,7 @@ function listarInstanciasAtivas() {
 async function reconectarInstanciasCaiadas() {
     try {
         const [insts] = await db.query(
-            `SELECT id, session_name, nome FROM instancias WHERE is_legacy = FALSE AND ativo = TRUE`
+            `SELECT id, session_name, nome, flow_id FROM instancias WHERE is_legacy = FALSE AND ativo = TRUE`
         );
         const sessionDir = path.join(__dirname, '..', '.baileys_auth');
         for (const inst of insts) {
@@ -265,6 +267,20 @@ async function reconectarInstanciasCaiadas() {
 
             const entry = pool.get(inst.id);
             if (!entry) {
+                // Sem fluxo é erro de configuração: tentar a cada 45s só enche o log.
+                // Registra o motivo uma vez na tela /instancias e espera alguém vincular.
+                if (!inst.flow_id) {
+                    if (!avisadosSemFluxo.has(inst.id)) {
+                        avisadosSemFluxo.add(inst.id);
+                        console.error(`[InstanceManager] ${inst.nome} sem fluxo vinculado — bot parado. Vincule um fluxo em /instancias.`);
+                        await atualizarStatusBanco(inst.id, {
+                            status: 'error',
+                            last_error: 'Instância sem fluxo vinculado. Edite a instância e escolha o fluxo.'
+                        }).catch(() => {});
+                    }
+                    continue;
+                }
+                avisadosSemFluxo.delete(inst.id);
                 console.log(`[InstanceManager] Watchdog: ${inst.nome} fora do pool — reconectando`);
                 iniciarInstancia(inst.id).catch(err => {
                     console.error(`[InstanceManager] Falha watchdog ${inst.nome}:`, err.message);
